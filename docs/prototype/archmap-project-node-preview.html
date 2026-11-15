@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArchMap · 项目执行拓扑样机</title>
+<style>
+  :root {
+    --bg: #080b10;
+    --bg-soft: #0d1219;
+    --panel: #111720;
+    --panel-2: #151c27;
+    --panel-3: #1a2331;
+    --ink: #e7edf7;
+    --muted: #7f8da3;
+    --muted-2: #56657a;
+    --line: #263142;
+    --line-soft: rgba(148, 163, 184, .14);
+    --edge: #637189;
+    --accent: #6ea8ff;
+    --accent-2: #9b8cff;
+    --green: #8bdc64;
+    --amber: #ffb454;
+    --red: #ff707b;
+    --cyan: #63d8ee;
+    --pink: #f07ab8;
+    --shadow: 0 18px 50px rgba(0, 0, 0, .42);
+    --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; }
+  body {
+    overflow: hidden;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 32% 14%, rgba(66, 99, 154, .14), transparent 30%),
+      radial-gradient(circle at 80% 78%, rgba(121, 84, 172, .10), transparent 35%),
+      var(--bg);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; }
+  button { color: inherit; }
+  button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .app { display: flex; flex-direction: column; height: 100vh; min-height: 640px; }
+
+  /* ---------- top chrome ---------- */
+  .topbar {
+    height: 72px;
+    flex: 0 0 72px;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line-soft);
+    background: rgba(9, 13, 19, .88);
+    backdrop-filter: blur(18px);
+    z-index: 30;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 232px; }
+  .brand-mark {
+    width: 38px; height: 38px; border-radius: 11px;
+    display: grid; place-items: center;
+    background:
+      linear-gradient(135deg, rgba(110,168,255,.20), rgba(155,140,255,.08)),
+      #111a28;
+    border: 1px solid rgba(110, 168, 255, .32);
+    box-shadow: inset 0 0 22px rgba(110, 168, 255, .10), 0 0 24px rgba(110, 168, 255, .08);
+  }
+  .brand-mark svg { width: 22px; height: 22px; }
+  .brand-title { font-weight: 740; letter-spacing: .01em; font-size: 15px; line-height: 1.1; }
+  .brand-sub { color: var(--muted); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; margin-top: 4px; }
+
+  .project-chip {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    padding-left: 20px;
+    border-left: 1px solid var(--line-soft);
+    white-space: nowrap;
+  }
+  .project-chip strong { color: var(--ink); font-weight: 640; }
+  .project-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); }
+
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .search-wrap {
+    width: min(300px, 25vw);
+    height: 38px;
+    display: flex; align-items: center; gap: 9px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(17, 23, 32, .74);
+    padding: 0 11px;
+    transition: border-color .18s, background .18s, box-shadow .18s;
+  }
+  .search-wrap:focus-within {
+    border-color: rgba(110,168,255,.58);
+    background: #121a25;
+    box-shadow: 0 0 0 3px rgba(110,168,255,.08);
+  }
+  .search-wrap svg { color: var(--muted-2); width: 15px; height: 15px; flex: 0 0 auto; }
+  .search-wrap input {
+    width: 100%; min-width: 0; color: var(--ink); background: none; border: 0; outline: 0;
+    font-size: 12px;
+  }
+  .search-wrap input::placeholder { color: var(--muted-2); }
+  .kbd {
+    flex: 0 0 auto; font-size: 9px; color: var(--muted-2); border: 1px solid var(--line);
+    border-radius: 5px; padding: 2px 5px; font-family: var(--mono);
+  }
+  .icon-btn {
+    width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 10px;
+    background: rgba(17, 23, 32, .74); display: grid; place-items: center; cursor: pointer;
+    color: var(--muted); transition: .18s ease;
+  }
+  .icon-btn:hover { color: var(--ink); border-color: #3b4a60; background: var(--panel-2); }
+
+  .filterbar {
+    height: 45px;
+    flex: 0 0 45px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line-soft);
+    background: rgba(10, 14, 20, .68);
+    z-index: 20;
+  }
+  .filter-label {
+    color: var(--muted-2); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    margin-right: 4px; white-space: nowrap;
+  }
+  .module-chip {
+    --mc: #6ea8ff;
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 27px; padding: 0 10px; border-radius: 7px; cursor: pointer;
+    color: var(--muted); border: 1px solid transparent; background: transparent;
+    font-size: 11px; white-space: nowrap; transition: .18s ease;
+  }
+  .module-chip:hover { color: var(--ink); background: rgba(255,255,255,.035); }
+  .module-chip[aria-pressed="true"] {
+    color: var(--ink); background: rgba(255,255,255,.04); border-color: var(--line);
+  }
+  .module-chip[aria-pressed="false"] { opacity: .42; }
+  .module-chip i {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--mc); box-shadow: 0 0 9px color-mix(in srgb, var(--mc) 70%, transparent);
+  }
+  .filter-tip { margin-left: auto; color: var(--muted-2); font-size: 10px; white-space: nowrap; }
+  .filter-tip strong { color: var(--muted); font-weight: 600; }
+
+  /* ---------- layout ---------- */
+  .workspace { flex: 1 1 auto; min-height: 0; display: flex; }
+  .viewport {
+    position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden;
+    cursor: grab;
+    background:
+      radial-gradient(circle at 50% 15%, rgba(50, 72, 111, .12), transparent 42%),
+      #090d13;
+  }
+  .viewport.is-panning { cursor: grabbing; }
+  .viewport::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    box-shadow: inset 0 0 120px 22px rgba(0,0,0,.34);
+  }
+  .viewport-grid {
+    position: absolute; inset: 0; pointer-events: none; opacity: .84;
+    background-image: radial-gradient(circle, rgba(101, 120, 148, .26) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: linear-gradient(to bottom, black, rgba(0,0,0,.66) 76%, transparent);
+  }
+
+  .canvas-status {
+    position: absolute; top: 18px; left: 22px; z-index: 8; pointer-events: none;
+  }
+  .canvas-kicker { color: var(--accent); font-size: 9px; letter-spacing: .17em; text-transform: uppercase; }
+  .canvas-title { margin-top: 5px; font-weight: 720; font-size: 16px; letter-spacing: .01em; }
+  .canvas-sub { margin-top: 4px; color: var(--muted); font-size: 10px; }
+  .canvas-sub kbd {
+    border: 1px solid var(--line); padding: 1px 4px; border-radius: 4px; font-family: var(--mono); color: var(--muted);
+  }
+
+  .world {
+    position: absolute; left: 0; top: 0; width: 1380px; height: 980px;
+    transform-origin: 0 0; will-change: transform;
+    background-image: radial-gradient(circle, rgba(101, 120, 148, .10) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .module-zone {
+    --mc-rgb: 110,168,255;
+    position: absolute; border-radius: 18px;
+    border: 1px solid rgba(var(--mc-rgb), .22);
+    background:
+      linear-gradient(180deg, rgba(var(--mc-rgb), .070), rgba(var(--mc-rgb), .014) 50%, rgba(255,255,255,.006));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+    transition: opacity .2s ease, filter .2s ease;
+  }
+  .module-zone::before {
+    content: ""; position: absolute; left: 18px; right: 18px; top: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--mc-rgb), .62), transparent);
+  }
+  .module-zone.is-off { opacity: .12; filter: grayscale(.5); }
+  .module-zone.is-search-dim { opacity: .36; }
+  .module-head {
+    display: flex; align-items: center; gap: 8px; padding: 14px 16px 0;
+    color: rgba(var(--mc-rgb), .96); font-size: 11px; font-weight: 650;
+    letter-spacing: .02em;
+  }
+  .module-head .m-dot {
+    width: 7px; height: 7px; border-radius: 2px; background: rgb(var(--mc-rgb));
+    box-shadow: 0 0 10px rgba(var(--mc-rgb), .68);
+  }
+  .module-head .m-count { margin-left: auto; color: var(--muted-2); font-family: var(--mono); font-size: 9px; font-weight: 500; }
+  .module-head .m-package { color: var(--muted-2); font-weight: 500; font-family: var(--mono); font-size: 8px; letter-spacing: .04em; }
+
+  .edges-layer { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+  .edge {
+    fill: none; stroke: var(--edge); stroke-width: 1.35; opacity: .52;
+    vector-effect: non-scaling-stroke;
+    transition: opacity .16s ease, stroke .16s ease, stroke-width .16s ease;
+  }
+  .edge.is-external { stroke-dasharray: 5 5; opacity: .42; }
+  .edge.is-highlight { stroke: #9dc5ff; stroke-width: 2.1; opacity: 1; filter: drop-shadow(0 0 4px rgba(110,168,255,.35)); }
+  .edge.is-dim { opacity: .08; }
+  .edge.is-search-dim { opacity: .06; }
+  .edge.is-hidden { display: none; }
+
+  .nodes-layer { position: absolute; inset: 0; }
+  .fn-node {
+    --mc: #6ea8ff; --mc-rgb: 110,168,255;
+    position: absolute; height: 82px; border-radius: 11px; overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(var(--mc-rgb), .10), rgba(var(--mc-rgb), .025) 36%, rgba(255,255,255,.012)),
+      #0e141d;
+    border: 1px solid rgba(var(--mc-rgb), .46);
+    box-shadow: 0 8px 20px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.045);
+    cursor: pointer; user-select: none;
+    transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, opacity .16s ease;
+    animation: nodeIn .46s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .fn-node::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: linear-gradient(90deg, rgb(var(--mc-rgb)), rgba(var(--mc-rgb), .08));
+  }
+  .fn-node:hover, .fn-node.is-focus {
+    transform: translateY(-2px);
+    border-color: rgba(var(--mc-rgb), .88);
+    box-shadow: 0 12px 30px rgba(0,0,0,.40), 0 0 0 3px rgba(var(--mc-rgb), .08), 0 0 26px rgba(var(--mc-rgb), .14);
+  }
+  .fn-node.is-selected {
+    border-color: rgba(var(--mc-rgb), 1);
+    box-shadow: 0 12px 32px rgba(0,0,0,.46), 0 0 0 3px rgba(var(--mc-rgb), .14), 0 0 30px rgba(var(--mc-rgb), .18);
+  }
+  .fn-node.is-dim { opacity: .22; }
+  .fn-node.is-search-dim { opacity: .12; filter: saturate(.4); }
+  .fn-node.is-hidden { display: none; }
+  .fn-node.is-external { border-style: dashed; background: rgba(14, 20, 29, .72); }
+  .fn-node.is-external .fn-name { color: #b7c2d2; }
+  .fn-node.is-entry::before {
+    content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+    box-shadow: inset 0 0 26px rgba(var(--mc-rgb), .08);
+  }
+
+  .fn-top { height: 25px; display: flex; align-items: center; gap: 7px; padding: 7px 10px 0; }
+  .fn-glyph {
+    width: 15px; height: 15px; display: grid; place-items: center; border-radius: 4px;
+    color: rgb(var(--mc-rgb)); background: rgba(var(--mc-rgb), .12);
+    border: 1px solid rgba(var(--mc-rgb), .18); font-family: var(--mono); font-size: 9px; line-height: 1;
+  }
+  .fn-module { color: var(--muted); font-size: 8px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fn-entry {
+    margin-left: auto; color: #c6f6a5; background: rgba(139,220,100,.10);
+    border: 1px solid rgba(139,220,100,.24); border-radius: 4px;
+    font-size: 7px; font-weight: 700; letter-spacing: .10em; padding: 2px 4px;
+  }
+  .fn-name {
+    padding: 5px 11px 0; color: #f0f5fb; font-family: var(--mono);
+    font-size: 13px; font-weight: 640; letter-spacing: -.02em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .fn-meta {
+    display: flex; align-items: center; gap: 6px; padding: 5px 11px 0;
+    color: var(--muted-2); font-size: 8.5px; font-family: var(--mono);
+  }
+  .fn-meta b { color: var(--muted); font-weight: 500; }
+  .fn-meta .sep { color: #334056; }
+  .fn-tags {
+    display: flex; gap: 4px; padding: 5px 11px 0; overflow: hidden; white-space: nowrap;
+  }
+  .fn-tag {
+    color: rgba(var(--mc-rgb), .86); background: rgba(var(--mc-rgb), .07);
+    border: 1px solid rgba(var(--mc-rgb), .14); border-radius: 3px;
+    padding: 1px 4px; font-size: 7px; font-family: var(--mono);
+  }
+
+  /* ---------- hover callout ---------- */
+  .graph-legend {
+    position: absolute; left: 20px; bottom: 18px; z-index: 8;
+    display: flex; align-items: center; gap: 15px;
+    padding: 10px 13px; border: 1px solid var(--line-soft);
+    border-radius: 10px; background: rgba(11, 16, 23, .76); backdrop-filter: blur(10px);
+    color: var(--muted); font-size: 9px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .legend-line { width: 24px; height: 1px; background: #7b899d; position: relative; }
+  .legend-line::after { content: ""; position: absolute; right: -1px; top: -2.5px; border-left: 4px solid #7b899d; border-top: 3px solid transparent; border-bottom: 3px solid transparent; }
+  .legend-line.dashed { background: none; border-top: 1px dashed #7b899d; }
+  .legend-line.dashed::after { top: -3.5px; }
+  .legend-square { width: 7px; height: 7px; border-radius: 2px; background: var(--green); box-shadow: 0 0 8px rgba(139,220,100,.55); }
+
+  .zoombar {
+    position: absolute; right: 18px; bottom: 18px; z-index: 9;
+    display: flex; align-items: center; gap: 3px; padding: 4px;
+    border: 1px solid var(--line-soft); border-radius: 10px;
+    background: rgba(11, 16, 23, .82); backdrop-filter: blur(10px);
+    box-shadow: 0 10px 24px rgba(0,0,0,.24);
+  }
+  .zoombar button {
+    width: 29px; height: 27px; border: 0; border-radius: 6px; background: transparent;
+    color: var(--muted); cursor: pointer; display: grid; place-items: center; font-size: 15px;
+  }
+  .zoombar button:hover { color: var(--ink); background: rgba(255,255,255,.06); }
+  .zoom-value { min-width: 39px; text-align: center; color: var(--muted-2); font-family: var(--mono); font-size: 9px; }
+
+  /* ---------- detail panel ---------- */
+  .detail-panel {
+    width: 338px; flex: 0 0 338px; min-width: 0; overflow: hidden;
+    border-left: 1px solid var(--line-soft);
+    background: linear-gradient(180deg, rgba(17, 23, 32, .97), rgba(12, 17, 24, .99));
+    display: flex; flex-direction: column; z-index: 12;
+  }
+  .detail-scroll { overflow-y: auto; padding: 22px 20px 26px; scrollbar-width: thin; scrollbar-color: #2a3546 transparent; }
+  .detail-scroll::-webkit-scrollbar { width: 5px; }
+  .detail-scroll::-webkit-scrollbar-thumb { background: #2a3546; border-radius: 6px; }
+  .eyebrow { color: var(--muted-2); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; }
+  .detail-title { margin: 7px 0 0; font-size: 18px; line-height: 1.2; letter-spacing: -.02em; }
+  .detail-desc { color: var(--muted); font-size: 11px; line-height: 1.7; margin: 9px 0 0; }
+  .detail-divider { height: 1px; background: var(--line-soft); margin: 19px 0; }
+
+  .project-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; }
+  .stat-card {
+    padding: 10px 9px; border: 1px solid var(--line-soft); border-radius: 8px;
+    background: rgba(255,255,255,.018);
+  }
+  .stat-number { font-family: var(--mono); font-size: 17px; line-height: 1; color: var(--ink); }
+  .stat-label { margin-top: 5px; color: var(--muted-2); font-size: 8px; }
+  .panel-section-title { display: flex; align-items: center; gap: 8px; margin: 20px 0 9px; color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .04em; }
+  .panel-section-title span { margin-left: auto; color: var(--muted-2); font-family: var(--mono); font-weight: 500; }
+  .module-list { display: flex; flex-direction: column; gap: 5px; }
+  .module-row {
+    display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px;
+    border: 1px solid transparent; border-radius: 7px; background: transparent;
+    color: var(--muted); font-size: 10px; cursor: pointer; text-align: left;
+  }
+  .module-row:hover { background: rgba(255,255,255,.035); color: var(--ink); }
+  .module-row i { width: 7px; height: 7px; border-radius: 2px; background: var(--mc); }
+  .module-row b { color: var(--ink); font-weight: 560; }
+  .module-row .module-path { margin-left: auto; color: var(--muted-2); font-family: var(--mono); font-size: 8px; }
+
+  .detail-head { display: flex; align-items: flex-start; gap: 12px; }
+  .detail-color { width: 4px; align-self: stretch; border-radius: 4px; background: var(--mc); box-shadow: 0 0 14px color-mix(in srgb, var(--mc) 45%, transparent); }
+  .detail-name { margin: 0; font-family: var(--mono); font-size: 18px; letter-spacing: -.035em; line-height: 1.2; word-break: break-word; }
+  .detail-module { margin-top: 6px; color: var(--mc); font-size: 10px; }
+  .badge-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .badge {
+    border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px;
+    color: var(--muted); font-family: var(--mono); font-size: 8px; background: rgba(255,255,255,.018);
+  }
+  .badge.green { color: #b8ef92; border-color: rgba(139,220,100,.26); background: rgba(139,220,100,.06); }
+  .badge.blue { color: #a9c9ff; border-color: rgba(110,168,255,.26); background: rgba(110,168,255,.06); }
+
+  .detail-code {
+    margin-top: 16px; padding: 11px 12px; border-radius: 8px;
+    border: 1px solid var(--line-soft); background: #0a0f16;
+    color: #bcc8d9; font-family: var(--mono); font-size: 9.5px; line-height: 1.65;
+    word-break: break-all;
+  }
+  .detail-code .label { display: block; color: var(--muted-2); font-family: var(--font); font-size: 8px; letter-spacing: .10em; text-transform: uppercase; margin-bottom: 4px; }
+  .metric-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin-top: 14px; }
+  .metric {
+    padding: 9px 10px; border: 1px solid var(--line-soft); background: rgba(255,255,255,.017); border-radius: 7px;
+  }
+  .metric strong { display: block; font-family: var(--mono); font-size: 14px; font-weight: 560; }
+  .metric span { display: block; margin-top: 3px; color: var(--muted-2); font-size: 8px; }
+
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin: 19px 0 8px; }
+  .section-head span { color: var(--muted); font-size: 10px; font-weight: 650; }
+  .section-head em { color: var(--muted-2); font-style: normal; font-family: var(--mono); font-size: 8px; }
+  .call-list { display: flex; flex-direction: column; gap: 4px; }
+  .call-row {
+    display: flex; align-items: center; gap: 8px; border: 1px solid transparent;
+    padding: 7px 8px; border-radius: 6px; background: rgba(255,255,255,.018);
+    color: #b9c5d6; font-family: var(--mono); font-size: 9px; cursor: pointer; text-align: left;
+  }
+  .call-row:hover { border-color: var(--line); background: rgba(110,168,255,.055); color: var(--ink); }
+  .call-row .arrow { color: var(--muted-2); font-size: 10px; }
+  .call-row .call-module { margin-left: auto; color: var(--muted-2); font-family: var(--font); font-size: 8px; }
+  .call-empty { color: var(--muted-2); font-size: 9px; padding: 7px 1px; }
+  .open-flow-btn {
+    width: 100%; margin-top: 18px; height: 39px; border: 1px solid rgba(110,168,255,.36);
+    border-radius: 8px; background: linear-gradient(180deg, rgba(110,168,255,.14), rgba(110,168,255,.07));
+    color: #d7e7ff; font-size: 11px; font-weight: 620; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .open-flow-btn:hover { background: linear-gradient(180deg, rgba(110,168,255,.22), rgba(110,168,255,.10)); border-color: rgba(110,168,255,.62); }
+  .open-flow-btn svg { width: 14px; height: 14px; }
+  .panel-hint { color: var(--muted-2); font-size: 9px; line-height: 1.65; margin-top: 13px; }
+  .panel-hint kbd { border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; font-family: var(--mono); color: var(--muted); }
+
+  /* ---------- internal execution flow overlay ---------- */
+  .flow-overlay {
+    position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+    padding: 24px; background: rgba(3, 6, 10, .72); backdrop-filter: blur(9px);
+    opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  }
+  .flow-overlay.is-open { opacity: 1; pointer-events: auto; }
+  .flow-shell {
+    width: min(1180px, calc(100vw - 48px)); height: min(900px, calc(100vh - 48px));
+    display: flex; flex-direction: column; overflow: hidden; border-radius: 15px;
+    background: #f8fafc; color: #0f172a; box-shadow: 0 32px 90px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06);
+    transform: translateY(8px) scale(.985); transition: transform .22s cubic-bezier(.2,.7,.2,1);
+  }
+  .flow-overlay.is-open .flow-shell { transform: translateY(0) scale(1); }
+  .flow-head {
+    flex: 0 0 62px; display: flex; align-items: center; gap: 15px; padding: 0 18px;
+    background: #fff; border-bottom: 1px solid #e2e8f0;
+  }
+  .flow-back {
+    width: 31px; height: 31px; display: grid; place-items: center; border-radius: 7px;
+    border: 1px solid #dbe3ee; background: #fff; cursor: pointer; color: #64748b;
+  }
+  .flow-back:hover { background: #f1f5f9; color: #0f172a; }
+  .flow-title-wrap { min-width: 0; }
+  .flow-breadcrumb { color: #94a3b8; font-size: 9px; letter-spacing: .03em; }
+  .flow-breadcrumb b { color: #475569; font-weight: 620; }
+  .flow-title { margin-top: 4px; font-family: var(--mono); font-size: 15px; font-weight: 700; letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .flow-title span { font-family: var(--font); color: #94a3b8; font-size: 9px; font-weight: 500; margin-left: 7px; letter-spacing: .02em; }
+  .flow-actions { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+  .flow-toggle {
+    display: flex; align-items: center; gap: 7px; height: 29px; padding: 0 9px;
+    border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; color: #64748b;
+    font-size: 9px; cursor: pointer;
+  }
+  .flow-toggle input { accent-color: #a855f7; margin: 0; }
+  .flow-close {
+    width: 31px; height: 31px; border-radius: 7px; border: 1px solid #dbe3ee;
+    background: #fff; color: #64748b; display: grid; place-items: center; cursor: pointer;
+  }
+  .flow-close:hover { background: #fff1f2; color: #dc2626; border-color: #fecdd3; }
+  .flow-canvas {
+    position: relative; flex: 1 1 auto; min-height: 0; overflow: auto;
+    background-color: #f8fafc;
+    background-image: radial-gradient(circle, #dbe4ef 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .flow-canvas svg { display: block; width: 100%; height: 100%; min-height: 540px; min-width: 760px; }
+  .flow-foot {
+    position: absolute; left: 18px; bottom: 14px; display: flex; gap: 15px; align-items: center;
+    padding: 8px 11px; border: 1px solid #e2e8f0; border-radius: 8px;
+    background: rgba(255,255,255,.90); color: #64748b; font-size: 8px; backdrop-filter: blur(8px);
+  }
+  .flow-foot .legend-line { background: #475569; }
+  .flow-foot .legend-line::after { border-left-color: #475569; }
+  .flow-foot .legend-line.dashed { background: none; border-top-color: #f59e0b; }
+  .flow-foot .legend-line.dashed::after { border-left-color: #f59e0b; }
+  .flow-foot .legend-line.data { background: none; border-top: 1px dashed #a855f7; }
+  .flow-foot .legend-line.data::after { border-left-color: #a855f7; }
+  .flow-note {
+    position: absolute; right: 18px; bottom: 14px; color: #94a3b8;
+    font-size: 8px; background: rgba(255,255,255,.84); border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 5px 8px;
+  }
+  .data-edge { transition: opacity .18s ease; }
+  .flow-canvas.hide-data .data-edge { opacity: 0; pointer-events: none; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 25px; transform: translate(-50%, 10px); z-index: 200;
+    padding: 8px 13px; border-radius: 7px; color: #d6e3f5; background: #131c28;
+    border: 1px solid #2a3a51; box-shadow: var(--shadow); font-size: 10px;
+    opacity: 0; pointer-events: none; transition: .18s ease;
+  }
+  .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+  @keyframes nodeIn {
+    from { opacity: 0; transform: translateY(7px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @media (max-width: 1180px) {
+    .detail-panel { width: 300px; flex-basis: 300px; }
+    .search-wrap { width: 210px; }
+    .project-chip { display: none; }
+    .filter-tip { display: none; }
+  }
+  @media (max-width: 900px) {
+    .detail-panel { display: none; }
+    .brand { min-width: auto; }
+    .topbar { gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#8ebcff">
+          <circle cx="5.5" cy="6" r="2.2"></circle>
+          <circle cx="18.5" cy="6" r="2.2"></circle>
+          <circle cx="12" cy="18" r="2.2"></circle>
+          <path d="M7.5 7.3 10.5 16M16.5 7.3 13.5 16M7.7 6h8.6"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">ArchMap</div>
+        <div class="brand-sub">Execution topology</div>
+      </div>
+    </div>
+    <div class="project-chip"><span class="dot"></span><strong>dsh-shop</strong><span>Python</span></div>
+    <div class="top-actions">
+      <label class="search-wrap" aria-label="搜索函数">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.8" cy="10.8" r="6.2"></circle><path d="m16 16 4.2 4.2"></path></svg>
+        <input id="searchInput" type="search" placeholder="搜索函数、模块或标签…" autocomplete="off" spellcheck="false">
+        <span class="kbd">⌘K</span>
+      </label>
+      <button class="icon-btn" id="fitBtn" title="适应画布" aria-label="适应画布">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path></svg>
+      </button>
+      <button class="icon-btn" id="focusBtn" title="聚焦入口函数" aria-label="聚焦入口函数">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="filterbar">
+    <span class="filter-label">Modules</span>
+    <div id="moduleChips" style="display:flex;gap:3px;overflow:hidden"></div>
+    <span class="filter-tip"><strong id="visibleCount">20</strong> functions · <strong>25</strong> call edges</span>
+  </div>
+
+  <main class="workspace">
+    <section class="viewport" id="viewport" aria-label="项目函数执行拓扑">
+      <div class="viewport-grid"></div>
+      <div class="canvas-status">
+        <div class="canvas-kicker">Project graph / modules first</div>
+        <div class="canvas-title">项目执行拓扑</div>
+        <div class="canvas-sub">以模块为边界 · 双击函数进入内部执行流 · <kbd>滚轮</kbd>缩放 <kbd>拖拽</kbd>平移</div>
+      </div>
+
+      <div class="world" id="world">
+        <div id="moduleZones"></div>
+        <svg class="edges-layer" id="edgesLayer" width="1380" height="980" viewBox="0 0 1380 980" aria-hidden="true">
+          <defs>
+            <marker id="arrow-default" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+              <path d="M0 0 L8 4 L0 8 Z" fill="#7d8ba0"></path>
+            </marker>
+            <marker id="arrow-highlight" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+              <path d="M0 0 L8 4 L0 8 Z" fill="#9dc5ff"></path>
+            </marker>
+            <marker id="arrow-external" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+              <path d="M0 0 L8 4 L0 8 Z" fill="#6b778b"></path>
+            </marker>
+          </defs>
+        </svg>
+        <div class="nodes-layer" id="nodesLayer"></div>
+      </div>
+
+      <div class="graph-legend" aria-label="图例">
+        <span class="legend-item"><span class="legend-line"></span>函数调用</span>
+        <span class="legend-item"><span class="legend-line dashed"></span>外部调用</span>
+        <span class="legend-item"><span class="legend-square"></span>入口函数</span>
+      </div>
+      <div class="zoombar" aria-label="缩放控制">
+        <button id="zoomOut" aria-label="缩小">−</button>
+        <span class="zoom-value" id="zoomValue">100%</span>
+        <button id="zoomIn" aria-label="放大">+</button>
+      </div>
+    </section>
+
+    <aside class="detail-panel" aria-label="函数详情">
+      <div class="detail-scroll" id="detailScroll"></div>
+    </aside>
+  </main>
+</div>
+
+<div class="flow-overlay" id="flowOverlay" role="dialog" aria-modal="true" aria-labelledby="flowTitle">
+  <div class="flow-shell">
+    <header class="flow-head">
+      <button class="flow-back" id="flowBack" aria-label="返回项目图" title="返回项目图">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 18-6-6 6-6"></path></svg>
+      </button>
+      <div class="flow-title-wrap">
+        <div class="flow-breadcrumb" id="flowBreadcrumb"></div>
+        <div class="flow-title" id="flowTitle">checkout <span>函数内部执行流 · 样式示意</span></div>
+      </div>
+      <div class="flow-actions">
+        <label class="flow-toggle" title="显示或隐藏函数内数据依赖">
+          <input type="checkbox" id="dataToggle">
+          数据依赖
+        </label>
+        <button class="flow-close" id="flowClose" aria-label="关闭" title="关闭">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+        </button>
+      </div>
+    </header>
+    <div class="flow-canvas hide-data" id="flowCanvas">
+      <div id="flowSvgHost" style="width:100%;height:100%"></div>
+      <div class="flow-foot" aria-label="函数流程图例">
+        <span class="legend-item"><span class="legend-line"></span>顺序 / true / false</span>
+        <span class="legend-item"><span class="legend-line dashed"></span>回边 / 异常</span>
+        <span class="legend-item"><span class="legend-line data"></span>数据依赖</span>
+      </div>
+      <div class="flow-note">内部流样式示意 · 当前以 checkout 为模板</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const WORLD_W = 1380;
+  const WORLD_H = 980;
+
+  const modules = [
+    { id: "orders",        name: "订单与结算", package: "orders",       color: "#f59e0b", rgb: "245,158,11",  x: 48,  y: 92,  w: 420, h: 430 },
+    { id: "identity",      name: "用户与权限", package: "identity",     color: "#38bdf8", rgb: "56,189,248",  x: 500, y: 70,  w: 360, h: 360 },
+    { id: "payments",      name: "支付与账务", package: "payments",     color: "#a3e635", rgb: "163,230,53",  x: 900, y: 90,  w: 430, h: 420 },
+    { id: "inventory",     name: "库存与商品", package: "inventory",    color: "#a78bfa", rgb: "167,139,250", x: 60,  y: 570, w: 420, h: 350 },
+    { id: "notifications", name: "通知与任务", package: "notifications", color: "#f472b6", rgb: "244,114,182", x: 510, y: 530, w: 420, h: 390 },
+    { id: "telemetry",     name: "可观测性",   package: "telemetry",    color: "#22d3ee", rgb: "34,211,238",  x: 960, y: 580, w: 300, h: 330 }
+  ];
+
+  const functions = [
+    { id: "checkout", name: "checkout", module: "orders", x: 84, y: 148, w: 178, h: 82, entry: true, steps: 12, calls: 7, tags: ["entry", "public"], role: "结算入口", file: "app/orders/checkout.py:42", desc: "接收订单上下文，校验用户与优惠，完成支付、库存预留并触发通知。" },
+    { id: "validate_order", name: "validate_order", module: "orders", x: 84, y: 254, w: 178, h: 82, steps: 8, calls: 2, tags: ["public"], role: "订单校验", file: "app/orders/validation.py:18", desc: "检查订单状态、商品快照与必填字段，并执行权限前置校验。" },
+    { id: "apply_coupon", name: "apply_coupon", module: "orders", x: 84, y: 360, w: 178, h: 82, steps: 7, calls: 1, tags: ["promotion"], role: "优惠计算", file: "app/orders/promotion.py:63", desc: "解析优惠券规则并把折扣写入订单上下文。" },
+    { id: "calc_total", name: "calc_total", module: "orders", x: 282, y: 306, w: 178, h: 82, steps: 10, calls: 0, tags: ["pure"], role: "金额汇总", file: "app/orders/pricing.py:15", desc: "汇总商品金额、运费与优惠，生成最终应付金额。" },
+    { id: "load_user", name: "load_user", module: "identity", x: 532, y: 130, w: 178, h: 82, steps: 6, calls: 0, tags: ["query"], role: "用户加载", file: "app/identity/users.py:27", desc: "根据会话与租户信息加载当前用户上下文。" },
+    { id: "check_permission", name: "check_permission", module: "identity", x: 532, y: 235, w: 178, h: 82, steps: 9, calls: 1, tags: ["policy"], role: "权限判断", file: "app/identity/policy.py:54", desc: "聚合角色、资源和租户策略，判断当前操作是否被允许。" },
+    { id: "refresh_session", name: "refresh_session", module: "identity", x: 532, y: 340, w: 178, h: 82, steps: 5, calls: 1, tags: ["side-effect"], role: "会话续期", file: "app/identity/session.py:31", desc: "刷新会话有效期，并把审计事件写入可观测性模块。" },
+    { id: "authorize_payment", name: "authorize_payment", module: "payments", x: 936, y: 150, w: 178, h: 82, steps: 11, calls: 3, tags: ["async", "critical"], role: "支付授权", file: "app/payments/authorize.py:21", desc: "创建支付意图并调用支付网关完成授权。" },
+    { id: "capture_payment", name: "capture_payment", module: "payments", x: 936, y: 255, w: 178, h: 82, steps: 16, calls: 3, tags: ["critical"], role: "支付捕获", file: "app/payments/capture.py:44", desc: "确认扣款并输出支付结果与审计指标。" },
+    { id: "refund_order", name: "refund_order", module: "payments", x: 1130, y: 255, w: 178, h: 82, steps: 9, calls: 1, tags: ["compensation"], role: "退款补偿", file: "app/payments/refund.py:19", desc: "发起订单退款，并把网关结果记录为补偿事件。" },
+    { id: "stripe_gateway", name: "stripe.charge", module: "payments", x: 1130, y: 150, w: 178, h: 82, external: true, steps: 0, calls: 0, tags: ["external"], role: "外部网关", file: "stripe SDK", desc: "项目外部支付网关，静态分析无法下钻。" },
+    { id: "reserve_stock", name: "reserve_stock", module: "inventory", x: 96, y: 630, w: 178, h: 82, steps: 7, calls: 2, tags: ["transaction"], role: "库存预留", file: "app/inventory/reservation.py:38", desc: "为订单原子预留库存，并在失败时执行释放补偿。" },
+    { id: "release_stock", name: "release_stock", module: "inventory", x: 96, y: 735, w: 178, h: 82, steps: 4, calls: 0, tags: ["compensation"], role: "库存释放", file: "app/inventory/reservation.py:92", desc: "回滚库存占用，供退款或超时任务调用。" },
+    { id: "sync_inventory", name: "sync_inventory", module: "inventory", x: 282, y: 630, w: 178, h: 82, steps: 6, calls: 0, tags: ["job"], role: "库存同步", file: "app/inventory/sync.py:12", desc: "把本地库存快照同步到搜索与商品服务。" },
+    { id: "enqueue_notification", name: "enqueue_notification", module: "notifications", x: 546, y: 590, w: 178, h: 82, steps: 5, calls: 2, tags: ["event"], role: "通知入队", file: "app/notifications/queue.py:23", desc: "把订单结果转换成通知任务并投递到消息队列。" },
+    { id: "send_email", name: "send_email", module: "notifications", x: 546, y: 695, w: 178, h: 82, steps: 8, calls: 1, tags: ["async"], role: "邮件通知", file: "app/notifications/email.py:17", desc: "渲染模板并通过 SMTP 中继发送订单确认邮件。" },
+    { id: "push_webhook", name: "push_webhook", module: "notifications", x: 546, y: 800, w: 178, h: 82, steps: 6, calls: 1, tags: ["retry"], role: "Webhook", file: "app/notifications/webhook.py:29", desc: "向租户回调地址推送订单事件，并记录可重试结果。" },
+    { id: "smtp_relay", name: "smtp.relay", module: "notifications", x: 730, y: 695, w: 178, h: 82, external: true, steps: 0, calls: 0, tags: ["external"], role: "外部 SMTP", file: "smtp relay", desc: "项目外部邮件服务，当前仅显示为外部调用。" },
+    { id: "log_audit", name: "log_audit", module: "telemetry", x: 986, y: 640, w: 178, h: 82, steps: 4, calls: 0, tags: ["audit"], role: "审计日志", file: "app/telemetry/audit.py:11", desc: "写入不可变审计事件，供安全与合规查询。" },
+    { id: "emit_metric", name: "emit_metric", module: "telemetry", x: 986, y: 745, w: 178, h: 82, steps: 3, calls: 0, tags: ["metric"], role: "指标上报", file: "app/telemetry/metrics.py:24", desc: "上报业务计数器与耗时指标。" }
+  ];
+
+  const calls = [
+    ["checkout", "validate_order"], ["checkout", "load_user"], ["checkout", "apply_coupon"],
+    ["checkout", "calc_total"], ["checkout", "authorize_payment"], ["checkout", "reserve_stock"],
+    ["checkout", "enqueue_notification"], ["validate_order", "check_permission"],
+    ["load_user", "check_permission"], ["check_permission", "refresh_session"],
+    ["validate_order", "apply_coupon"], ["apply_coupon", "calc_total"],
+    ["calc_total", "authorize_payment"], ["authorize_payment", "capture_payment"],
+    ["authorize_payment", "stripe_gateway"], ["capture_payment", "log_audit"],
+    ["capture_payment", "emit_metric"], ["refund_order", "stripe_gateway"],
+    ["reserve_stock", "sync_inventory"], ["reserve_stock", "release_stock"],
+    ["enqueue_notification", "send_email"], ["enqueue_notification", "push_webhook"],
+    ["send_email", "smtp_relay"], ["push_webhook", "log_audit"], ["refresh_session", "log_audit"]
+  ].map(([from, to], index) => ({
+    id: "call-" + (index + 1),
+    from,
+    to,
+    external: functions.find(f => f.id === from)?.external || functions.find(f => f.id === to)?.external || false
+  }));
+
+  const moduleById = new Map(modules.map(m => [m.id, m]));
+  const fnById = new Map(functions.map(f => [f.id, f]));
+  const activeModules = new Set(modules.map(m => m.id));
+  const neighbors = new Map(functions.map(f => [f.id, new Set()]));
+  calls.forEach(call => {
+    neighbors.get(call.from)?.add(call.to);
+    neighbors.get(call.to)?.add(call.from);
+  });
+
+  const state = {
+    scale: .7,
+    x: 0,
+    y: 0,
+    selected: null,
+    hovered: null,
+    currentFlow: null
+  };
+
+  const viewport = document.getElementById("viewport");
+  const world = document.getElementById("world");
+  const moduleZones = document.getElementById("moduleZones");
+  const nodesLayer = document.getElementById("nodesLayer");
+  const edgesLayer = document.getElementById("edgesLayer");
+  const detailScroll = document.getElementById("detailScroll");
+  const searchInput = document.getElementById("searchInput");
+  const moduleChips = document.getElementById("moduleChips");
+  const zoomValue = document.getElementById("zoomValue");
+  const visibleCount = document.getElementById("visibleCount");
+  const flowOverlay = document.getElementById("flowOverlay");
+  const flowCanvas = document.getElementById("flowCanvas");
+  const flowSvgHost = document.getElementById("flowSvgHost");
+  const flowTitle = document.getElementById("flowTitle");
+  const flowBreadcrumb = document.getElementById("flowBreadcrumb");
+  const dataToggle = document.getElementById("dataToggle");
+  const toast = document.getElementById("toast");
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  function escapeXml(value) {
+    return escapeHtml(value).replaceAll("'", "&apos;");
+  }
+
+  function moduleColor(moduleId) {
+    return moduleById.get(moduleId)?.color || "#6ea8ff";
+  }
+
+  function moduleRgb(moduleId) {
+    return moduleById.get(moduleId)?.rgb || "110,168,255";
+  }
+
+  function nodeCenter(fn) {
+    return { x: fn.x + fn.w / 2, y: fn.y + fn.h / 2 };
+  }
+
+  function edgePath(from, to) {
+    const fromCenter = nodeCenter(from);
+    const toCenter = nodeCenter(to);
+    const horizontal = Math.abs(toCenter.x - fromCenter.x) > Math.abs(toCenter.y - fromCenter.y) * 1.15;
+
+    if (horizontal) {
+      const goRight = toCenter.x >= fromCenter.x;
+      const sx = goRight ? from.x + from.w : from.x;
+      const sy = fromCenter.y;
+      const tx = goRight ? to.x : to.x + to.w;
+      const ty = toCenter.y;
+      const bend = Math.max(48, Math.min(150, Math.abs(tx - sx) * .48));
+      const c1x = sx + (goRight ? bend : -bend);
+      const c2x = tx - (goRight ? bend : -bend);
+      return `M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${c1x.toFixed(1)} ${sy.toFixed(1)}, ${c2x.toFixed(1)} ${ty.toFixed(1)}, ${tx.toFixed(1)} ${ty.toFixed(1)}`;
+    }
+
+    const goDown = toCenter.y >= fromCenter.y;
+    const sx = fromCenter.x;
+    const sy = goDown ? from.y + from.h : from.y;
+    const tx = toCenter.x;
+    const ty = goDown ? to.y : to.y + to.h;
+    const bend = Math.max(36, Math.min(128, Math.abs(ty - sy) * .46));
+    const c1y = sy + (goDown ? bend : -bend);
+    const c2y = ty - (goDown ? bend : -bend);
+    return `M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${sx.toFixed(1)} ${c1y.toFixed(1)}, ${tx.toFixed(1)} ${c2y.toFixed(1)}, ${tx.toFixed(1)} ${ty.toFixed(1)}`;
+  }
+
+  function renderModules() {
+    moduleZones.innerHTML = modules.map((m, index) => {
+      const count = functions.filter(f => f.module === m.id).length;
+      return `
+        <div class="module-zone" id="zone-${m.id}" style="left:${m.x}px;top:${m.y}px;width:${m.w}px;height:${m.h}px;--mc-rgb:${m.rgb}">
+          <div class="module-head" style="animation-delay:${index * 35}ms">
+            <span class="m-dot"></span>
+            <span>${escapeHtml(m.name)}</span>
+            <span class="m-package">${escapeHtml(m.package)}</span>
+            <span class="m-count">${String(count).padStart(2, "0")} FUNCS</span>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  function renderEdges() {
+    calls.forEach((call, index) => {
+      const from = fnById.get(call.from);
+      const to = fnById.get(call.to);
+      if (!from || !to) return;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", edgePath(from, to));
+      path.setAttribute("class", "edge" + (call.external ? " is-external" : ""));
+      path.setAttribute("marker-end", call.external ? "url(#arrow-external)" : "url(#arrow-default)");
+      path.dataset.from = call.from;
+      path.dataset.to = call.to;
+      path.dataset.edgeId = call.id;
+      path.style.animationDelay = (index * 9) + "ms";
+      edgesLayer.appendChild(path);
+    });
+  }
+
+  function renderNodes() {
+    nodesLayer.innerHTML = functions.map((fn, index) => {
+      const module = moduleById.get(fn.module);
+      const entryBadge = fn.entry ? '<span class="fn-entry">ENTRY</span>' : "";
+      const meta = fn.external
+        ? '<b>external</b><span class="sep">·</span><span>no source</span>'
+        : `<b>${fn.steps} steps</b><span class="sep">·</span><span>${fn.calls} calls</span>`;
+      return `
+        <article class="fn-node${fn.entry ? " is-entry" : ""}${fn.external ? " is-external" : ""}"
+          id="node-${fn.id}" data-id="${fn.id}" tabindex="0" role="button"
+          aria-label="${escapeHtml(fn.name)}，${escapeHtml(module?.name || "")}模块${fn.entry ? "，入口函数" : ""}"
+          style="left:${fn.x}px;top:${fn.y}px;width:${fn.w}px;--mc:${module?.color || "#6ea8ff"};--mc-rgb:${module?.rgb || "110,168,255"};animation-delay:${55 + index * 22}ms">
+          <div class="fn-top">
+            <span class="fn-glyph">${fn.external ? "↗" : "ƒ"}</span>
+            <span class="fn-module">${escapeHtml(module?.name || fn.module)}</span>
+            ${entryBadge}
+          </div>
+          <div class="fn-name">${escapeHtml(fn.name)}</div>
+          <div class="fn-meta">${meta}</div>
+          <div class="fn-tags">${fn.tags.map(tag => `<span class="fn-tag">#${escapeHtml(tag)}</span>`).join("")}</div>
+        </article>`;
+    }).join("");
+
+    document.querySelectorAll(".fn-node").forEach(node => {
+      const id = node.dataset.id;
+      node.addEventListener("click", event => {
+        event.stopPropagation();
+        selectFunction(id);
+      });
+      node.addEventListener("dblclick", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openFlow(id);
+      });
+      node.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openFlow(id);
+        }
+      });
+      node.addEventListener("mouseenter", () => {
+        if (!state.selected) {
+          state.hovered = id;
+          applyFocus();
+        }
+      });
+      node.addEventListener("mouseleave", () => {
+        state.hovered = null;
+        applyFocus();
+      });
+    });
+  }
+
+  function renderModuleChips() {
+    const allChip = document.createElement("button");
+    allChip.className = "module-chip";
+    allChip.style.setProperty("--mc", "#b8c5d8");
+    allChip.innerHTML = '<i></i>全部';
+    allChip.addEventListener("click", () => {
+      const allSelected = activeModules.size === modules.length;
+      if (allSelected) {
+        activeModules.clear();
+      } else {
+        modules.forEach(m => activeModules.add(m.id));
+      }
+      syncModuleChips();
+      applyFilters();
+    });
+    moduleChips.appendChild(allChip);
+    modules.forEach(module => {
+      const chip = document.createElement("button");
+      chip.className = "module-chip";
+      chip.dataset.module = module.id;
+      chip.style.setProperty("--mc", module.color);
+      chip.innerHTML = `<i></i>${escapeHtml(module.name)}`;
+      chip.addEventListener("click", () => {
+        if (activeModules.has(module.id)) {
+          if (activeModules.size > 1) activeModules.delete(module.id);
+        } else {
+          activeModules.add(module.id);
+        }
+        syncModuleChips();
+        applyFilters();
+      });
+      moduleChips.appendChild(chip);
+    });
+    syncModuleChips();
+  }
+
+  function syncModuleChips() {
+    const allSelected = activeModules.size === modules.length;
+    const chips = [...moduleChips.querySelectorAll(".module-chip")];
+    const allChip = chips[0];
+    if (allChip) allChip.setAttribute("aria-pressed", String(allSelected));
+    chips.slice(1).forEach(chip => {
+      chip.setAttribute("aria-pressed", String(activeModules.has(chip.dataset.module)));
+    });
+  }
+
+  function selectFunction(id) {
+    state.selected = id;
+    state.hovered = null;
+    document.querySelectorAll(".fn-node").forEach(node => {
+      node.classList.toggle("is-selected", node.dataset.id === id);
+    });
+    applyFocus();
+    renderFunctionPanel(id);
+  }
+
+  function clearSelection() {
+    state.selected = null;
+    state.hovered = null;
+    document.querySelectorAll(".fn-node").forEach(node => node.classList.remove("is-selected"));
+    applyFocus();
+    renderProjectPanel();
+  }
+
+  function applyFocus() {
+    const focusId = state.hovered || state.selected;
+    const nodes = [...document.querySelectorAll(".fn-node")];
+    const edges = [...edgesLayer.querySelectorAll(".edge")];
+    if (!focusId) {
+      nodes.forEach(n => n.classList.remove("is-focus", "is-related", "is-dim"));
+      edges.forEach(e => {
+        e.classList.remove("is-highlight", "is-dim");
+        e.setAttribute("marker-end", e.classList.contains("is-external") ? "url(#arrow-external)" : "url(#arrow-default)");
+      });
+      return;
+    }
+
+    const related = neighbors.get(focusId) || new Set();
+    nodes.forEach(node => {
+      const id = node.dataset.id;
+      node.classList.toggle("is-focus", id === focusId);
+      node.classList.toggle("is-related", related.has(id));
+      node.classList.toggle("is-dim", id !== focusId && !related.has(id));
+    });
+    edges.forEach(edge => {
+      const highlighted = edge.dataset.from === focusId || edge.dataset.to === focusId;
+      edge.classList.toggle("is-highlight", highlighted);
+      edge.classList.toggle("is-dim", !highlighted);
+      edge.setAttribute("marker-end", highlighted ? "url(#arrow-highlight)" : (edge.classList.contains("is-external") ? "url(#arrow-external)" : "url(#arrow-default)"));
+    });
+  }
+
+  function applyFilters() {
+    const query = searchInput.value.trim().toLowerCase();
+    let visible = 0;
+    const matchingModules = new Set();
+    functions.forEach(fn => {
+      const node = document.getElementById("node-" + fn.id);
+      const module = moduleById.get(fn.module);
+      const haystack = [fn.name, fn.role, fn.desc, fn.file, module?.name, module?.package, ...(fn.tags || [])].join(" ").toLowerCase();
+      const moduleVisible = activeModules.has(fn.module);
+      const matches = !query || haystack.includes(query);
+      if (matches && moduleVisible) {
+        visible += 1;
+        matchingModules.add(fn.module);
+      }
+      node.classList.toggle("is-hidden", !moduleVisible);
+      node.classList.toggle("is-search-dim", moduleVisible && !matches);
+    });
+
+    modules.forEach(module => {
+      const zone = document.getElementById("zone-" + module.id);
+      zone.classList.toggle("is-off", !activeModules.has(module.id));
+      zone.classList.toggle("is-search-dim", activeModules.has(module.id) && !!query && !matchingModules.has(module.id));
+    });
+
+    edgesLayer.querySelectorAll(".edge").forEach(edge => {
+      const from = fnById.get(edge.dataset.from);
+      const to = fnById.get(edge.dataset.to);
+      const fromVisible = from && activeModules.has(from.module);
+      const toVisible = to && activeModules.has(to.module);
+      const fromSearch = !query || [from?.name, from?.role, ...(from?.tags || [])].join(" ").toLowerCase().includes(query);
+      const toSearch = !query || [to?.name, to?.role, ...(to?.tags || [])].join(" ").toLowerCase().includes(query);
+      edge.classList.toggle("is-hidden", !fromVisible || !toVisible);
+      edge.classList.toggle("is-search-dim", fromVisible && toVisible && query && !(fromSearch || toSearch));
+    });
+
+    visibleCount.textContent = String(visible);
+  }
+
+  function renderProjectPanel() {
+    const totalEdges = calls.length;
+    detailScroll.innerHTML = `
+      <div class="eyebrow">Project overview</div>
+      <h2 class="detail-title">dsh-shop</h2>
+      <p class="detail-desc">项目执行拓扑按逻辑模块组织。函数是宏观节点，调用关系是连线；双击任意函数节点进入内部执行流。</p>
+      <div class="project-stats">
+        <div class="stat-card"><div class="stat-number">${modules.length}</div><div class="stat-label">模块</div></div>
+        <div class="stat-card"><div class="stat-number">${functions.length}</div><div class="stat-label">函数节点</div></div>
+        <div class="stat-card"><div class="stat-number">${totalEdges}</div><div class="stat-label">调用边</div></div>
+      </div>
+      <div class="detail-divider"></div>
+      <div class="eyebrow">Modules</div>
+      <div class="panel-section-title">按模块浏览 <span>${activeModules.size}/${modules.length}</span></div>
+      <div class="module-list">
+        ${modules.map(module => {
+          const count = functions.filter(fn => fn.module === module.id).length;
+          return `<button class="module-row" data-module-toggle="${module.id}" style="--mc:${module.color}">
+            <i></i><b>${escapeHtml(module.name)}</b><span>${count} funcs</span><span class="module-path">${escapeHtml(module.package)}</span>
+          </button>`;
+        }).join("")}
+      </div>
+      <div class="panel-hint">提示：单击函数查看调用上下文；双击或按 <kbd>Enter</kbd> 进入函数内部执行流。</div>
+    `;
+
+    detailScroll.querySelectorAll("[data-module-toggle]").forEach(button => {
+      button.addEventListener("click", () => {
+        const moduleId = button.dataset.moduleToggle;
+        if (activeModules.has(moduleId)) {
+          if (activeModules.size > 1) activeModules.delete(moduleId);
+        } else {
+          activeModules.add(moduleId);
+        }
+        syncModuleChips();
+        applyFilters();
+        renderProjectPanel();
+      });
+    });
+  }
+
+  function renderFunctionPanel(id) {
+    const fn = fnById.get(id);
+    if (!fn) return;
+    const module = moduleById.get(fn.module);
+    const outgoing = calls.filter(call => call.from === id).map(call => fnById.get(call.to)).filter(Boolean);
+    const incoming = calls.filter(call => call.to === id).map(call => fnById.get(call.from)).filter(Boolean);
+    const color = moduleColor(fn.module);
+    const rgb = moduleRgb(fn.module);
+
+    detailScroll.innerHTML = `
+      <div class="detail-head" style="--mc:${color}">
+        <div class="detail-color"></div>
+        <div>
+          <div class="eyebrow">Function node</div>
+          <h2 class="detail-name">${escapeHtml(fn.name)}</h2>
+          <div class="detail-module">${escapeHtml(module?.name || fn.module)} · ${escapeHtml(module?.package || "")}</div>
+        </div>
+      </div>
+      <div class="badge-row">
+        ${fn.entry ? '<span class="badge green">ENTRY</span>' : ""}
+        ${fn.external ? '<span class="badge">EXTERNAL</span>' : '<span class="badge blue">INTERNAL</span>'}
+        <span class="badge">${escapeHtml(fn.role)}</span>
+      </div>
+      <p class="detail-desc">${escapeHtml(fn.desc)}</p>
+      <div class="detail-code"><span class="label">Source evidence</span>${escapeHtml(fn.file)}</div>
+      <div class="metric-grid">
+        <div class="metric"><strong>${fn.steps}</strong><span>执行步骤</span></div>
+        <div class="metric"><strong>${fn.calls}</strong><span>解析调用</span></div>
+        <div class="metric"><strong>${incoming.length}</strong><span>调用者</span></div>
+        <div class="metric"><strong>${outgoing.length}</strong><span>被调函数</span></div>
+      </div>
+      <div class="section-head"><span>调用 ${escapeHtml(fn.name)} 的函数</span><em>${incoming.length}</em></div>
+      <div class="call-list">
+        ${incoming.length ? incoming.map(item => {
+          const m = moduleById.get(item.module);
+          return `<button class="call-row" data-go="${item.id}"><span class="arrow">←</span>${escapeHtml(item.name)}<span class="call-module">${escapeHtml(m?.name || item.module)}</span></button>`;
+        }).join("") : '<div class="call-empty">没有项目内调用者</div>'}
+      </div>
+      <div class="section-head"><span>${escapeHtml(fn.name)} 调用的函数</span><em>${outgoing.length}</em></div>
+      <div class="call-list">
+        ${outgoing.length ? outgoing.map(item => {
+          const m = moduleById.get(item.module);
+          return `<button class="call-row" data-go="${item.id}"><span class="arrow">→</span>${escapeHtml(item.name)}<span class="call-module">${escapeHtml(m?.name || item.module)}</span></button>`;
+        }).join("") : '<div class="call-empty">没有解析到项目内被调函数</div>'}
+      </div>
+      ${fn.external
+        ? '<div class="panel-hint">这是外部函数，静态分析无法下钻到源码。</div>'
+        : '<button class="open-flow-btn" data-open-flow="' + fn.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>进入内部执行流</button><div class="panel-hint">也可以双击画布中的函数节点；按 <kbd>Esc</kbd> 从内部流返回。</div>'}
+    `;
+
+    detailScroll.querySelectorAll("[data-go]").forEach(button => {
+      button.addEventListener("click", () => selectFunction(button.dataset.go));
+    });
+    const openButton = detailScroll.querySelector("[data-open-flow]");
+    if (openButton) openButton.addEventListener("click", () => openFlow(openButton.dataset.openFlow));
+  }
+
+  function applyTransform() {
+    world.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+    zoomValue.textContent = Math.round(state.scale * 100) + "%";
+  }
+
+  function fitView(animate = false) {
+    const rect = viewport.getBoundingClientRect();
+    const pad = 54;
+    const scale = Math.min((rect.width - pad * 2) / WORLD_W, (rect.height - pad * 2 - 56) / WORLD_H, 1);
+    state.scale = Math.max(.42, Math.min(1, scale));
+    state.x = (rect.width - WORLD_W * state.scale) / 2;
+    state.y = (rect.height - WORLD_H * state.scale) / 2 + 14;
+    if (animate) {
+      world.style.transition = "transform .28s ease";
+      applyTransform();
+      window.setTimeout(() => world.style.transition = "", 300);
+    } else {
+      applyTransform();
+    }
+  }
+
+  function zoomAt(factor, clientX, clientY) {
+    const rect = viewport.getBoundingClientRect();
+    const px = clientX == null ? rect.width / 2 : clientX - rect.left;
+    const py = clientY == null ? rect.height / 2 : clientY - rect.top;
+    const oldScale = state.scale;
+    const nextScale = Math.max(.32, Math.min(1.7, oldScale * factor));
+    const wx = (px - state.x) / oldScale;
+    const wy = (py - state.y) / oldScale;
+    state.scale = nextScale;
+    state.x = px - wx * nextScale;
+    state.y = py - wy * nextScale;
+    applyTransform();
+  }
+
+  function showToast(message) {
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => toast.classList.remove("is-visible"), 1500);
+  }
+
+  function openFlow(id) {
+    const fn = fnById.get(id);
+    if (!fn) return;
+    if (fn.external) {
+      showToast("外部函数没有可下钻源码");
+      return;
+    }
+    state.currentFlow = id;
+    const module = moduleById.get(fn.module);
+    flowBreadcrumb.innerHTML = `dsh-shop <span style="color:#cbd5e1">›</span> ${escapeHtml(module?.name || fn.module)} <span style="color:#cbd5e1">›</span> <b>${escapeHtml(fn.name)}</b>`;
+    flowTitle.innerHTML = `${escapeHtml(fn.name)} <span>函数内部执行流 · 样式示意</span>`;
+    flowSvgHost.innerHTML = buildFlowSvg(fn);
+    flowCanvas.classList.toggle("hide-data", !dataToggle.checked);
+    flowOverlay.classList.add("is-open");
+    document.body.style.overflow = "hidden";
+    window.setTimeout(() => document.getElementById("flowClose").focus(), 80);
+  }
+
+  function closeFlow() {
+    flowOverlay.classList.remove("is-open");
+    document.body.style.overflow = "hidden";
+    state.currentFlow = null;
+    if (state.selected) {
+      const node = document.getElementById("node-" + state.selected);
+      node?.focus();
+    }
+  }
+
+  function buildFlowSvg(fn) {
+    const nodes = [
+      { id: "entry", type: "entry", x: 500, y: 20, w: 120, h: 34, code: "ENTRY" },
+      { id: "n1", type: "step", step: "ASSIGN", accent: "#0ea5e9", x: 440, y: 86, w: 240, h: 56, code: "total = 0" },
+      { id: "n2", type: "loop", x: 430, y: 188, w: 260, h: 64, code: "for item in items:" },
+      { id: "n3", type: "branch", x: 430, y: 306, w: 260, h: 64, code: "if item.active:" },
+      { id: "n4", type: "step", step: "CALL", accent: "#2563eb", x: 240, y: 418, w: 240, h: 56, code: "repo.save(item)" },
+      { id: "n5", type: "step", step: "AUG_ASSIGN", accent: "#0ea5e9", x: 240, y: 514, w: 240, h: 56, code: "total += item.amount" },
+      { id: "n6", type: "step", step: "AUG_ASSIGN", accent: "#0ea5e9", x: 640, y: 418, w: 240, h: 56, code: "total += 0" },
+      { id: "merge", type: "merge", x: 524, y: 614, w: 72, h: 28, code: "汇合" },
+      { id: "n7", type: "step", step: "CALL", accent: "#2563eb", x: 440, y: 684, w: 240, h: 56, code: "user = repo.find(total)" },
+      { id: "n8", type: "branch", x: 430, y: 788, w: 260, h: 64, code: "if user is None:" },
+      { id: "n9", type: "step", step: "RETURN", accent: "#7c3aed", x: 240, y: 900, w: 240, h: 56, code: "return None" },
+      { id: "n10", type: "step", step: "RETURN", accent: "#7c3aed", x: 440, y: 900, w: 240, h: 56, code: "return user" },
+      { id: "exit", type: "exit", x: 500, y: 1010, w: 120, h: 34, code: "EXIT" }
+    ];
+
+    const edges = [
+      { path: "M 560 54 L 560 86", color: "#475569", marker: "next" },
+      { path: "M 560 142 L 560 188", color: "#475569", marker: "next" },
+      { path: "M 528 252 L 528 278 Q 528 286 536 286 L 552 286 Q 560 286 560 294 L 560 306", color: "#2563eb", marker: "loop", label: "循环体", lx: 544, ly: 281, anchor: "start" },
+      { path: "M 532 370 L 532 388 Q 532 396 524 396 L 368 396 Q 360 396 360 404 L 360 418", color: "#16a34a", marker: "true", label: "true", lx: 515, ly: 386, anchor: "middle" },
+      { path: "M 588 370 L 588 388 Q 588 396 596 396 L 752 396 Q 760 396 760 404 L 760 418", color: "#dc2626", marker: "false", label: "false", lx: 606, ly: 386, anchor: "middle" },
+      { path: "M 360 474 L 360 514", color: "#475569", marker: "next" },
+      { path: "M 360 570 L 360 586 Q 360 594 368 594 L 524 594 Q 532 594 532 602 L 532 614", color: "#94a3b8", marker: "merge" },
+      { path: "M 760 474 L 760 586 Q 760 594 752 594 L 596 594 Q 588 594 588 602 L 588 614", color: "#94a3b8", marker: "merge" },
+      { path: "M 560 642 L 560 656 Q 560 664 552 664 L 208 664 Q 200 664 200 656 L 200 240 Q 200 232 208 232 L 430 232", color: "#f59e0b", marker: "back", dashed: true, label: "回边", lx: 207, ly: 449, anchor: "end" },
+      { path: "M 690 220 L 928 220 Q 936 220 936 228 L 936 660 Q 936 668 928 668 L 568 668 Q 560 668 560 676 L 560 684", color: "#64748b", marker: "next", label: "退出", lx: 700, ly: 214, anchor: "start" },
+      { path: "M 560 740 L 560 788", color: "#475569", marker: "next" },
+      { path: "M 532 852 L 532 866 Q 532 874 524 874 L 368 874 Q 360 874 360 882 L 360 900", color: "#16a34a", marker: "true", label: "true", lx: 515, ly: 869, anchor: "middle" },
+      { path: "M 588 852 L 588 866 Q 588 874 580 874 L 568 874 Q 560 874 560 882 L 560 900", color: "#dc2626", marker: "false", label: "false", lx: 606, ly: 869, anchor: "middle" },
+      { path: "M 360 956 L 360 968 Q 360 976 352 976 L 228 976 Q 220 976 220 984 L 220 992 Q 220 1000 228 1000 L 552 1000 Q 560 1000 560 1006 L 560 1010", color: "#7c3aed", marker: "return", label: "return None", lx: 251, ly: 972, anchor: "start" },
+      { path: "M 560 956 L 560 1010", color: "#7c3aed", marker: "return", label: "return user", lx: 568, ly: 979, anchor: "start" }
+    ];
+
+    const dataEdges = [
+      { path: "M 440 114 L 208 114 Q 200 114 200 122 L 200 534 Q 200 542 208 542 L 240 542", label: "total", lx: 207, ly: 336 },
+      { path: "M 680 114 L 928 114 Q 936 114 936 122 L 936 438 Q 936 446 928 446 L 880 446", label: "total", lx: 942, ly: 318 },
+      { path: "M 360 474 L 360 490 Q 360 498 368 498 L 552 498 Q 560 498 560 506 L 560 684", label: "total", lx: 552, ly: 506 },
+      { path: "M 760 474 L 760 490 Q 760 498 752 498 L 640 498 Q 632 498 632 506 L 632 684", label: "total", lx: 640, ly: 506 }
+    ];
+
+    const nodeMarkup = nodes.map(node => {
+      if (node.type === "entry" || node.type === "exit") {
+        const fill = node.type === "entry" ? "#ecfdf5" : "#fff1f2";
+        const stroke = node.type === "entry" ? "#059669" : "#e11d48";
+        const color = node.type === "entry" ? "#047857" : "#be123c";
+        return `<g class="flow-node">
+          <rect x="${node.x}" y="${node.y}" width="${node.w}" height="${node.h}" rx="${node.h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
+          <text x="${node.x + node.w / 2}" y="${node.y + node.h / 2 + 4}" text-anchor="middle" font-family="ui-sans-serif,system-ui" font-size="11" font-weight="700" fill="${color}" letter-spacing=".06em">${node.code}</text>
+        </g>`;
+      }
+      if (node.type === "branch") {
+        const x = node.x, y = node.y, w = node.w, h = node.h;
+        return `<g class="flow-node">
+          <polygon points="${x + 16},${y} ${x + w - 16},${y} ${x + w},${y + h / 2} ${x + w - 16},${y + h} ${x + 16},${y + h} ${x},${y + h / 2}" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="11.5" fill="#334155">${escapeXml(node.code)}</text>
+        </g>`;
+      }
+      if (node.type === "loop") {
+        return `<g class="flow-node">
+          <rect x="${node.x}" y="${node.y}" width="${node.w}" height="${node.h}" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+          <text x="${node.x + 15}" y="${node.y + node.h / 2 + 5}" font-family="ui-sans-serif,system-ui" font-size="14" fill="#2563eb">↻</text>
+          <text x="${node.x + 35}" y="${node.y + node.h / 2 + 4}" font-family="ui-monospace,Menlo,monospace" font-size="11.5" fill="#334155">${escapeXml(node.code)}</text>
+        </g>`;
+      }
+      if (node.type === "merge") {
+        return `<g class="flow-node">
+          <rect x="${node.x}" y="${node.y}" width="${node.w}" height="${node.h}" rx="${node.h / 2}" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1"/>
+          <text x="${node.x + node.w / 2}" y="${node.y + node.h / 2 + 3.5}" text-anchor="middle" font-family="ui-sans-serif,system-ui" font-size="9" fill="#64748b">${node.code}</text>
+        </g>`;
+      }
+      return `<g class="flow-node">
+        <rect x="${node.x}" y="${node.y}" width="${node.w}" height="${node.h}" rx="8" fill="#ffffff" stroke="#dbe3ee" stroke-width="1"/>
+        <rect x="${node.x}" y="${node.y}" width="4" height="${node.h}" rx="2" fill="${node.accent}"/>
+        <text x="${node.x + 15}" y="${node.y + 18}" font-family="ui-sans-serif,system-ui" font-size="8" font-weight="700" fill="${node.accent}" letter-spacing=".07em">${node.step}</text>
+        <text x="${node.x + 15}" y="${node.y + 39}" font-family="ui-monospace,Menlo,monospace" font-size="11.5" fill="#334155">${escapeXml(node.code)}</text>
+      </g>`;
+    }).join("");
+
+    const markers = {
+      next: ["#475569", "arr-next"],
+      true: ["#16a34a", "arr-true"],
+      false: ["#dc2626", "arr-false"],
+      loop: ["#2563eb", "arr-loop"],
+      back: ["#f59e0b", "arr-back"],
+      return: ["#7c3aed", "arr-return"],
+      merge: ["#94a3b8", "arr-merge"],
+      data: ["#a855f7", "arr-data"]
+    };
+
+    const edgeMarkup = edges.map(edge => {
+      const marker = markers[edge.marker] || markers.next;
+      return `<path d="${edge.path}" fill="none" stroke="${edge.color}" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" ${edge.dashed ? 'stroke-dasharray="6 4"' : ""} marker-end="url(#${marker[1]})"/>
+        ${edge.label ? `<text x="${edge.lx}" y="${edge.ly}" text-anchor="${edge.anchor}" font-family="ui-sans-serif,system-ui" font-size="8.5" fill="${edge.color}" paint-order="stroke" stroke="#f8fafc" stroke-width="3" stroke-linejoin="round">${escapeXml(edge.label)}</text>` : ""}`;
+    }).join("");
+
+    const dataMarkup = dataEdges.map(edge => {
+      return `<g class="data-edge">
+        <path d="${edge.path}" fill="none" stroke="#a855f7" stroke-width="1.4" stroke-dasharray="5 4" stroke-linecap="round" marker-end="url(#arr-data)"/>
+        <text x="${edge.lx}" y="${edge.ly}" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#a855f7" paint-order="stroke" stroke="#f8fafc" stroke-width="3">${escapeXml(edge.label)}</text>
+      </g>`;
+    }).join("");
+
+    return `<svg viewBox="0 0 1120 1080" preserveAspectRatio="xMidYMin meet" role="img" aria-label="${escapeXml(fn.name)} 内部执行流">
+      <defs>
+        ${Object.entries(markers).map(([key, [color, id]]) => `<marker id="${id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 Z" fill="${color}"></path></marker>`).join("")}
+      </defs>
+      <g>${edgeMarkup}${dataMarkup}</g>
+      <g>${nodeMarkup}</g>
+    </svg>`;
+  }
+
+  // ---------- events ----------
+  let dragging = false;
+  let dragMoved = false;
+  let dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+
+  viewport.addEventListener("pointerdown", event => {
+    if (event.button !== 0) return;
+    if (event.target.closest(".fn-node") || event.target.closest(".zoombar") || event.target.closest(".graph-legend")) return;
+    dragging = true;
+    dragMoved = false;
+    dragStart = { x: event.clientX, y: event.clientY, panX: state.x, panY: state.y };
+    viewport.classList.add("is-panning");
+    viewport.setPointerCapture(event.pointerId);
+  });
+
+  viewport.addEventListener("pointermove", event => {
+    if (!dragging) return;
+    const dx = event.clientX - dragStart.x;
+    const dy = event.clientY - dragStart.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) dragMoved = true;
+    state.x = dragStart.panX + dx;
+    state.y = dragStart.panY + dy;
+    applyTransform();
+  });
+
+  viewport.addEventListener("pointerup", event => {
+    if (!dragging) return;
+    dragging = false;
+    viewport.classList.remove("is-panning");
+    try { viewport.releasePointerCapture(event.pointerId); } catch (_) {}
+    if (!dragMoved) clearSelection();
+  });
+
+  viewport.addEventListener("pointercancel", () => {
+    dragging = false;
+    viewport.classList.remove("is-panning");
+  });
+
+  viewport.addEventListener("wheel", event => {
+    event.preventDefault();
+    const factor = Math.exp(-event.deltaY * .0012);
+    zoomAt(factor, event.clientX, event.clientY);
+  }, { passive: false });
+
+  document.getElementById("zoomIn").addEventListener("click", () => zoomAt(1.16));
+  document.getElementById("zoomOut").addEventListener("click", () => zoomAt(1 / 1.16));
+  document.getElementById("fitBtn").addEventListener("click", () => fitView(true));
+  document.getElementById("focusBtn").addEventListener("click", () => {
+    const checkout = fnById.get("checkout");
+    if (!checkout) return;
+    selectFunction("checkout");
+    const rect = viewport.getBoundingClientRect();
+    state.scale = Math.max(.78, Math.min(1.15, state.scale));
+    state.x = rect.width / 2 - (checkout.x + checkout.w / 2) * state.scale;
+    state.y = rect.height / 2 - (checkout.y + checkout.h / 2) * state.scale;
+    applyTransform();
+  });
+
+  searchInput.addEventListener("input", applyFilters);
+  searchInput.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      searchInput.value = "";
+      applyFilters();
+      searchInput.blur();
+    }
+  });
+
+  document.addEventListener("keydown", event => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+      return;
+    }
+    if (event.key === "Escape") {
+      if (flowOverlay.classList.contains("is-open")) closeFlow();
+      else if (state.selected) clearSelection();
+      return;
+    }
+    if (event.key === "0") fitView(true);
+  });
+
+  document.getElementById("flowClose").addEventListener("click", closeFlow);
+  document.getElementById("flowBack").addEventListener("click", closeFlow);
+  flowOverlay.addEventListener("click", event => {
+    if (event.target === flowOverlay) closeFlow();
+  });
+  dataToggle.addEventListener("change", () => {
+    flowCanvas.classList.toggle("hide-data", !dataToggle.checked);
+  });
+
+  window.addEventListener("resize", () => {
+    if (!dragging) fitView(false);
+  });
+
+  // ---------- boot ----------
+  renderModules();
+  renderEdges();
+  renderNodes();
+  renderModuleChips();
+  renderProjectPanel();
+  applyFilters();
+  requestAnimationFrame(() => fitView(false));
+})();
+</script>
+</body>
+</html>

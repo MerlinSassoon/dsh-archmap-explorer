@@ -1,0 +1,938 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-archmap.dev/schema/workflow-2.0.schema.json",
+  "title": "dsh-archmap execution graph",
+  "description": "One function-level execution flow with ENTRY/EXIT, structured blocks and optional precomputed layout. There are exactly two edge types: next_step and data_dep.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "project",
+    "entrypoints",
+    "functions",
+    "diagnostics",
+    "stats"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "kind": {
+      "const": "archmap.execution-graph"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entrypoint"
+      }
+    },
+    "functions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/function"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "stats": {
+      "$ref": "#/$defs/stats"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z]+:[A-Za-z0-9_.:#-]+$",
+      "minLength": 3
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "root",
+        "language",
+        "generatedAt",
+        "fingerprint"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Relative to the artifact location, never absolute."
+        },
+        "language": {
+          "const": "python"
+        },
+        "pythonVersion": {
+          "type": "string",
+          "pattern": "^3\\.(10|11|12|13)$"
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "entrypoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "functionId",
+        "reason"
+      ],
+      "properties": {
+        "functionId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "reason": {
+          "enum": [
+            "main",
+            "configured",
+            "route",
+            "heuristic"
+          ]
+        }
+      }
+    },
+    "function": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "qualifiedName",
+        "module",
+        "file",
+        "line",
+        "endLine",
+        "signature",
+        "isAsync",
+        "rootBlockId",
+        "entryNodeId",
+        "exitNodeId",
+        "nodes",
+        "edges",
+        "blocks"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "qualifiedName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "module": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "signature": {
+          "type": "string"
+        },
+        "isAsync": {
+          "type": "boolean"
+        },
+        "rootBlockId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "entryNodeId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "exitNodeId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/edge"
+          }
+        },
+        "blocks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/block"
+          }
+        },
+        "layout": {
+          "$ref": "#/$defs/layout"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "code",
+        "synthetic",
+        "blockId"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "enum": [
+            "entry",
+            "exit",
+            "step",
+            "branch",
+            "loop",
+            "merge"
+          ]
+        },
+        "stepType": {
+          "enum": [
+            "assign",
+            "aug_assign",
+            "ann_assign",
+            "call",
+            "await",
+            "return",
+            "raise",
+            "yield",
+            "break",
+            "continue",
+            "read",
+            "write",
+            "emit",
+            "consume",
+            "with",
+            "assert",
+            "delete",
+            "pass",
+            "try",
+            "match"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "synthetic": {
+          "type": "boolean"
+        },
+        "blockId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "call": {
+          "$ref": "#/$defs/call"
+        },
+        "data": {
+          "$ref": "#/$defs/data"
+        },
+        "loopKind": {
+          "enum": [
+            "for",
+            "while",
+            "async_for",
+            "do_while"
+          ]
+        },
+        "mergeOf": {
+          "$ref": "#/$defs/identifier"
+        },
+        "meta": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "step"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "stepType"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "synthetic": {
+                "const": false
+              }
+            },
+            "required": [
+              "synthetic"
+            ]
+          },
+          "then": {
+            "required": [
+              "file",
+              "line",
+              "endLine"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "merge"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "mergeOf"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "loop"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "loopKind"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stepType": {
+                "const": "call"
+              }
+            },
+            "required": [
+              "stepType"
+            ]
+          },
+          "then": {
+            "required": [
+              "call"
+            ]
+          }
+        }
+      ]
+    },
+    "call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "resolved",
+        "external",
+        "confidence"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "qualifiedName": {
+          "type": "string"
+        },
+        "targetFunctionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "external": {
+          "type": "boolean"
+        },
+        "recursive": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "resolved": {
+                "const": true
+              }
+            },
+            "required": [
+              "resolved"
+            ]
+          },
+          "then": {
+            "required": [
+              "targetFunctionId"
+            ],
+            "properties": {
+              "targetFunctionId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "defs",
+        "uses"
+      ],
+      "properties": {
+        "defs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "from",
+        "to",
+        "type",
+        "flow"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "from": {
+          "$ref": "#/$defs/identifier"
+        },
+        "to": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "enum": [
+            "next_step",
+            "data_dep"
+          ]
+        },
+        "flow": {
+          "enum": [
+            "next",
+            "true",
+            "false",
+            "loop_body",
+            "loop_exit",
+            "back",
+            "break",
+            "continue",
+            "return",
+            "exception",
+            "merge",
+            null
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "variable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolution": {
+          "enum": [
+            "exact",
+            "union",
+            "loop",
+            "approximate"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "next_step"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "flow": {
+                "enum": [
+                  "next",
+                  "true",
+                  "false",
+                  "loop_body",
+                  "loop_exit",
+                  "back",
+                  "break",
+                  "continue",
+                  "return",
+                  "exception",
+                  "merge"
+                ]
+              }
+            },
+            "required": [
+              "flow"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "data_dep"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "flow": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "flow",
+              "variable",
+              "resolution"
+            ]
+          }
+        }
+      ]
+    },
+    "block": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sequenceBlock"
+        },
+        {
+          "$ref": "#/$defs/ifBlock"
+        },
+        {
+          "$ref": "#/$defs/loopBlock"
+        }
+      ]
+    },
+    "sequenceBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "parentId",
+        "items"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "const": "sequence"
+        },
+        "parentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      }
+    },
+    "ifBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "parentId",
+        "ownerId",
+        "then",
+        "else",
+        "merge"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "const": "if"
+        },
+        "parentId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "ownerId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "then": {
+          "$ref": "#/$defs/identifier"
+        },
+        "else": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "merge": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "loopBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "parentId",
+        "ownerId",
+        "body"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "const": "loop"
+        },
+        "parentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "body": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canvas",
+        "nodes",
+        "edges"
+      ],
+      "properties": {
+        "canvas": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "width",
+            "height",
+            "padding"
+          ],
+          "properties": {
+            "width": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/layoutNode"
+          }
+        },
+        "edges": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/layoutEdge"
+          }
+        }
+      }
+    },
+    "layoutNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "h": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "layoutEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "d"
+      ],
+      "properties": {
+        "d": {
+          "type": "string",
+          "pattern": "^M "
+        },
+        "points": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "label": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "text": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "properties": {
+        "severity": {
+          "enum": [
+            "error",
+            "warning",
+            "info"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "functionId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "functions",
+        "nodes",
+        "edges",
+        "maxRank",
+        "diagnostics"
+      ],
+      "properties": {
+        "functions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxRank": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "diagnostics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "error",
+            "warning",
+            "info"
+          ],
+          "properties": {
+            "error": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "warning": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "info": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

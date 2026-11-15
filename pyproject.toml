@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dsh-archmap"
+version = "1.0.0"
+description = "ArchMap v3: module-first, drill-down Python architecture maps"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+archmap = "archmap.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["archmap*"]
+
+[tool.setuptools.package-data]
+archmap = ["render/assets/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

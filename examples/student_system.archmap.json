@@ -1,0 +1,58 @@
+{
+  "projectName": "student_system",
+  "language": "python",
+  "include": ["*.py"],
+  "exclude": ["**/__pycache__/**"],
+  "project": {
+    "inputs": ["用户启动程序"],
+    "outputs": ["学生信息管理结果"]
+  },
+  "entrypoints": ["main:server", "main:client", "main"],
+  "modules": [
+    {
+      "id": "entry-network",
+      "name": "入口与网络",
+      "include": ["main.py", "TcpConnect.py"],
+      "note": "程序启动、角色选择、TCP 连接与客户端/服务端主循环。",
+      "inputs": ["用户启动参数与密码"],
+      "outputs": ["网络会话与连接状态"],
+      "color": "#f59e0b"
+    },
+    {
+      "id": "menu",
+      "name": "菜单与交互",
+      "include": ["menu_system.py"],
+      "note": "终端菜单、键盘事件与学生信息管理功能编排。",
+      "inputs": ["服务端响应与键盘事件"],
+      "outputs": ["菜单操作与结果展示"],
+      "color": "#60a5fa"
+    },
+    {
+      "id": "database",
+      "name": "数据访问",
+      "include": ["database.py"],
+      "note": "MySQL 连接、协议解码以及学生数据增删改查。",
+      "inputs": ["JSON 请求与数据库密码"],
+      "outputs": ["数据库操作结果"],
+      "color": "#8bdc64"
+    },
+    {
+      "id": "async",
+      "name": "异步等待",
+      "include": ["thread_waiting.py"],
+      "note": "后台线程动画与等待反馈。",
+      "inputs": ["等待提示文本"],
+      "outputs": ["终端加载动画状态"],
+      "color": "#a78bfa"
+    },
+    {
+      "id": "misc",
+      "name": "测试脚本",
+      "include": ["测试.py"],
+      "note": "独立的学生表格打印验证脚本。",
+      "inputs": ["静态学生示例数据"],
+      "outputs": ["终端表格"],
+      "color": "#f472b6"
+    }
+  ]
+}

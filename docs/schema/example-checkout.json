@@ -1,0 +1,525 @@
+{
+  "schemaVersion": "2.0",
+  "kind": "archmap.execution-graph",
+  "project": {
+    "name": "shop",
+    "root": ".",
+    "language": "python",
+    "pythonVersion": "3.10",
+    "generatedAt": "2026-11-15T10:00:00Z",
+    "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "entrypoints": [
+    {
+      "functionId": "fn:app.cli.main",
+      "reason": "main"
+    }
+  ],
+  "functions": [
+    {
+      "id": "fn:app.checkout.checkout",
+      "name": "checkout",
+      "qualifiedName": "app.checkout.checkout",
+      "module": "app.checkout",
+      "file": "app/checkout.py",
+      "line": 1,
+      "endLine": 12,
+      "signature": "checkout(items: list[Item], repo: UserRepository) -> User | None",
+      "isAsync": false,
+      "rootBlockId": "b:app.checkout.checkout:root",
+      "entryNodeId": "n:app.checkout.checkout:entry",
+      "exitNodeId": "n:app.checkout.checkout:exit",
+      "nodes": [
+        {
+          "id": "n:app.checkout.checkout:entry",
+          "type": "entry",
+          "code": "ENTRY",
+          "synthetic": true,
+          "blockId": "b:app.checkout.checkout:root"
+        },
+        {
+          "id": "n:app.checkout.checkout:1",
+          "type": "step",
+          "code": "total = 0",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:root",
+          "file": "app/checkout.py",
+          "line": 2,
+          "endLine": 2,
+          "stepType": "assign",
+          "order": 1,
+          "data": {
+            "defs": [
+              "total"
+            ],
+            "uses": []
+          }
+        },
+        {
+          "id": "n:app.checkout.checkout:2",
+          "type": "loop",
+          "code": "for item in items:",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:root",
+          "file": "app/checkout.py",
+          "line": 3,
+          "endLine": 8,
+          "loopKind": "for",
+          "order": 2
+        },
+        {
+          "id": "n:app.checkout.checkout:3",
+          "type": "branch",
+          "code": "if item.active:",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:loop_body",
+          "file": "app/checkout.py",
+          "line": 4,
+          "endLine": 7,
+          "order": 3
+        },
+        {
+          "id": "n:app.checkout.checkout:4",
+          "type": "step",
+          "code": "repo.save(item)",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:then",
+          "file": "app/checkout.py",
+          "line": 5,
+          "endLine": 5,
+          "stepType": "call",
+          "order": 4,
+          "data": {
+            "defs": [],
+            "uses": [
+              "item"
+            ]
+          },
+          "call": {
+            "name": "save",
+            "qualifiedName": "UserRepository.save",
+            "targetFunctionId": "fn:app.repository.UserRepository.save",
+            "resolved": true,
+            "external": false,
+            "confidence": "high",
+            "recursive": false
+          }
+        },
+        {
+          "id": "n:app.checkout.checkout:5",
+          "type": "step",
+          "code": "total += item.amount",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:then",
+          "file": "app/checkout.py",
+          "line": 6,
+          "endLine": 6,
+          "stepType": "aug_assign",
+          "order": 5,
+          "data": {
+            "defs": [
+              "total"
+            ],
+            "uses": [
+              "total",
+              "item"
+            ]
+          }
+        },
+        {
+          "id": "n:app.checkout.checkout:6",
+          "type": "step",
+          "code": "total += 0",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:else",
+          "file": "app/checkout.py",
+          "line": 8,
+          "endLine": 8,
+          "stepType": "aug_assign",
+          "order": 6,
+          "data": {
+            "defs": [
+              "total"
+            ],
+            "uses": [
+              "total"
+            ]
+          }
+        },
+        {
+          "id": "n:app.checkout.checkout:m1",
+          "type": "merge",
+          "code": "",
+          "synthetic": true,
+          "blockId": "b:app.checkout.checkout:if1",
+          "mergeOf": "n:app.checkout.checkout:3"
+        },
+        {
+          "id": "n:app.checkout.checkout:8",
+          "type": "step",
+          "code": "user = repo.find(total)",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:root",
+          "file": "app/checkout.py",
+          "line": 9,
+          "endLine": 9,
+          "stepType": "call",
+          "order": 7,
+          "data": {
+            "defs": [
+              "user"
+            ],
+            "uses": [
+              "total"
+            ]
+          },
+          "call": {
+            "name": "find",
+            "qualifiedName": "UserRepository.find",
+            "targetFunctionId": "fn:app.repository.UserRepository.find",
+            "resolved": true,
+            "external": false,
+            "confidence": "high",
+            "recursive": false
+          }
+        },
+        {
+          "id": "n:app.checkout.checkout:9",
+          "type": "branch",
+          "code": "if user is None:",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:root",
+          "file": "app/checkout.py",
+          "line": 10,
+          "endLine": 11,
+          "order": 8
+        },
+        {
+          "id": "n:app.checkout.checkout:10",
+          "type": "step",
+          "code": "return None",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:then2",
+          "file": "app/checkout.py",
+          "line": 11,
+          "endLine": 11,
+          "stepType": "return",
+          "order": 9,
+          "data": {
+            "defs": [],
+            "uses": []
+          }
+        },
+        {
+          "id": "n:app.checkout.checkout:12",
+          "type": "step",
+          "code": "return user",
+          "synthetic": false,
+          "blockId": "b:app.checkout.checkout:root",
+          "file": "app/checkout.py",
+          "line": 12,
+          "endLine": 12,
+          "stepType": "return",
+          "order": 10,
+          "data": {
+            "defs": [],
+            "uses": [
+              "user"
+            ]
+          }
+        },
+        {
+          "id": "n:app.checkout.checkout:exit",
+          "type": "exit",
+          "code": "EXIT",
+          "synthetic": true,
+          "blockId": "b:app.checkout.checkout:root"
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:app.checkout.checkout:1",
+          "from": "n:app.checkout.checkout:entry",
+          "to": "n:app.checkout.checkout:1",
+          "type": "next_step",
+          "flow": "next"
+        },
+        {
+          "id": "e:app.checkout.checkout:2",
+          "from": "n:app.checkout.checkout:1",
+          "to": "n:app.checkout.checkout:2",
+          "type": "next_step",
+          "flow": "next"
+        },
+        {
+          "id": "e:app.checkout.checkout:3",
+          "from": "n:app.checkout.checkout:2",
+          "to": "n:app.checkout.checkout:3",
+          "type": "next_step",
+          "flow": "loop_body",
+          "label": "循环体"
+        },
+        {
+          "id": "e:app.checkout.checkout:4",
+          "from": "n:app.checkout.checkout:3",
+          "to": "n:app.checkout.checkout:4",
+          "type": "next_step",
+          "flow": "true"
+        },
+        {
+          "id": "e:app.checkout.checkout:5",
+          "from": "n:app.checkout.checkout:4",
+          "to": "n:app.checkout.checkout:5",
+          "type": "next_step",
+          "flow": "next"
+        },
+        {
+          "id": "e:app.checkout.checkout:6",
+          "from": "n:app.checkout.checkout:3",
+          "to": "n:app.checkout.checkout:6",
+          "type": "next_step",
+          "flow": "false"
+        },
+        {
+          "id": "e:app.checkout.checkout:7",
+          "from": "n:app.checkout.checkout:5",
+          "to": "n:app.checkout.checkout:m1",
+          "type": "next_step",
+          "flow": "merge"
+        },
+        {
+          "id": "e:app.checkout.checkout:8",
+          "from": "n:app.checkout.checkout:6",
+          "to": "n:app.checkout.checkout:m1",
+          "type": "next_step",
+          "flow": "merge"
+        },
+        {
+          "id": "e:app.checkout.checkout:9",
+          "from": "n:app.checkout.checkout:m1",
+          "to": "n:app.checkout.checkout:2",
+          "type": "next_step",
+          "flow": "back",
+          "label": "回边"
+        },
+        {
+          "id": "e:app.checkout.checkout:10",
+          "from": "n:app.checkout.checkout:2",
+          "to": "n:app.checkout.checkout:8",
+          "type": "next_step",
+          "flow": "loop_exit",
+          "label": "退出"
+        },
+        {
+          "id": "e:app.checkout.checkout:11",
+          "from": "n:app.checkout.checkout:8",
+          "to": "n:app.checkout.checkout:9",
+          "type": "next_step",
+          "flow": "next"
+        },
+        {
+          "id": "e:app.checkout.checkout:12",
+          "from": "n:app.checkout.checkout:9",
+          "to": "n:app.checkout.checkout:10",
+          "type": "next_step",
+          "flow": "true"
+        },
+        {
+          "id": "e:app.checkout.checkout:13",
+          "from": "n:app.checkout.checkout:9",
+          "to": "n:app.checkout.checkout:12",
+          "type": "next_step",
+          "flow": "false"
+        },
+        {
+          "id": "e:app.checkout.checkout:14",
+          "from": "n:app.checkout.checkout:10",
+          "to": "n:app.checkout.checkout:exit",
+          "type": "next_step",
+          "flow": "return",
+          "label": "return None"
+        },
+        {
+          "id": "e:app.checkout.checkout:15",
+          "from": "n:app.checkout.checkout:12",
+          "to": "n:app.checkout.checkout:exit",
+          "type": "next_step",
+          "flow": "return",
+          "label": "return user"
+        },
+        {
+          "id": "e:app.checkout.checkout:16",
+          "from": "n:app.checkout.checkout:1",
+          "to": "n:app.checkout.checkout:5",
+          "type": "data_dep",
+          "flow": null,
+          "variable": "total",
+          "resolution": "exact",
+          "confidence": "high"
+        },
+        {
+          "id": "e:app.checkout.checkout:17",
+          "from": "n:app.checkout.checkout:1",
+          "to": "n:app.checkout.checkout:6",
+          "type": "data_dep",
+          "flow": null,
+          "variable": "total",
+          "resolution": "exact",
+          "confidence": "high"
+        },
+        {
+          "id": "e:app.checkout.checkout:18",
+          "from": "n:app.checkout.checkout:5",
+          "to": "n:app.checkout.checkout:8",
+          "type": "data_dep",
+          "flow": null,
+          "variable": "total",
+          "resolution": "union",
+          "confidence": "medium"
+        },
+        {
+          "id": "e:app.checkout.checkout:19",
+          "from": "n:app.checkout.checkout:6",
+          "to": "n:app.checkout.checkout:8",
+          "type": "data_dep",
+          "flow": null,
+          "variable": "total",
+          "resolution": "union",
+          "confidence": "medium"
+        },
+        {
+          "id": "e:app.checkout.checkout:20",
+          "from": "n:app.checkout.checkout:2",
+          "to": "n:app.checkout.checkout:3",
+          "type": "data_dep",
+          "flow": null,
+          "variable": "item",
+          "resolution": "exact",
+          "confidence": "high"
+        },
+        {
+          "id": "e:app.checkout.checkout:21",
+          "from": "n:app.checkout.checkout:2",
+          "to": "n:app.checkout.checkout:5",
+          "type": "data_dep",
+          "flow": null,
+          "variable": "item",
+          "resolution": "exact",
+          "confidence": "high"
+        },
+        {
+          "id": "e:app.checkout.checkout:22",
+          "from": "n:app.checkout.checkout:8",
+          "to": "n:app.checkout.checkout:9",
+          "type": "data_dep",
+          "flow": null,
+          "variable": "user",
+          "resolution": "exact",
+          "confidence": "high"
+        },
+        {
+          "id": "e:app.checkout.checkout:23",
+          "from": "n:app.checkout.checkout:8",
+          "to": "n:app.checkout.checkout:12",
+          "type": "data_dep",
+          "flow": null,
+          "variable": "user",
+          "resolution": "exact",
+          "confidence": "high"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "b:app.checkout.checkout:root",
+          "kind": "sequence",
+          "parentId": null,
+          "items": [
+            "n:app.checkout.checkout:1",
+            "b:app.checkout.checkout:loop",
+            "n:app.checkout.checkout:8",
+            "b:app.checkout.checkout:if2",
+            "n:app.checkout.checkout:12"
+          ]
+        },
+        {
+          "id": "b:app.checkout.checkout:loop",
+          "kind": "loop",
+          "parentId": "b:app.checkout.checkout:root",
+          "ownerId": "n:app.checkout.checkout:2",
+          "body": "b:app.checkout.checkout:loop_body"
+        },
+        {
+          "id": "b:app.checkout.checkout:loop_body",
+          "kind": "sequence",
+          "parentId": "b:app.checkout.checkout:loop",
+          "items": [
+            "b:app.checkout.checkout:if1"
+          ]
+        },
+        {
+          "id": "b:app.checkout.checkout:if1",
+          "kind": "if",
+          "parentId": "b:app.checkout.checkout:loop_body",
+          "ownerId": "n:app.checkout.checkout:3",
+          "then": "b:app.checkout.checkout:then",
+          "else": "b:app.checkout.checkout:else",
+          "merge": "n:app.checkout.checkout:m1"
+        },
+        {
+          "id": "b:app.checkout.checkout:then",
+          "kind": "sequence",
+          "parentId": "b:app.checkout.checkout:if1",
+          "items": [
+            "n:app.checkout.checkout:4",
+            "n:app.checkout.checkout:5"
+          ]
+        },
+        {
+          "id": "b:app.checkout.checkout:else",
+          "kind": "sequence",
+          "parentId": "b:app.checkout.checkout:if1",
+          "items": [
+            "n:app.checkout.checkout:6"
+          ]
+        },
+        {
+          "id": "b:app.checkout.checkout:if2",
+          "kind": "if",
+          "parentId": "b:app.checkout.checkout:root",
+          "ownerId": "n:app.checkout.checkout:9",
+          "then": "b:app.checkout.checkout:then2",
+          "else": null,
+          "merge": null
+        },
+        {
+          "id": "b:app.checkout.checkout:then2",
+          "kind": "sequence",
+          "parentId": "b:app.checkout.checkout:if2",
+          "items": [
+            "n:app.checkout.checkout:10"
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "EXTERNAL_CALL",
+      "message": "repo.save resolved to a project function",
+      "functionId": "fn:app.checkout.checkout",
+      "nodeId": "n:app.checkout.checkout:4"
+    }
+  ],
+  "stats": {
+    "functions": 1,
+    "nodes": 13,
+    "edges": 23,
+    "maxRank": 11,
+    "diagnostics": {
+      "error": 0,
+      "warning": 0,
+      "info": 1
+    }
+  }
+}

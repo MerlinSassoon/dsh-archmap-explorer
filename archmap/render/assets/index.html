@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+__CSS__
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#8ebcff">
+          <rect x="3.5" y="4" width="6.5" height="6.5" rx="1.4"></rect>
+          <rect x="14" y="4" width="6.5" height="6.5" rx="1.4"></rect>
+          <rect x="8.7" y="14" width="6.5" height="6.5" rx="1.4"></rect>
+          <path d="M10 7.2h4M7 10.5v4.2M17 10.5v2.1a1.6 1.6 0 0 1-1.6 1.6h-1.1"></path>
+        </svg>
+      </div>
+      <div><div class="brand-title">ArchMap</div><div class="brand-sub">Module execution topology</div></div>
+    </div>
+    <div class="project-chip"><span class="live-dot"></span><strong id="projectName">__PROJECT_NAME__</strong><span class="lang" id="projectLanguage">Python</span></div>
+    <div class="top-actions">
+      <span class="save-state" id="saveState">布局本地保存</span>
+      <button class="btn" id="singleModeBtn" type="button" aria-pressed="false" title="切换为单模块视图">单模块</button>
+      <button class="btn" id="exportBtn" type="button" title="导出布局覆盖 JSON">导出布局</button>
+      <button class="btn" id="importBtn" type="button" title="导入布局覆盖 JSON">导入布局</button>
+      <input id="importFile" type="file" accept="application/json,.json">
+      <button class="btn primary" id="saveBtn" type="button">保存布局</button>
+      <button class="icon-btn" id="resetBtn" type="button" title="重置布局" aria-label="重置布局">↺</button>
+      <button class="icon-btn" id="fitBtn" type="button" title="适应画布" aria-label="适应画布">⛶</button>
+    </div>
+  </header>
+
+  <nav class="nav-bar" aria-label="页面导航">
+    <button class="back-btn" id="backBtn" type="button" aria-label="返回上一页" disabled>‹</button>
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <div class="nav-spacer"></div>
+    <span class="page-hint" id="pageHint">项目页</span>
+    <label class="search-wrap" id="searchWrap" aria-label="搜索当前页面节点">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.8" cy="10.8" r="6.2"></circle><path d="m16 16 4.2 4.2"></path></svg>
+      <input id="searchInput" type="search" placeholder="搜索名称或备注…" autocomplete="off" spellcheck="false">
+    </label>
+  </nav>
+
+  <main class="workspace">
+    <section class="viewport" id="viewport" aria-label="图页面">
+      <div class="viewport-grid"></div>
+      <div class="canvas-status">
+        <div class="canvas-kicker" id="canvasKicker">Project topology</div>
+        <div class="canvas-title" id="canvasTitle">__PROJECT_NAME__</div>
+        <div class="canvas-sub" id="canvasSub">模块是项目页的节点 · 拖拽调整布局 · 双击进入模块页面</div>
+      </div>
+      <div class="world" id="world"></div>
+      <div class="graph-legend" id="legend"></div>
+      <div class="zoombar" aria-label="缩放控制">
+        <button id="zoomOut" type="button" aria-label="缩小">−</button>
+        <span class="zoom-value" id="zoomValue">100%</span>
+        <button id="zoomIn" type="button" aria-label="放大">+</button>
+      </div>
+    </section>
+    <aside class="detail-panel" aria-label="节点语义详情">
+      <div class="detail-scroll" id="detailScroll"></div>
+    </aside>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+window.__ARCHMAP_ERRORS__=[];
+window.addEventListener("error", event => window.__ARCHMAP_ERRORS__.push(String(event.message || event.error || "unknown")));
+window.addEventListener("unhandledrejection", event => window.__ARCHMAP_ERRORS__.push(String(event.reason || "rejection")));
+window.__ARCHMAP_DATA__ = __ARCHMAP_DATA_JSON__;
+</script>
+<script>
+__APP_JS__
+</script>
+</body>
+</html>
