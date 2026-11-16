@@ -110,6 +110,20 @@ def _loop_ancestor(blocks: dict[str, dict[str, Any]], block_id: str | None) -> s
     return None
 
 
+def _enclosing_loop_headers(blocks: dict[str, dict[str, Any]], block_id: str | None) -> set[str]:
+    """Return loop header ids whose body contains the given block, including self."""
+    result: set[str] = set()
+    current = block_id
+    while current:
+        block = blocks.get(current)
+        if not block:
+            break
+        if block["kind"] == "loop" and block.get("ownerId"):
+            result.add(block["ownerId"])
+        current = block.get("parentId")
+    return result
+
+
 def _compute_ranks(flow: dict[str, Any]) -> dict[str, int]:
     nodes = _node_map(flow)
     blocks = _block_map(flow)
@@ -148,6 +162,11 @@ def _compute_ranks(flow: dict[str, Any]) -> dict[str, int]:
             continue
         loop_id = block.get("ownerId")
         after = next_targets.get(loop_id, exit_id)
+        enclosing_loops = _enclosing_loop_headers(blocks, block["id"])
+        # If the loop's after target is its own or an enclosing loop header,
+        # that is a back edge. Adding phantom edges to it would create a rank cycle.
+        if after in enclosing_loops:
+            continue
         body_nodes = _nodes_in_block(flow, block.get("body", "")) if block.get("body") else []
         for body_node in body_nodes:
             if body_node["id"] != after:
@@ -158,7 +177,12 @@ def _compute_ranks(flow: dict[str, Any]) -> dict[str, int]:
         if block["kind"] != "if" or block.get("merge"):
             continue
         join = _next_join_for_block(flow, block["id"], exit_id)
-        if not join or join in loop_headers:
+        if not join:
+            continue
+        # A join that is the if's own/enclosing loop header is a back edge.
+        # A sibling loop header is a real forward join and still needs a phantom
+        # constraint so a terminating arm cannot share its rank.
+        if join in _enclosing_loop_headers(blocks, block["id"]):
             continue
         for arm_key in ("then", "else"):
             arm_id = block.get(arm_key)
@@ -190,7 +214,7 @@ def _compute_ranks(flow: dict[str, Any]) -> dict[str, int]:
     if len(visited) != len(nodes):
         # Keep the renderer usable for unusual dynamic-control fixtures. Assign a stable
         # rank to any remaining node after its known predecessors.
-        missing = [node_id for node_id in nodes if node_id not in rank]
+        missing = [node_id for node_id in nodes if node_id not in visited]
         flow.setdefault("diagnostics", []).append(
             {
                 "severity": "warning",
@@ -199,7 +223,10 @@ def _compute_ranks(flow: dict[str, Any]) -> dict[str, int]:
                 "functionId": flow["id"],
             }
         )
-        next_rank = max(rank.values(), default=0) + 1
+        # Nodes can have a tentative rank from a processed predecessor while
+        # still being unvisited. Reassign every unvisited node to a unique tail
+        # rank; keeping tentative values would put them on occupied rows.
+        next_rank = max((rank[node_id] for node_id in visited), default=0) + 1
         for node_id in sorted(missing):
             rank[node_id] = next_rank
             next_rank += 1

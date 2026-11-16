@@ -92,6 +92,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         print(f"wrote {json_path}", file=sys.stderr)
         print(f"skipped HTML because {len(errors)} validation error(s) occurred", file=sys.stderr)
         _print_issues(errors)
+        if warnings:
+            _print_issues(warnings[:20])
         return 1
     html_path.write_text(render_html(bundle, annotations), encoding="utf-8")
     if args.split:

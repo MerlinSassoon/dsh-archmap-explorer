@@ -34,7 +34,7 @@ ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q
 结果：
 
 - bundle 结构、交叉引用、函数不变量和布局校验通过。
-- `12 passed`（含 Firefox Headless WebDriver 冒烟测试）。
+- `16 passed`（含 Firefox Headless WebDriver 冒烟测试）。
 - 浏览器测试覆盖：项目页、模块页、函数页、模块展开、Hash 刷新恢复。
 
 ## 性能

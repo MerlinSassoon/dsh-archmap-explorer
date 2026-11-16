@@ -1,0 +1,18 @@
+{
+  "projectName": "control_flow_edges",
+  "language": "python",
+  "include": ["*.py"],
+  "project": {"inputs": ["输入"], "outputs": ["输出"]},
+  "entrypoints": ["control:guard_then_loop"],
+  "modules": [
+    {
+      "id": "control",
+      "name": "控制流边界",
+      "include": ["*.py"],
+      "note": "覆盖 guard clause 与嵌套循环的布局边界",
+      "inputs": ["输入"],
+      "outputs": ["输出"],
+      "color": "#f59e0b"
+    }
+  ]
+}

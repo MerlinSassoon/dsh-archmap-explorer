@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 
 from archmap.pipeline import build_architecture
@@ -35,3 +37,15 @@ def test_render_includes_annotations() -> None:
     html = render_html(bundle, annotations)
     assert "程序入口" in html
     assert "加载并处理学生数据" in html
+
+
+def test_render_does_not_rescan_injected_json_placeholders() -> None:
+    bundle = build_architecture(ROOT)
+    payload = "__APP_JS__ __CSS__ __TITLE__ __PROJECT_NAME__ __ARCHMAP_DATA_JSON__</script>\nnext"
+    bundle["functionFlows"][0]["nodes"][0]["code"] = payload
+    html = render_html(bundle)
+    match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
+    assert match is not None
+    embedded = json.loads(match.group(1))
+    assert embedded["functionFlows"][0]["nodes"][0]["code"] == payload
+    assert "\\/script>" in match.group(1)
