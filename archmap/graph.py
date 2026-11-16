@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .analysis import AnalysisResult, ClassInfo, ENTRY_METHOD_NAMES, FunctionInfo
+from .callsites import CallSite
 from .config import ModuleConfig, ProjectConfig
 
 
@@ -85,7 +86,7 @@ def _method_summary(fn: FunctionInfo, owner_class_id: str) -> dict[str, Any]:
         "file": fn.file,
         "line": fn.line,
         "endLine": fn.end_line,
-        "functionFlowId": fn.id,
+        "functionDetailId": fn.id,
     }
 
 
@@ -111,7 +112,7 @@ def _class_entry_methods(
     return named or public
 
 
-def find_entrypoints(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def find_entrypoints(analysis: AnalysisResult, call_sites: Iterable[CallSite]) -> list[dict[str, Any]]:
     functions = _function_lookup(analysis)
     module_by_name = {module.name: module for module in analysis.modules}
     found: list[dict[str, Any]] = []
@@ -170,13 +171,11 @@ def find_entrypoints(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> l
             if fn.name == name and not fn.class_name:
                 add(fn.id, "heuristic")
     # Graph heuristic: exported functions with no project-internal incoming calls.
-    incoming: set[str] = set()
-    for flow in flows:
-        for node in flow["nodes"]:
-            call = node.get("call") or {}
-            target = call.get("targetFunctionId")
-            if target:
-                incoming.add(target)
+    incoming: set[str] = {
+        site.to_function_id
+        for site in call_sites
+        if site.resolved and site.to_function_id
+    }
     for fn in sorted(analysis.functions, key=lambda item: item.id):
         if fn.class_name or fn.name.startswith("_"):
             continue
@@ -185,31 +184,27 @@ def find_entrypoints(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> l
     return found
 
 
-def collect_calls(analysis: AnalysisResult, flows: Iterable[dict[str, Any]]) -> list[CallRecord]:
+def collect_calls(analysis: AnalysisResult, call_sites: Iterable[CallSite]) -> list[CallRecord]:
     fn_by_id = _function_lookup(analysis)
     records: list[CallRecord] = []
-    for flow in flows:
-        for node in flow["nodes"]:
-            call = node.get("call")
-            if not call or not call.get("resolved"):
-                continue
-            target_id = call.get("targetFunctionId")
-            if not target_id or target_id not in fn_by_id:
-                continue
-            target = fn_by_id[target_id]
-            source = fn_by_id[flow["id"]]
-            data = node.get("data") or {}
-            records.append(
-                CallRecord(
-                    from_function=source.id,
-                    to_function=target.id,
-                    from_module=source.module_id,
-                    to_module=target.module_id,
-                    file=node.get("file", source.file),
-                    line=int(node.get("line", source.line)),
-                    has_data=bool(data.get("defs") or data.get("uses")),
-                )
+    for site in call_sites:
+        if not site.resolved or not site.to_function_id:
+            continue
+        target = fn_by_id.get(site.to_function_id)
+        source = fn_by_id.get(site.from_function_id)
+        if target is None or source is None:
+            continue
+        records.append(
+            CallRecord(
+                from_function=source.id,
+                to_function=target.id,
+                from_module=source.module_id,
+                to_module=target.module_id,
+                file=site.file,
+                line=site.line,
+                has_data=site.argument_count > 0,
             )
+        )
     return records
 
 
@@ -407,15 +402,20 @@ def _module_color(index: int, module: ModuleConfig | None) -> str:
     return PALETTE[index % len(PALETTE)]
 
 
-def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[str, Any]:
+def build_bundle(
+    analysis: AnalysisResult,
+    call_sites: Iterable[CallSite],
+    function_details: list[dict[str, Any]],
+) -> dict[str, Any]:
     config = analysis.config
     fn_by_id = _function_lookup(analysis)
+    call_site_list = list(call_sites)
     module_configs = {module.id: module for module in config.modules}
-    entrypoints = find_entrypoints(analysis, flows)
+    entrypoints = find_entrypoints(analysis, call_site_list)
     entry_ids = [item["functionId"] for item in entrypoints]
     entry_id_set = set(entry_ids)
     entry_reasons = {item["functionId"]: item["reason"] for item in entrypoints}
-    calls = collect_calls(analysis, flows)
+    calls = collect_calls(analysis, call_site_list)
 
     module_function_ids: dict[str, list[str]] = defaultdict(list)
     for fn in analysis.functions:
@@ -592,7 +592,7 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
                 "visibility": fn.visibility,
                 "file": fn.file,
                 "line": fn.line,
-                "functionFlowId": fn_id,
+                "functionDetailId": fn_id,
                 "w": FUNCTION_W,
                 "h": FUNCTION_H,
             }
@@ -878,49 +878,15 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
         "layout": project_layout,
     }
 
-    # Per-function source hashes for LLM annotations.
-    for flow in flows:
-        semantic = {
-            "id": flow["id"],
-            "file": flow["file"],
-            "line": flow["line"],
-            "endLine": flow["endLine"],
-            "signature": flow["signature"],
-            "nodes": [
-                {
-                    "id": node["id"],
-                    "type": node["type"],
-                    "stepType": node.get("stepType"),
-                    "code": node.get("code"),
-                    "line": node.get("line"),
-                    "call": (node.get("call") or {}).get("targetFunctionId"),
-                }
-                for node in flow["nodes"]
-                if not node.get("synthetic")
-            ],
-        }
-        flow["sourceHash"] = _json_hash(semantic)
-
     diagnostics = list(analysis.diagnostics)
-    for flow in flows:
-        diagnostics.extend(flow.pop("diagnostics", []))
-    max_rank = max(
-        (
-            item["rank"]
-            for flow in flows
-            for item in flow.get("layout", {}).get("nodes", {}).values()
-        ),
-        default=0,
-    )
     stats = {
         "modules": len(project_module_nodes),
         "classes": len(analysis.classes),
-        "functions": len(flows),
+        "functions": len(function_details),
         "methods": sum(1 for fn in analysis.functions if fn.class_name),
-        "nodes": sum(len(flow["nodes"]) for flow in flows),
-        "edges": sum(len(flow["edges"]) for flow in flows),
+        "callSites": len(call_site_list),
+        "resolvedCalls": sum(1 for site in call_site_list if site.resolved),
         "macroEdges": len(project_edges) + sum(len(graph["edges"]) for graph in module_graphs),
-        "maxRank": max_rank,
         "diagnostics": {
             level: sum(1 for item in diagnostics if item.get("severity") == level)
             for level in ("error", "warning", "info")
@@ -933,7 +899,7 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "3.0",
+        "schemaVersion": "3.1",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,
@@ -945,7 +911,11 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
         "entrypoints": entrypoints,
         "projectGraph": project_graph,
         "moduleGraphs": module_graphs,
-        "functionFlows": sorted(flows, key=lambda item: item["id"]),
+        "functionDetails": sorted(function_details, key=lambda item: item["id"]),
+        "callSites": sorted(
+            (site.as_dict() for site in call_site_list),
+            key=lambda item: item["id"],
+        ),
         "diagnostics": diagnostics,
         "stats": stats,
     }
@@ -1055,45 +1025,51 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
             ],
             key=lambda item: item["moduleId"],
         ),
-        "functionFlows": sorted(
+        "functionDetails": sorted(
             [
                 {
-                    "id": flow["id"],
-                    "note": flow["note"],
-                    "qualifiedName": flow["qualifiedName"],
-                    "signature": flow["signature"],
-                    "sourceHash": flow["sourceHash"],
-                    "nodes": [
-                        {
-                            "id": node["id"],
-                            "type": node["type"],
-                            "stepType": node.get("stepType"),
-                            "code": node.get("code"),
-                            "line": node.get("line"),
-                            "endLine": node.get("endLine"),
-                            "order": node.get("order"),
-                            "callTarget": (node.get("call") or {}).get("targetFunctionId"),
-                        }
-                        for node in sorted(flow["nodes"], key=lambda item: item["id"])
-                    ],
-                    "edges": sorted(
-                        [
-                            {
-                                "from": edge["from"],
-                                "to": edge["to"],
-                                "type": edge["type"],
-                                "flow": edge.get("flow"),
-                                "variable": edge.get("variable"),
-                                "resolution": edge.get("resolution"),
-                            }
-                            for edge in flow["edges"]
-                        ],
-                        key=lambda item: (item["from"], item["to"], item["type"], item.get("flow") or ""),
+                    "id": detail["id"],
+                    "qualifiedName": detail["qualifiedName"],
+                    "ownerClassId": detail.get("ownerClassId"),
+                    "methodKind": detail.get("methodKind"),
+                    "visibility": detail.get("visibility"),
+                    "signature": detail["signature"],
+                    "returns": detail.get("returns", ""),
+                    "raises": sorted(detail.get("raises", [])),
+                    "note": detail.get("note", ""),
+                    "sourceHash": detail["sourceHash"],
+                    "callerIds": sorted(
+                        caller["functionId"] for caller in detail.get("callers", [])
+                    ),
+                    "calleeIds": sorted(
+                        callee["functionId"]
+                        for callee in detail.get("callees", [])
+                        if callee.get("functionId")
                     ),
                 }
-                for flow in bundle["functionFlows"]
+                for detail in bundle["functionDetails"]
             ],
             key=lambda item: item["id"],
+        ),
+        "callSites": sorted(
+            [
+                {
+                    "fromFunctionId": site["fromFunctionId"],
+                    "toFunctionId": site.get("toFunctionId"),
+                    "file": site["file"],
+                    "line": site["line"],
+                    "column": site["column"],
+                    "calleeText": site["calleeText"],
+                    "kind": site["kind"],
+                    "resolved": site["resolved"],
+                    "external": site["external"],
+                    "confidence": site["confidence"],
+                }
+                for site in bundle["callSites"]
+            ],
+            key=lambda item: (
+                item["fromFunctionId"], item["line"], item["column"], item["calleeText"]
+            ),
         ),
     }
     return _json_hash(semantic)

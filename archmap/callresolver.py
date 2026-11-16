@@ -4,7 +4,7 @@ import ast
 from dataclasses import dataclass, field
 from typing import Any
 
-from .analysis import AnalysisResult, FunctionInfo, ModuleInfo
+from .analysis import BUILTIN_NAMES, AnalysisResult, FunctionInfo, ModuleInfo
 
 
 @dataclass
@@ -149,7 +149,7 @@ class CallResolver:
                     if cls and cls.methods.get("__init__"):
                         candidates.append(cls.methods["__init__"])
             if not candidates:
-                if name in dir(__builtins__) or name in {"print", "len", "open", "input", "range", "super", "isinstance"}:
+                if name in BUILTIN_NAMES:
                     return ResolvedCall(name=name, external=True, confidence="high")
                 # Method name available through self? Fall through to unresolved.
                 return ResolvedCall(name=name, confidence="low")

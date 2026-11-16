@@ -7,9 +7,9 @@ from typing import Any, Protocol
 class LanguageFrontend(Protocol):
     """Language adapter contract.
 
-    A frontend owns source discovery, parsing, symbol resolution, module
-    projection and canonical FunctionFlow construction. Layout, validation,
-    fingerprinting and rendering are intentionally outside this contract.
+    A frontend owns source discovery, parsing, symbol resolution, call-site
+    extraction and function-detail construction.  Macro layout, validation,
+    fingerprinting and rendering are outside this contract.
     """
 
     language: str
@@ -18,14 +18,21 @@ class LanguageFrontend(Protocol):
     def analyze(self, project_root: Path, config_path: Path | None = None) -> Any:
         """Return a project analysis object consumable by graph.py.
 
-        The object must expose ``config``, ``modules``, ``functions`` and
-        ``diagnostics``. Function records must expose the cross-language fields
-        used by the neutral graph layer: id, name, qualname, module_name,
-        module_id, file, line, end_line, signature, is_async, note, class_name
-        and synthetic.
+        The object must expose ``config``, ``modules``, ``functions``,
+        ``classes`` and ``diagnostics``. Function records must expose the
+        cross-language fields used by the neutral graph layer: id, name,
+        qualname, module_name, module_id, file, line, end_line, signature,
+        is_async, note, class_name, method_kind, visibility, is_abstract and
+        synthetic.
         """
         ...
 
-    def build_flows(self, analysis: Any) -> list[dict[str, Any]]:
-        """Build canonical FunctionFlow dictionaries for every function."""
+    def build_call_sites(self, analysis: Any) -> list[Any]:
+        """Return canonical call-site records for all analyzed functions."""
+        ...
+
+    def build_function_details(
+        self, analysis: Any, call_sites: list[Any]
+    ) -> list[dict[str, Any]]:
+        """Build source-backed detail records for every function/method."""
         ...
