@@ -33,8 +33,8 @@ def test_methods_are_owned_by_class_nodes_not_flattened() -> None:
         for method in node["methods"]:
             assert method["kind"] == "method"
             assert method["ownerClassId"] == node["id"]
-            assert method["functionFlowId"] in {
-                flow["id"] for flow in bundle["functionFlows"]
+            assert method["functionDetailId"] in {
+                detail["id"] for detail in bundle["functionDetails"]
             }
     assert graph["methodEdges"]
     assert all(
@@ -88,10 +88,12 @@ def test_class_boundary_has_via_method_evidence() -> None:
     assert echo["entryMethodIds"] == ["fn:app.worker.EchoWorker.run"]
 
 
-def test_function_flow_carries_method_ownership() -> None:
+def test_function_detail_carries_method_ownership_and_source() -> None:
     bundle = build_architecture(ROOT)
-    flow = next(flow for flow in bundle["functionFlows"] if flow["name"] == "run")
-    assert flow["ownerClassId"] == "cls:app.worker.EchoWorker"
-    assert flow["methodKind"] == "public_api"
-    assert flow["visibility"] == "public"
+    detail = next(detail for detail in bundle["functionDetails"] if detail["name"] == "run")
+    assert detail["ownerClassId"] == "cls:app.worker.EchoWorker"
+    assert detail["methodKind"] == "public_api"
+    assert detail["visibility"] == "public"
+    assert detail["source"]["text"]
+    assert detail["sourceHash"].startswith("sha256:")
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]

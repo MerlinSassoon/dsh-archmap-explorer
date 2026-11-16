@@ -1,8 +1,8 @@
 # ArchMap 类语义层设计与实施计划
 
-> 状态：设计讨论稿  
-> 日期：2026-11-16  
-> 目标：解决“类被当作流程节点、类方法在模块页平铺、模块边界被方法污染”的问题。  
+> 状态：设计讨论稿
+> 日期：2026-11-16
+> 目标：解决“类被当作流程节点、类方法在模块页平铺、模块边界被方法污染”的问题。
 > 结论：类应成为模块内的一等语义容器；类本身不是执行流节点，方法才是。
 
 ## 1. 设计结论
@@ -16,7 +16,7 @@
 | ClassFocusView / ClassGraph | 是，作为容器 | 方法节点、方法间关系、契约/继承信息 |
 | FunctionFlow | 否 | 方法内部的 ENTRY / 步骤 / 分支 / 循环 / EXIT |
 
-类可以被视为“模块内的一等组件节点”，但**不能被视为一个具备单一控制流的函数节点**。  
+类可以被视为“模块内的一等组件节点”，但**不能被视为一个具备单一控制流的函数节点**。
 因此：
 
 - 类可以有 `ENTRY` / `EXIT` 吗？不能。类没有单一执行流。
@@ -35,7 +35,7 @@
             └─ 函数执行流页（方法内部）
 ```
 
-类焦点页是 ModuleGraph 的一个聚焦投影，不是重新定义一套语义。  
+类焦点页是 ModuleGraph 的一个聚焦投影，不是重新定义一套语义。
 模块页默认显示“折叠的类节点”；类焦点页负责展开方法。这样既保留类作为语义容器的地位，也避免 18 个方法直接铺在模块页。
 
 后续可以在模块页增加“内联展开类”能力，但第一版优先使用类焦点页，因为当前布局是 Python 预计算 + 确定性正交路由，类焦点页更容易复用现有宏布局。
@@ -125,7 +125,7 @@
 - 支持多语言；
 - 后续计划包括子图提取、增量图更新等。
 
-本次公开资料中未确认其存在 “`COMPOSES` / `AGGREGATES` / `INHERITS`” 三分类 API。  
+本次公开资料中未确认其存在 “`COMPOSES` / `AGGREGATES` / `INHERITS`” 三分类 API。
 因此组合/聚合关系可以借鉴 UML 思想，但不应把该说法当作已验证的实现依据。
 
 ### 2.6 CortexPlexus
@@ -344,7 +344,7 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 }
 ```
 
-不要生成一条“确定调用抽象方法”的边。  
+不要生成一条“确定调用抽象方法”的边。
 类层次查询必须有方向，避免兄弟类污染。
 
 ## 6. UI 与路由
@@ -439,7 +439,7 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 
 ## 10. 下一步
 
-先实现 Phase 0 + Phase 1，不先改类页 UI。  
+先实现 Phase 0 + Phase 1，不先改类页 UI。
 先用 `student_system` 重建，确认：
 
 - 类节点数量正确；
@@ -479,3 +479,10 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 - 继承/实现/组合/聚合关系图；
 - 多态调用 candidates；
 - 可选的内联展开类节点。
+
+
+## 12. P1.5 结果
+
+P1.5 已完成：默认 FunctionFlow 已移除，方法详情页、源码视图、callSites 和 callers/callees 已接入。
+类页/方法详情导航仍保留 `#/module/:id/function/:fid` 兼容路由，但页面现在是源码与方法语义视图而不是执行流图。
+详见 [`docs/function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md)。

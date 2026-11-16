@@ -12,46 +12,54 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 def test_build_bundle_contract() -> None:
     bundle = build_architecture(ROOT)
     assert bundle["kind"] == "archmap.bundle"
-    assert bundle["schemaVersion"] == "3.0"
+    assert bundle["schemaVersion"] == "3.1"
     assert bundle["project"]["name"] == "student_demo"
     assert len(bundle["projectGraph"]["modules"]) == 3
-    assert len(bundle["functionFlows"]) == 5
+    assert len(bundle["functionDetails"]) == 5
+    assert "functionFlows" not in bundle
+    assert "callSites" in bundle
     assert bundle["entrypoints"] == [{"functionId": "fn:app.main.main", "reason": "configured"}]
     issues = validate_bundle(bundle)
     assert not [issue for issue in issues if issue["severity"] == "error"]
 
 
-def test_each_function_has_one_entry_and_exit_and_only_two_edge_types() -> None:
+def test_function_details_have_source_and_call_contract() -> None:
     bundle = build_architecture(ROOT)
-    for flow in bundle["functionFlows"]:
-        nodes = flow["nodes"]
-        assert sum(node["type"] == "entry" for node in nodes) == 1
-        assert sum(node["type"] == "exit" for node in nodes) == 1
-        assert {edge["type"] for edge in flow["edges"]} <= {"next_step", "data_dep"}
+    details = {detail["name"]: detail for detail in bundle["functionDetails"]}
+    for detail in details.values():
+        assert detail["signature"].startswith(("def ", "async def "))
+        assert detail["source"]["text"]
+        assert detail["source"]["startLine"] <= detail["source"]["endLine"]
+        assert detail["sourceHash"].startswith("sha256:")
+        assert isinstance(detail["callers"], list)
+        assert isinstance(detail["callees"], list)
+    assert details["main"]["calleeCount"] >= 1
+    assert details["main"]["source"]["endLine"] >= details["main"]["line"]
 
 
 def test_notes_are_extracted_from_docstrings_and_comments() -> None:
     bundle = build_architecture(ROOT)
-    flows = {flow["name"]: flow for flow in bundle["functionFlows"]}
-    assert flows["main"]["note"] == "程序主入口，加载并处理学生数据。"
-    assert flows["save_item"]["note"] == "保存单个学生记录并返回结果"
+    details = {detail["name"]: detail for detail in bundle["functionDetails"]}
+    assert details["main"]["note"] == "程序主入口，加载并处理学生数据。"
+    assert details["save_item"]["note"] == "保存单个学生记录并返回结果"
 
 
 def test_macro_cross_references() -> None:
     bundle = build_architecture(ROOT)
-    flow_ids = {flow["id"] for flow in bundle["functionFlows"]}
+    detail_ids = {detail["id"] for detail in bundle["functionDetails"]}
     for module in bundle["projectGraph"]["modules"]:
-        assert set(module["functions"]) <= flow_ids
+        assert set(module["functions"]) <= detail_ids
     for graph in bundle["moduleGraphs"]:
         node_ids = {node["id"] for node in graph["nodes"]}
         assert all(edge["from"] in node_ids and edge["to"] in node_ids for edge in graph["edges"])
+        assert all(edge["from"] in detail_ids and edge["to"] in detail_ids for edge in graph["methodEdges"])
 
 
 def test_fingerprint_is_stable_and_layout_independent() -> None:
     first = build_architecture(ROOT)
     second = build_architecture(ROOT)
     assert semantic_fingerprint(first) == semantic_fingerprint(second)
-    second["functionFlows"][0]["layout"]["canvas"]["width"] += 1
+    second["moduleGraphs"][0]["layout"]["canvas"]["width"] += 1
     assert semantic_fingerprint(first) == semantic_fingerprint(second)
 
 
@@ -78,6 +86,15 @@ def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
     assert {"cli-pipeline", "python-frontend", "flow-build", "graph-projection", "layout-routing", "validate-render"} <= module_ids
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
+
+
+def test_call_sites_are_independent_from_removed_function_flows() -> None:
+    bundle = build_architecture(ROOT)
+    assert bundle["callSites"]
+    for site in bundle["callSites"]:
+        assert site["fromFunctionId"] in {detail["id"] for detail in bundle["functionDetails"]}
+        assert "calleeText" in site
+        assert "line" in site
 
 
 def test_default_excludes_skip_root_level_build_directory(tmp_path: Path) -> None:

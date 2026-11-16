@@ -5,7 +5,7 @@
 > 当前状态：**v1 Python 后端、三层 bundle、真实函数执行流、单文件 HTML、CLI 与自动化/浏览器测试已完成。** ArkTS 前端仍为后续目标。
 > 当前执行策略：普通开发工作不需要再向用户确认；按本文档与最新用户要求直接推进。  
 > v1 验收记录：见 [`docs/v1-acceptance-report.md`](v1-acceptance-report.md)。
-> 2026-11-16 更新：已执行类语义层 Phase 0 + Phase 1，类节点、方法归属、类边界与 methodEdges 已接入；详见 [`docs/archmap-class-layer-plan.md`](archmap-class-layer-plan.md)。
+> 2026-11-16 更新：已完成类语义层 Phase 0 + Phase 1，并完成 P1.5（FunctionDetail + Source View + Call Graph，移除默认 FunctionFlow）；详见 [`docs/archmap-class-layer-plan.md`](archmap-class-layer-plan.md) 与 [`docs/function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md)。
 
 ---
 

@@ -18,21 +18,21 @@
 模块页展示模块输入/输出、类节点和模块级自由函数节点：
 
 - 类节点是模块内的一等组件，带 `classKind`、`isAbstract`、方法摘要、公开 API 和入口方法信息。
-- 类方法归属 `class` 节点，不直接平铺为模块页函数节点；方法级关系保存在 `methodEdges`，供后续类焦点视图使用。
-- 方法节点属于类组件的子级语义，不生成类级 FunctionFlow；只有具体方法拥有 FunctionFlow。
+- 类方法归属 `class` 节点，不直接平铺为模块页函数节点；方法级关系保存在 `methodEdges` 和全局 `callSites` 中。
+- 方法节点属于类组件的子级语义；类本身不拥有执行流。
 - 模块输入/输出边界只连接类节点或显式自由函数入口，并通过 `viaMethodIds` 保留方法级证据；抽象类/接口不接模块边界。
 - 函数节点只展示函数名和人工备注，不展示步骤数、调用数等生成统计。
-- 双击自由函数进入真实 FunctionFlow 页面；类方法当前从类详情面板进入。
+- 双击自由函数或点击类方法进入 Method Detail 页面。
 
-### FunctionFlow
+### FunctionDetail / CallSite
 
-沿用 2.0 执行流语义：
+P1.5 起，默认产品不再生成语句级 FunctionFlow：
 
-- 每个函数恰好一个 ENTRY、一个 EXIT。
-- 仅存在 `next_step` 和 `data_dep` 两种边。
-- 函数内部调用是 `call` step，不展开为兄弟节点。
-- 正交折线、Rank、结构树 x 布局、Lane、Merge 对齐和确定性几何。
-- 布局坐标和 `d` 路径由 Python 预计算。
+- 每个函数/方法生成 `FunctionDetail`，包含源码切片、签名、备注、返回/异常、callers/callees 和 `sourceHash`。
+- 每次静态调用生成 `CallSite`，记录文件、行、列、调用文本、解析状态和置信度。
+- `methodEdges` 和模块/项目边由 CallSite 聚合，不再从执行流节点反推调用。
+- 方法详情页以源码、人类备注、LLM 语义和调用邻域为主视图。
+- 旧 FunctionFlow 仅保留在历史设计文档中，不再是默认 bundle 或 UI 的一部分。
 
 ## 2. 宏观边契约
 
@@ -102,29 +102,21 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ## 6. 默认布局与用户覆盖
 
-- 后端输出 ProjectGraph、ModuleGraph 和 FunctionFlow 的默认坐标与边路径。
-- 前端不做 rank/x/y/Lane/自动布局。
-- 拖拽写入 `localStorage` 覆盖层，键为 `archmap-v3-layout-v1`。
+- 后端输出 ProjectGraph、ModuleGraph 的默认坐标与边路径。
+- 前端不做宏观 rank/x/y/自动布局。
+- 项目页/模块页/类节点拖拽写入 `localStorage` 覆盖层，键为 `archmap-v3-layout-v1`。
 - 覆盖文件由前端导入/导出为 `layout-overrides.json`。
 - 覆盖项按稳定 ID 保存，忽略过期或无效键。
 - 覆盖不进入语义指纹。
-
-### 函数页手动布局
-
-- 函数执行流页的 ENTRY/EXIT、step、branch、loop、merge 节点均支持拖拽。
-- 拖拽位移按当前画布缩放换算，拖拽结束后写入 `override.functions[functionId].nodes`。
-- 浏览器复用边类型、端口规则和 Lane 规则，对边路径进行正交重算；颜色、线宽、虚实线和箭头样式保持不变。
-- 函数级覆盖按稳定函数 ID 和节点 ID 保存，刷新、导入、导出后可恢复。
-- “恢复自动布局”只删除当前函数的覆盖，不影响项目页和模块页。
-- 手动布局是用户视图覆盖，不反写后端 `layout`，不参与语义指纹，也不要求继续满足 Merge 中心对齐或 Lane 校验。
-- 函数页背景遵循系统 `prefers-color-scheme`；深色模式同步切换网格、图例、缩放控件和流程边 token。
+- P1.5 后不再存在函数级执行流布局覆盖；方法详情页以源码和调用关系为主。
+- 方法详情页和源码面板遵循系统 `prefers-color-scheme`。
 
 ## 7. 语言前端接口
 
 `archmap/frontends/base.py` 定义 `LanguageFrontend`：
 
-- 负责源码发现、解析、符号解析、模块投影和 canonical FunctionFlow 构建。
-- `graph.py`、`layout.py`、`validate.py`、`render.py` 不依赖 Python AST。
+- 负责源码发现、解析、符号解析、模块投影、CallSite 提取和 FunctionDetail 构建。
+- `graph.py`、`validate.py`、`render.py` 不依赖 Python AST。
 - 注册使用显式 `FRONTENDS` 字典，不是插件系统。
 - Python 前端使用标准库 `ast`，v1 运行时零第三方依赖。
 
@@ -141,13 +133,14 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ```json
 {
-  "schemaVersion": "3.0",
+  "schemaVersion": "3.1",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],
   "projectGraph": {},
   "moduleGraphs": [],
-  "functionFlows": [],
+  "functionDetails": [],
+  "callSites": [],
   "diagnostics": [],
   "stats": {}
 }

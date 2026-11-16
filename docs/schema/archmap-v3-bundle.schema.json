@@ -4,252 +4,755 @@
   "title": "ArchMap v3 architecture bundle",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "kind", "project", "entrypoints", "projectGraph", "moduleGraphs", "functionFlows", "diagnostics", "stats"],
+  "required": [
+    "schemaVersion",
+    "kind",
+    "project",
+    "entrypoints",
+    "projectGraph",
+    "moduleGraphs",
+    "functionDetails",
+    "callSites",
+    "diagnostics",
+    "stats"
+  ],
   "properties": {
-    "schemaVersion": {"const": "3.0"},
-    "kind": {"const": "archmap.bundle"},
-    "project": {"$ref": "#/$defs/project"},
-    "entrypoints": {"type": "array", "items": {"$ref": "#/$defs/entrypoint"}},
-    "projectGraph": {"$ref": "#/$defs/projectGraph"},
-    "moduleGraphs": {"type": "array", "items": {"$ref": "#/$defs/moduleGraph"}},
-    "functionFlows": {"type": "array", "items": {"$ref": "#/$defs/functionFlow"}},
-    "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
-    "stats": {"$ref": "#/$defs/stats"}
+    "schemaVersion": {
+      "const": "3.1"
+    },
+    "kind": {
+      "const": "archmap.bundle"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entrypoint"
+      }
+    },
+    "projectGraph": {
+      "$ref": "#/$defs/projectGraph"
+    },
+    "moduleGraphs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/moduleGraph"
+      }
+    },
+    "functionDetails": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/functionDetail"
+      }
+    },
+    "callSites": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/callSite"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "stats": {
+      "$ref": "#/$defs/stats"
+    }
   },
   "$defs": {
-    "identifier": {"type": "string", "minLength": 1},
+    "identifier": {
+      "type": "string",
+      "minLength": 1
+    },
     "project": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["name", "root", "language", "generatedAt", "fingerprint"],
+      "required": [
+        "name",
+        "root",
+        "language",
+        "generatedAt",
+        "fingerprint"
+      ],
       "properties": {
-        "name": {"type": "string", "minLength": 1},
-        "root": {"type": "string", "minLength": 1},
-        "language": {"enum": ["python", "arkts"]},
-        "pythonVersion": {"type": "string"},
-        "generatedAt": {"type": "string"},
-        "fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language": {
+          "enum": [
+            "python",
+            "arkts"
+          ]
+        },
+        "pythonVersion": {
+          "type": "string"
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
       }
     },
     "entrypoint": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["functionId", "reason"],
+      "required": [
+        "functionId",
+        "reason"
+      ],
       "properties": {
-        "functionId": {"$ref": "#/$defs/identifier"},
-        "reason": {"enum": ["main", "configured", "route", "heuristic"]}
+        "functionId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "reason": {
+          "enum": [
+            "main",
+            "configured",
+            "route",
+            "heuristic"
+          ]
+        }
       }
     },
     "port": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "label"],
-      "properties": {"id": {"$ref": "#/$defs/identifier"}, "label": {"type": "string"}}
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "label": {
+          "type": "string"
+        }
+      }
     },
     "evidence": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "fromFunctionId": {"type": "string"},
-        "toFunctionId": {"type": "string"},
-        "file": {"type": "string"},
-        "line": {"type": "integer"}
+        "fromFunctionId": {
+          "type": "string"
+        },
+        "toFunctionId": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        }
       }
     },
     "macroEdge": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "from", "to", "primaryType", "relations", "role", "confidence", "evidence"],
+      "required": [
+        "id",
+        "from",
+        "to",
+        "primaryType",
+        "relations",
+        "role",
+        "confidence",
+        "evidence"
+      ],
       "properties": {
-        "id": {"$ref": "#/$defs/identifier"},
-        "from": {"$ref": "#/$defs/identifier"},
-        "to": {"$ref": "#/$defs/identifier"},
-        "primaryType": {"enum": ["call", "data", "control"]},
-        "relations": {"type": "array", "items": {"enum": ["call", "data", "control"]}},
-        "role": {"enum": ["internal", "project_input", "project_output", "module_input", "module_output"]},
-        "confidence": {"enum": ["high", "medium", "low"]},
-        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "from": {
+          "$ref": "#/$defs/identifier"
+        },
+        "to": {
+          "$ref": "#/$defs/identifier"
+        },
+        "primaryType": {
+          "enum": [
+            "call",
+            "data",
+            "control"
+          ]
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "call",
+              "data",
+              "control"
+            ]
+          }
+        },
+        "role": {
+          "enum": [
+            "internal",
+            "project_input",
+            "project_output",
+            "module_input",
+            "module_output"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
       }
     },
     "macroNode": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "kind"],
-      "properties": {"id": {"$ref": "#/$defs/identifier"}, "kind": {"type": "string"}}
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "type": "string"
+        }
+      }
     },
     "layoutNode": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["x", "y", "w", "h"],
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
       "properties": {
-        "x": {"type": "number"}, "y": {"type": "number"},
-        "w": {"type": "number"}, "h": {"type": "number"},
-        "cx": {"type": "number"}, "rank": {"type": "integer"}
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "cx": {
+          "type": "number"
+        },
+        "rank": {
+          "type": "integer"
+        }
       }
     },
     "layoutEdge": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["d"],
+      "required": [
+        "d"
+      ],
       "properties": {
-        "d": {"type": "string"},
-        "points": {"type": "array", "items": {"type": "array", "items": {"type": "number"}}},
-        "label": {"type": "object", "additionalProperties": true}
+        "d": {
+          "type": "string"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "label": {
+          "type": "object",
+          "additionalProperties": true
+        }
       }
     },
     "layout": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["canvas", "nodes", "edges"],
+      "required": [
+        "canvas",
+        "nodes",
+        "edges"
+      ],
       "properties": {
         "canvas": {
-          "type": "object", "additionalProperties": true,
-          "required": ["width", "height", "padding"],
-          "properties": {"width": {"type": "number"}, "height": {"type": "number"}, "padding": {"type": "number"}}
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "width",
+            "height",
+            "padding"
+          ],
+          "properties": {
+            "width": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            },
+            "padding": {
+              "type": "number"
+            }
+          }
         },
-        "nodes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/layoutNode"}},
-        "edges": {"type": "object", "additionalProperties": {"$ref": "#/$defs/layoutEdge"}}
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/layoutNode"
+          }
+        },
+        "edges": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/layoutEdge"
+          }
+        }
       }
     },
     "projectGraph": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["kind", "project", "boundaryNodes", "modules", "edges", "layout"],
+      "required": [
+        "kind",
+        "project",
+        "boundaryNodes",
+        "modules",
+        "edges",
+        "layout"
+      ],
       "properties": {
-        "kind": {"const": "archmap.project-graph"},
-        "project": {"type": "object", "additionalProperties": true},
-        "boundaryNodes": {"type": "array", "items": {"$ref": "#/$defs/macroNode"}},
-        "modules": {"type": "array", "items": {"$ref": "#/$defs/macroNode"}},
-        "edges": {"type": "array", "items": {"$ref": "#/$defs/macroEdge"}},
-        "layout": {"$ref": "#/$defs/layout"}
+        "kind": {
+          "const": "archmap.project-graph"
+        },
+        "project": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "boundaryNodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroNode"
+          }
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroEdge"
+          }
+        },
+        "layout": {
+          "$ref": "#/$defs/layout"
+        }
       }
     },
     "moduleGraph": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["kind", "moduleId", "name", "note", "color", "inputs", "outputs", "nodes", "edges", "layout"],
+      "required": [
+        "kind",
+        "moduleId",
+        "name",
+        "note",
+        "color",
+        "inputs",
+        "outputs",
+        "nodes",
+        "edges",
+        "layout"
+      ],
       "properties": {
-        "kind": {"const": "archmap.module-graph"},
-        "moduleId": {"$ref": "#/$defs/identifier"},
-        "name": {"type": "string"},
-        "note": {"type": "string"},
-        "color": {"type": "string"},
-        "inputs": {"type": "array", "items": {"$ref": "#/$defs/port"}},
-        "outputs": {"type": "array", "items": {"$ref": "#/$defs/port"}},
-        "nodes": {"type": "array", "items": {"$ref": "#/$defs/macroNode"}},
-        "edges": {"type": "array", "items": {"$ref": "#/$defs/macroEdge"}},
-        "methodEdges": {"type": "array", "items": {"$ref": "#/$defs/macroEdge"}},
-        "classCount": {"type": "integer", "minimum": 0},
-        "methodCount": {"type": "integer", "minimum": 0},
-        "layout": {"$ref": "#/$defs/layout"}
-      }
-    },
-    "node": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["id", "type", "code", "synthetic", "blockId"],
-      "properties": {
-        "id": {"$ref": "#/$defs/identifier"},
-        "type": {"enum": ["entry", "exit", "step", "branch", "loop", "merge"]},
-        "stepType": {"enum": ["assign", "aug_assign", "ann_assign", "call", "await", "return", "raise", "yield", "break", "continue", "read", "write", "emit", "consume", "with", "assert", "delete", "pass", "try", "match"]},
-        "code": {"type": "string"},
-        "synthetic": {"type": "boolean"},
-        "blockId": {"$ref": "#/$defs/identifier"},
-        "file": {"type": "string"},
-        "line": {"type": "integer"},
-        "endLine": {"type": "integer"},
-        "order": {"type": "integer"},
-        "loopKind": {"enum": ["for", "while", "async_for", "do_while"]},
-        "mergeOf": {"type": "string"},
-        "call": {"type": "object", "additionalProperties": true},
-        "data": {
-          "type": "object", "additionalProperties": true,
-          "properties": {
-            "defs": {"type": "array", "items": {"type": "string"}},
-            "uses": {"type": "array", "items": {"type": "string"}}
+        "kind": {
+          "const": "archmap.module-graph"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
           }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroEdge"
+          }
+        },
+        "methodEdges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroEdge"
+          }
+        },
+        "classCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "methodCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "layout": {
+          "$ref": "#/$defs/layout"
         }
-      }
-    },
-    "edge": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["id", "from", "to", "type", "flow"],
-      "properties": {
-        "id": {"$ref": "#/$defs/identifier"},
-        "from": {"$ref": "#/$defs/identifier"},
-        "to": {"$ref": "#/$defs/identifier"},
-        "type": {"enum": ["next_step", "data_dep"]},
-        "flow": {"enum": ["next", "true", "false", "loop_body", "loop_exit", "back", "break", "continue", "return", "exception", "merge", null]},
-        "label": {"type": "string"},
-        "variable": {"type": "string"},
-        "resolution": {"enum": ["exact", "union", "loop", "approximate"]},
-        "confidence": {"enum": ["high", "medium", "low"]}
-      }
-    },
-    "block": {"type": "object", "additionalProperties": true, "required": ["id", "kind", "parentId"]},
-    "functionFlow": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["id", "kind", "name", "qualifiedName", "module", "moduleId", "file", "line", "endLine", "signature", "isAsync", "note", "rootBlockId", "entryNodeId", "exitNodeId", "nodes", "edges", "blocks", "layout", "sourceHash"],
-      "properties": {
-        "id": {"$ref": "#/$defs/identifier"},
-        "kind": {"const": "archmap.function-flow"},
-        "name": {"type": "string"},
-        "qualifiedName": {"type": "string"},
-        "module": {"type": "string"},
-        "moduleId": {"$ref": "#/$defs/identifier"},
-        "ownerClassId": {"type": ["string", "null"]},
-        "methodKind": {"type": "string"},
-        "visibility": {"type": "string"},
-        "isAbstract": {"type": "boolean"},
-        "file": {"type": "string"},
-        "line": {"type": "integer"},
-        "endLine": {"type": "integer"},
-        "signature": {"type": "string"},
-        "isAsync": {"type": "boolean"},
-        "note": {"type": "string"},
-        "sourceHash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-        "rootBlockId": {"$ref": "#/$defs/identifier"},
-        "entryNodeId": {"$ref": "#/$defs/identifier"},
-        "exitNodeId": {"$ref": "#/$defs/identifier"},
-        "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
-        "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
-        "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}},
-        "layout": {"$ref": "#/$defs/layout"}
       }
     },
     "diagnostic": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["severity", "code", "message"],
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
       "properties": {
-        "severity": {"enum": ["error", "warning", "info"]},
-        "code": {"type": "string"},
-        "message": {"type": "string"},
-        "functionId": {"type": "string"},
-        "nodeId": {"type": "string"},
-        "file": {"type": "string"},
-        "line": {"type": "integer"}
+        "severity": {
+          "enum": [
+            "error",
+            "warning",
+            "info"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "functionId": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        }
+      }
+    },
+    "functionDetail": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "name",
+        "qualifiedName",
+        "module",
+        "moduleId",
+        "file",
+        "line",
+        "endLine",
+        "signature",
+        "isAsync",
+        "note",
+        "source",
+        "sourceHash",
+        "callers",
+        "callees"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string"
+        },
+        "qualifiedName": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "ownerClassId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "methodKind": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string"
+        },
+        "isAbstract": {
+          "type": "boolean"
+        },
+        "isAsync": {
+          "type": "boolean"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "signature": {
+          "type": "string"
+        },
+        "returns": {
+          "type": "string"
+        },
+        "raises": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "text",
+            "startLine",
+            "endLine"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "startLine": {
+              "type": "integer"
+            },
+            "endLine": {
+              "type": "integer"
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "language": {
+              "type": "string"
+            }
+          }
+        },
+        "sourceHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "callers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "callees": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "callerCount": {
+          "type": "integer"
+        },
+        "calleeCount": {
+          "type": "integer"
+        }
+      }
+    },
+    "callSite": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "fromFunctionId",
+        "file",
+        "line",
+        "column",
+        "calleeText",
+        "callText",
+        "kind",
+        "resolved",
+        "external",
+        "recursive",
+        "confidence",
+        "candidates"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "fromFunctionId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "fromModuleId": {
+          "type": "string"
+        },
+        "toFunctionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toModuleId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "column": {
+          "type": "integer"
+        },
+        "calleeText": {
+          "type": "string"
+        },
+        "callText": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "external": {
+          "type": "boolean"
+        },
+        "recursive": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "argumentCount": {
+          "type": "integer"
+        }
       }
     },
     "stats": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["modules", "functions", "nodes", "edges", "maxRank", "diagnostics"],
+      "required": [
+        "modules",
+        "classes",
+        "functions",
+        "methods",
+        "callSites",
+        "resolvedCalls",
+        "macroEdges",
+        "diagnostics"
+      ],
       "properties": {
-        "modules": {"type": "integer"},
-        "classes": {"type": "integer"},
-        "functions": {"type": "integer"},
-        "methods": {"type": "integer"},
-        "nodes": {"type": "integer"},
-        "edges": {"type": "integer"},
-        "macroEdges": {"type": "integer"},
-        "maxRank": {"type": "integer"},
+        "modules": {
+          "type": "integer"
+        },
+        "classes": {
+          "type": "integer"
+        },
+        "functions": {
+          "type": "integer"
+        },
+        "methods": {
+          "type": "integer"
+        },
+        "callSites": {
+          "type": "integer"
+        },
+        "resolvedCalls": {
+          "type": "integer"
+        },
+        "macroEdges": {
+          "type": "integer"
+        },
         "diagnostics": {
-          "type": "object", "additionalProperties": true,
+          "type": "object",
+          "additionalProperties": true,
           "properties": {
-            "error": {"type": "integer"}, "warning": {"type": "integer"}, "info": {"type": "integer"}
+            "error": {
+              "type": "integer"
+            },
+            "warning": {
+              "type": "integer"
+            },
+            "info": {
+              "type": "integer"
+            }
           }
         }
       }
