@@ -449,3 +449,33 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 - 现有函数执行流和布局校验仍然通过。
 
 数据模型验证通过后，再做类焦点页。
+
+## 11. 实施状态（Phase 0 + Phase 1）
+
+已执行：
+
+- `ClassInfo` 增加 `module_id`、文件/行号、备注、decorators、`isAbstract`、`classKind`；
+- `FunctionInfo` 增加 `methodKind`、`visibility`、`isAbstract`；
+- `FunctionFlow` 增加 `ownerClassId`、`methodKind`、`visibility`、`isAbstract`；
+- ModuleGraph 增加 `class` 节点、类方法摘要、`methodEdges`、`classCount`、`methodCount`；
+- 模块页不再平铺类方法，只显示类节点和模块级自由函数；
+- 模块输入/输出只连接类节点或显式自由函数入口，并通过 `viaMethodIds` 保留方法级证据；
+- 抽象类/接口不接模块输入输出，`entryMethodIds` 为空；
+- 类节点详情展示公开 API 和内部/生命周期方法，可进入方法执行流；
+- schema、语义指纹、校验器和浏览器冒烟测试已同步更新。
+
+验证结果（`student_system`）：
+
+- 菜单与交互模块：19 个平铺函数节点 → 1 个 `MenuSystem` 类节点 + 1 个自由函数节点；
+- 菜单模块边界：17 条输入 / 14 条输出 → 1 条类输入 / 1 条类输出；
+- 异步等待模块：4 个方法节点 → 1 个 `Spinner` 类节点；
+- 异步模块边界：4 条输入 / 4 条输出 → 1 条类输入 / 1 条类输出；
+- `archmap check` 通过；
+- `pytest` 通过，浏览器冒烟测试通过。
+
+尚未执行：
+
+- 类焦点页与类内方法布局；
+- 继承/实现/组合/聚合关系图；
+- 多态调用 candidates；
+- 可选的内联展开类节点。
