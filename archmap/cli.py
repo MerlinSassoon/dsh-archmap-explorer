@@ -50,9 +50,13 @@ def _write_split(bundle: dict[str, Any], out_dir: Path) -> None:
     for graph in bundle["moduleGraphs"]:
         safe = graph["moduleId"].replace("/", "_")
         (modules_dir / f"{safe}.json").write_text(json.dumps(graph, ensure_ascii=False, indent=2), encoding="utf-8")
-    for flow in bundle["functionFlows"]:
-        safe = flow["id"].replace(":", "_").replace("/", "_").replace(".", "_")
-        (functions_dir / f"{safe}.json").write_text(json.dumps(flow, ensure_ascii=False, indent=2), encoding="utf-8")
+    for detail in bundle["functionDetails"]:
+        safe = detail["id"].replace(":", "_").replace("/", "_").replace(".", "_")
+        (functions_dir / f"{safe}.json").write_text(json.dumps(detail, ensure_ascii=False, indent=2), encoding="utf-8")
+    (split / "call-sites.json").write_text(
+        json.dumps(bundle["callSites"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def cmd_build(args: argparse.Namespace) -> int:
@@ -103,6 +107,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     print(f"project:   {bundle['project']['name']}")
     print(f"modules:   {bundle['stats']['modules']}")
     print(f"functions: {bundle['stats']['functions']}")
+    print(f"call sites: {bundle['stats']['callSites']}")
     print(f"json:      {json_path}")
     print(f"html:      {html_path}")
     if warnings:
@@ -122,35 +127,36 @@ def cmd_check(args: argparse.Namespace) -> int:
         return 2
     issues = validate_bundle(bundle)
     if not issues:
-        print("OK: schema, cross references, function invariants and layout are valid")
+        print("OK: schema, cross references, function details and call sites are valid")
         return 0
     _print_issues(issues)
     return 1 if any(issue.get("severity") == "error" for issue in issues) else 0
 
 
-def cmd_flow(args: argparse.Namespace) -> int:
+def cmd_method(args: argparse.Namespace) -> int:
     project_root = Path(args.project).resolve()
     config_path = Path(args.config).resolve() if args.config else None
     bundle = build_architecture(project_root, config_path)
     target_file = Path(args.file).name if args.file else None
-    candidates = bundle["functionFlows"]
+    candidates = bundle["functionDetails"]
     if target_file:
-        candidates = [flow for flow in candidates if Path(flow["file"]).name == target_file]
+        candidates = [detail for detail in candidates if Path(detail["file"]).name == target_file]
     if args.function:
         candidates = [
-            flow
-            for flow in candidates
-            if flow["name"] == args.function or flow["qualifiedName"].endswith("." + args.function)
+            detail
+            for detail in candidates
+            if detail["name"] == args.function or detail["qualifiedName"].endswith("." + args.function)
         ]
     if not candidates:
-        print("error: no matching function flow", file=sys.stderr)
+        print("error: no matching function detail", file=sys.stderr)
         return 1
-    flow = candidates[0]
+    detail = candidates[0]
     if args.json:
-        print(json.dumps(flow, ensure_ascii=False, indent=2))
+        print(json.dumps(detail, ensure_ascii=False, indent=2))
     else:
-        print(f"{flow['qualifiedName']} ({flow['file']}:{flow['line']})")
-        print(f"nodes={len(flow['nodes'])} edges={len(flow['edges'])} canvas={flow['layout']['canvas']}")
+        print(f"{detail['qualifiedName']} ({detail['file']}:{detail['line']})")
+        print(f"signature={detail['signature']}")
+        print(f"callers={detail['callerCount']} callees={detail['calleeCount']} sourceLines={detail['source']['endLine'] - detail['source']['startLine'] + 1}")
     return 0
 
 
@@ -183,18 +189,18 @@ def cmd_diff(args: argparse.Namespace) -> int:
         print("no semantic changes")
         return 0
     print("semantic changes detected")
-    before_flows = {flow["id"] for flow in before.get("functionFlows", [])}
-    after_flows = {flow["id"] for flow in after.get("functionFlows", [])}
-    for added in sorted(after_flows - before_flows):
+    before_functions = {detail["id"] for detail in before.get("functionDetails", [])}
+    after_functions = {detail["id"] for detail in after.get("functionDetails", [])}
+    for added in sorted(after_functions - before_functions):
         print(f"+ {added}")
-    for removed in sorted(before_flows - after_flows):
+    for removed in sorted(before_functions - after_functions):
         print(f"- {removed}")
     return 1
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="archmap", description="ArchMap v3 module-first architecture analysis")
-    parser.add_argument("--version", action="version", version="archmap 1.0.0")
+    parser.add_argument("--version", action="version", version="archmap 1.1.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build", help="analyze a Python project and write architecture.json/html")
@@ -210,13 +216,13 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("bundle")
     check.set_defaults(func=cmd_check)
 
-    flow = sub.add_parser("flow", help="inspect a single generated function flow")
-    flow.add_argument("project", nargs="?", default=".")
-    flow.add_argument("--config")
-    flow.add_argument("--file")
-    flow.add_argument("--function")
-    flow.add_argument("--json", action="store_true")
-    flow.set_defaults(func=cmd_flow)
+    method = sub.add_parser("method", help="inspect a generated function/method detail")
+    method.add_argument("project", nargs="?", default=".")
+    method.add_argument("--config")
+    method.add_argument("--file")
+    method.add_argument("--function")
+    method.add_argument("--json", action="store_true")
+    method.set_defaults(func=cmd_method)
 
     serve = sub.add_parser("serve", help="serve generated artifacts locally")
     serve.add_argument("directory", nargs="?", default=".archmap")
