@@ -1,0 +1,18 @@
+{
+  "projectName": "class_demo",
+  "language": "python",
+  "include": ["app/*.py"],
+  "project": {"inputs": ["请求"], "outputs": ["结果"]},
+  "entrypoints": ["app.worker:make_worker"],
+  "modules": [
+    {
+      "id": "worker",
+      "name": "Worker 模块",
+      "include": ["app/worker.py"],
+      "note": "类语义测试",
+      "inputs": ["请求"],
+      "outputs": ["结果"],
+      "color": "#60a5fa"
+    }
+  ]
+}

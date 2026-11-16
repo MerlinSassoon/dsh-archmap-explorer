@@ -717,6 +717,13 @@ class FunctionFlowBuilder:
             "qualifiedName": f"{self.fn.module_name}.{self.fn.qualname}",
             "module": self.fn.module_name,
             "moduleId": self.fn.module_id,
+            "ownerClassId": (
+                f"cls:{self.fn.module_name}.{self.fn.class_name}"
+                if self.fn.class_name else None
+            ),
+            "methodKind": self.fn.method_kind,
+            "visibility": self.fn.visibility,
+            "isAbstract": self.fn.is_abstract,
             "file": self.fn.file,
             "line": self.fn.line,
             "endLine": self.fn.end_line,

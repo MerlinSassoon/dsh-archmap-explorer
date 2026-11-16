@@ -39,6 +39,9 @@ class FunctionInfo:
     class_name: str | None = None
     source_file: SourceFile | None = None
     synthetic: bool = False
+    method_kind: str = "function"
+    visibility: str = "public"
+    is_abstract: bool = False
 
 
 @dataclass
@@ -49,6 +52,14 @@ class ClassInfo:
     node: ast.ClassDef
     methods: dict[str, FunctionInfo] = field(default_factory=dict)
     bases: list[str] = field(default_factory=list)
+    module_id: str = ""
+    file: str = ""
+    line: int = 0
+    end_line: int = 0
+    note: str = ""
+    decorators: list[str] = field(default_factory=list)
+    is_abstract: bool = False
+    class_kind: str = "service"
 
 
 @dataclass
@@ -156,6 +167,86 @@ def _comment_note(lines: list[str], node: ast.FunctionDef | ast.AsyncFunctionDef
     return _first_paragraph(" ".join(reversed(collected)))
 
 
+LIFECYCLE_METHOD_NAMES = {
+    "__enter__", "__exit__", "__aenter__", "__aexit__", "__call__",
+    "__iter__", "__next__", "__aiter__", "__anext__",
+}
+ABSTRACT_METHOD_DECORATORS = {
+    "abstractmethod", "abstractclassmethod", "abstractstaticmethod", "abstractproperty",
+}
+ENTRY_METHOD_NAMES = {"run", "main", "handle", "execute", "start", "serve", "dispatch"}
+
+
+def _decorator_names(node: ast.AST) -> list[str]:
+    names: list[str] = []
+    for decorator in getattr(node, "decorator_list", []) or []:
+        names.append(_unparse(decorator))
+    return names
+
+
+def _has_abstract_decorator(node: ast.AST) -> bool:
+    return any(name.split(".")[-1] in ABSTRACT_METHOD_DECORATORS for name in _decorator_names(node))
+
+
+def _visibility(name: str) -> str:
+    if name == "__init__":
+        return "constructor"
+    if name in LIFECYCLE_METHOD_NAMES:
+        return "lifecycle"
+    if name.startswith("__") and name.endswith("__"):
+        return "dunder"
+    if name.startswith("_"):
+        return "internal"
+    return "public"
+
+
+def _method_kind(name: str, decorators: list[str]) -> str:
+    if name == "__init__":
+        return "constructor"
+    if name in LIFECYCLE_METHOD_NAMES:
+        return "lifecycle"
+    if any(item.split(".")[-1] in ABSTRACT_METHOD_DECORATORS for item in decorators):
+        return "abstract"
+    if name.startswith("__") and name.endswith("__"):
+        return "dunder"
+    if name.startswith("_"):
+        return "internal"
+    return "public_api"
+
+
+def _note_for_def(node: ast.AST, lines: list[str]) -> str:
+    doc = ast.get_docstring(node, clean=False) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else None
+    if doc:
+        return _first_paragraph(doc)
+    return ""
+
+
+def _is_abstract_class(node: ast.ClassDef, bases: list[str], methods: list[FunctionInfo]) -> bool:
+    base_tails = {base.split(".")[-1] for base in bases}
+    if base_tails.intersection({"ABC", "ABCMeta", "Protocol"}):
+        return True
+    return any(method.is_abstract for method in methods)
+
+
+def _class_kind(node: ast.ClassDef, bases: list[str], methods: list[FunctionInfo]) -> str:
+    base_tails = {base.split(".")[-1] for base in bases}
+    decorators = {name.split(".")[-1] for name in _decorator_names(node)}
+    if "Protocol" in base_tails:
+        return "interface"
+    if _is_abstract_class(node, bases, methods):
+        return "abstract"
+    if "dataclass" in decorators:
+        return "dataclass"
+    if base_tails.intersection({"Enum", "IntEnum", "Flag", "IntFlag", "StrEnum"}):
+        return "enum"
+    if any(base.endswith("Exception") or base.endswith("BaseException") or base.endswith("Error") for base in bases):
+        return "exception"
+    real_methods = [method for method in methods if method.name not in {"__init__", "__repr__", "__str__"}]
+    if not real_methods:
+        return "model"
+    return "service"
+
+
 def _parse_imports(tree: ast.Module) -> dict[str, ImportRef]:
     imports: dict[str, ImportRef] = {}
     for node in tree.body:
@@ -243,23 +334,34 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
                         node=child,
                         class_name=class_name,
                         source_file=source_file,
+                        method_kind="function",
+                        visibility=_visibility(child.name),
+                        is_abstract=_has_abstract_decorator(child),
                     )
                     module.functions[qualname] = info
                     functions.append(info)
                     # Nested functions are indexed but not descended into for class methods.
                 elif isinstance(child, ast.ClassDef):
                     qualname = f"{qual_prefix}{child.name}"
+                    class_bases = [_unparse(base) for base in child.bases]
                     cls = ClassInfo(
                         name=child.name,
                         qualname=qualname,
                         module_name=module.name,
                         node=child,
-                        bases=[_unparse(base) for base in child.bases],
+                        bases=class_bases,
+                        module_id=module.module_id,
+                        file=source_file.rel_path,
+                        line=child.lineno,
+                        end_line=getattr(child, "end_lineno", child.lineno) or child.lineno,
+                        note=_note_for_def(child, lines),
+                        decorators=_decorator_names(child),
                     )
                     for member in child.body:
                         if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
                             mqual = f"{qualname}.{member.name}"
                             fn_id = f"fn:{module.name}.{mqual}"
+                            member_decorators = _decorator_names(member)
                             info = FunctionInfo(
                                 id=fn_id,
                                 name=member.name,
@@ -275,10 +377,15 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
                                 node=member,
                                 class_name=qualname,
                                 source_file=source_file,
+                                method_kind=_method_kind(member.name, member_decorators),
+                                visibility=_visibility(member.name),
+                                is_abstract=_has_abstract_decorator(member),
                             )
                             cls.methods[member.name] = info
                             module.functions[mqual] = info
                             functions.append(info)
+                    cls.is_abstract = _is_abstract_class(child, class_bases, list(cls.methods.values()))
+                    cls.class_kind = _class_kind(child, class_bases, list(cls.methods.values()))
                     module.classes[qualname] = cls
                     classes.append(cls)
 
@@ -332,6 +439,9 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
             class_name=None,
             source_file=module.file,
             synthetic=True,
+            method_kind="function",
+            visibility="public",
+            is_abstract=False,
         )
         module.functions["__main__"] = info
         functions.append(info)
