@@ -49,3 +49,22 @@ def test_render_does_not_rescan_injected_json_placeholders() -> None:
     embedded = json.loads(match.group(1))
     assert embedded["functionFlows"][0]["nodes"][0]["code"] == payload
     assert "\\/script>" in match.group(1)
+
+
+def test_render_contains_interactive_flow_drag_contract() -> None:
+    bundle = build_architecture(ROOT)
+    html = render_html(bundle)
+    assert 'id="resetFunctionBtn"' in html
+    assert "data-edge-id" in html
+    assert "data-edge-label" in html
+    assert "refreshFlowRoutes" in html
+    assert "attachFlowNodeDrag" in html
+
+
+def test_function_flow_canvas_follows_system_color_scheme() -> None:
+    bundle = build_architecture(ROOT)
+    html = render_html(bundle)
+    assert "prefers-color-scheme: dark" in html
+    assert "--flow-next" in html
+    assert "--flow-data" in html
+    assert "background: transparent" in html

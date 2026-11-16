@@ -30,6 +30,7 @@
   const zoomValue = $("zoomValue");
   const saveState = $("saveState");
   const singleModeBtn = $("singleModeBtn");
+  const resetFunctionBtn = $("resetFunctionBtn");
   const projectNameEl = $("projectName");
   const projectLanguageEl = $("projectLanguage");
   const toastEl = $("toast");
@@ -53,6 +54,7 @@
   };
 
   let override = loadOverrides();
+  let flowPage = null;
 
   function defaultOverride() {
     return {
@@ -60,6 +62,7 @@
       geometryVersion: GEOMETRY_VERSION,
       project: { nodes: {}, miniNodes: {}, expanded: {}, singleModule: false },
       modules: {},
+      functions: {},
     };
   }
 
@@ -72,6 +75,7 @@
     base.project.expanded = value.project?.expanded && typeof value.project.expanded === "object" ? value.project.expanded : {};
     base.project.singleModule = Boolean(value.project?.singleModule);
     base.modules = value.modules && typeof value.modules === "object" ? value.modules : {};
+    base.functions = value.functions && typeof value.functions === "object" ? value.functions : {};
     return base;
   }
 
@@ -495,6 +499,7 @@
     searchWrap.classList.toggle("is-disabled", kind === "function");
     if (kind === "function") searchInput.value = "";
     backBtn.disabled = kind === "project" && history.length <= 1;
+    updateResetFunctionButton();
   }
 
   function projectNodeExpanded(moduleId) {
@@ -997,9 +1002,18 @@
   }
 
   const FLOW_COLORS = {
-    next: "#475569", true: "#16a34a", false: "#dc2626", loop_body: "#2563eb",
-    loop_exit: "#64748b", back: "#f59e0b", break: "#f59e0b", continue: "#f59e0b",
-    return: "#7c3aed", exception: "#dc2626", merge: "#94a3b8", data_dep: "#a855f7",
+    next: "var(--flow-next)", true: "var(--flow-true)", false: "var(--flow-false)",
+    loop_body: "var(--flow-loop-body)", loop_exit: "var(--flow-loop-exit)",
+    back: "var(--flow-back)", break: "var(--flow-back)", continue: "var(--flow-back)",
+    return: "var(--flow-return)", exception: "var(--flow-exception)",
+    merge: "var(--flow-merge)", data_dep: "var(--flow-data)",
+  };
+  const FLOW_GEOM = {
+    laneGap: 28,
+    laneStep: 14,
+    portDx: 28,
+    loopPortDx: 32,
+    radius: 8,
   };
 
   function flowEdgeColor(edge) {
@@ -1018,11 +1032,429 @@
     return `arrow-${edge.flow || "next"}`;
   }
 
-  function renderFlowSvg(flow) {
+  function hasFunctionOverride(flowId) {
+    const nodes = override.functions?.[flowId]?.nodes;
+    return Boolean(nodes && Object.keys(nodes).length);
+  }
+
+  function buildFlowPositions(flow) {
+    const customNodes = override.functions?.[flow.id]?.nodes || {};
+    const positions = new Map();
+    flow.nodes.forEach(node => {
+      const base = flow.layout?.nodes?.[node.id] || { x: 0, y: 0, w: node.w || 240, h: node.h || 56 };
+      const custom = customNodes[node.id];
+      positions.set(node.id, {
+        x: Math.max(8, Number(custom?.x ?? base.x ?? 0)),
+        y: Math.max(8, Number(custom?.y ?? base.y ?? 0)),
+        w: Number(base.w || node.w || 240),
+        h: Number(base.h || node.h || 56),
+      });
+    });
+    return positions;
+  }
+
+  function flowNodeRect(positions, nodeId) {
+    const item = positions.get(nodeId);
+    if (!item) return null;
+    return {
+      x: Number(item.x), y: Number(item.y), w: Number(item.w), h: Number(item.h),
+      cx: Number(item.x) + Number(item.w) / 2,
+      cy: Number(item.y) + Number(item.h) / 2,
+    };
+  }
+
+  function topCenter(node) { return [node.cx, node.y]; }
+  function bottomCenter(node) { return [node.cx, node.y + node.h]; }
+  function leftMid(node) { return [node.x, node.y + node.h / 2]; }
+  function rightMid(node) { return [node.x + node.w, node.y + node.h / 2]; }
+
+  function roundCoord(value) {
+    return Math.round(Number(value) * 100) / 100;
+  }
+
+  function roundedFlowPath(points, radius = FLOW_GEOM.radius) {
+    const clean = [];
+    for (const point of points || []) {
+      if (!point) continue;
+      const x = roundCoord(point[0]);
+      const y = roundCoord(point[1]);
+      if (!clean.length || Math.abs(x - clean[clean.length - 1][0]) > 0.01 || Math.abs(y - clean[clean.length - 1][1]) > 0.01) {
+        clean.push([x, y]);
+      }
+    }
+    if (clean.length < 2) return "";
+    if (clean.length === 2) return `M ${clean[0][0]} ${clean[0][1]} L ${clean[1][0]} ${clean[1][1]}`;
+    const parts = [`M ${clean[0][0]} ${clean[0][1]}`];
+    for (let index = 1; index < clean.length - 1; index += 1) {
+      const prev = clean[index - 1];
+      const current = clean[index];
+      const next = clean[index + 1];
+      const v1 = [prev[0] - current[0], prev[1] - current[1]];
+      const v2 = [next[0] - current[0], next[1] - current[1]];
+      const len1 = Math.hypot(v1[0], v1[1]);
+      const len2 = Math.hypot(v2[0], v2[1]);
+      if (len1 < 0.01 || len2 < 0.01) continue;
+      const rr = Math.min(radius, len1 / 2, len2 / 2);
+      const p1 = [current[0] + v1[0] / len1 * rr, current[1] + v1[1] / len1 * rr];
+      const p2 = [current[0] + v2[0] / len2 * rr, current[1] + v2[1] / len2 * rr];
+      parts.push(`L ${roundCoord(p1[0])} ${roundCoord(p1[1])}`);
+      parts.push(`Q ${roundCoord(current[0])} ${roundCoord(current[1])} ${roundCoord(p2[0])} ${roundCoord(p2[1])}`);
+    }
+    const last = clean[clean.length - 1];
+    parts.push(`L ${last[0]} ${last[1]}`);
+    return parts.join(" ");
+  }
+
+  function createLaneRegistry() {
+    const lanes = new Map();
+    return {
+      alloc(key, y0, y1) {
+        const lo = Math.min(y0, y1);
+        const hi = Math.max(y0, y1);
+        const entries = lanes.get(key) || [];
+        for (let index = 0; index < entries.length; index += 1) {
+          if (entries[index].every(span => hi < span[0] || lo > span[1])) {
+            entries[index].push([lo, hi]);
+            lanes.set(key, entries);
+            return index;
+          }
+        }
+        entries.push([[lo, hi]]);
+        lanes.set(key, entries);
+        return entries.length - 1;
+      },
+    };
+  }
+
+  function flowBlockMaps(flow) {
+    return {
+      blockMap: new Map((flow.blocks || []).map(block => [block.id, block])),
+      flowNodeMap: new Map(flow.nodes.map(node => [node.id, node])),
+    };
+  }
+
+  function nodesInBlock(blockId, blockMap, nodeMap, out = new Set()) {
+    const block = blockMap.get(blockId);
+    if (!block) return out;
+    if (block.kind === "sequence") {
+      (block.items || []).forEach(item => {
+        if (nodeMap.has(item)) out.add(item);
+        else nodesInBlock(item, blockMap, nodeMap, out);
+      });
+    } else if (block.kind === "if") {
+      if (block.ownerId) out.add(block.ownerId);
+      if (block.then) nodesInBlock(block.then, blockMap, nodeMap, out);
+      if (block.else) nodesInBlock(block.else, blockMap, nodeMap, out);
+      if (block.merge) out.add(block.merge);
+    } else if (block.kind === "loop") {
+      if (block.ownerId) out.add(block.ownerId);
+      if (block.body) nodesInBlock(block.body, blockMap, nodeMap, out);
+    }
+    return out;
+  }
+
+  function loopBlockFor(flow, loopId, blockMap) {
+    return (flow.blocks || []).find(block => block.kind === "loop" && block.ownerId === loopId) || null;
+  }
+
+  function loopForFlowNode(nodeId, flow, blockMap, nodeMap) {
+    const node = nodeMap.get(nodeId);
+    let block = blockMap.get(node?.blockId);
+    while (block) {
+      if (block.kind === "loop") return block.ownerId || null;
+      block = blockMap.get(block.parentId);
+    }
+    return null;
+  }
+
+  function bodyBounds(flow, loopId, positions, blockMap, nodeMap) {
+    const loopBlock = loopBlockFor(flow, loopId, blockMap);
+    if (!loopBlock?.body) return null;
+    const ids = [...nodesInBlock(loopBlock.body, blockMap, nodeMap)];
+    const rects = ids.map(id => flowNodeRect(positions, id)).filter(Boolean);
+    if (!rects.length) return null;
+    return {
+      minX: Math.min(...rects.map(rect => rect.x)),
+      maxX: Math.max(...rects.map(rect => rect.x + rect.w)),
+    };
+  }
+
+  function routeFlowEdge(edge, context) {
+    const { flow, positions, lanes, blockMap, nodeMap, nodesMinX, nodesMaxX, canvasCx } = context;
+    const src = flowNodeRect(positions, edge.from);
+    const dst = flowNodeRect(positions, edge.to);
+    if (!src || !dst) return null;
+    const srcNode = nodeMap.get(edge.from);
+    const dstNode = nodeMap.get(edge.to);
+    const kind = edge.type === "data_dep" ? "data_dep" : (edge.flow || "next");
+
+    if (kind === "data_dep") {
+      const [sx, sy] = bottomCenter(src);
+      const [tx, ty] = topCenter(dst);
+      const side = (src.cx + dst.cx) / 2 < canvasCx ? "left" : "right";
+      const y0 = sy + 12;
+      const y1 = Math.max(ty - 12, y0 + 8);
+      const laneIndex = lanes.alloc(`data:${side}`, y0, y1);
+      const laneX = side === "left"
+        ? nodesMinX - FLOW_GEOM.laneGap - 6 - laneIndex * FLOW_GEOM.laneStep
+        : nodesMaxX + FLOW_GEOM.laneGap + 6 + laneIndex * FLOW_GEOM.laneStep;
+      return {
+        points: [[sx, sy], [sx, y0], [laneX, y0], [laneX, y1], [tx, y1], [tx, ty]],
+        label: { x: laneX + 5, y: (y0 + y1) / 2, anchor: "start" },
+      };
+    }
+
+    if (kind === "next") {
+      const [sx, sy] = bottomCenter(src);
+      const [tx, ty] = topCenter(dst);
+      if (Math.abs(sx - tx) < 0.5) return { points: [[sx, sy], [tx, ty]], label: null };
+      const mid = (sy + ty) / 2;
+      return { points: [[sx, sy], [sx, mid], [tx, mid], [tx, ty]], label: null };
+    }
+
+    if (kind === "true" || kind === "false") {
+      const sx = kind === "true" ? src.cx - FLOW_GEOM.portDx : src.cx + FLOW_GEOM.portDx;
+      const sy = src.y + src.h;
+      const [tx, ty] = topCenter(dst);
+      const y = sy + 24;
+      return {
+        points: [[sx, sy], [sx, y], [tx, y], [tx, ty]],
+        label: { x: sx + 8, y: sy + 10, anchor: "start" },
+      };
+    }
+
+    if (kind === "loop_body") {
+      const sx = src.cx - FLOW_GEOM.loopPortDx;
+      const sy = src.y + src.h;
+      const [tx, ty] = topCenter(dst);
+      const y = sy + 20;
+      return { points: [[sx, sy], [sx, y], [tx, y], [tx, ty]], label: null };
+    }
+
+    if (kind === "merge") {
+      const [sx, sy] = bottomCenter(src);
+      const px = src.cx < dst.cx ? dst.cx - FLOW_GEOM.portDx : dst.cx + FLOW_GEOM.portDx;
+      const y = dst.y - 20;
+      return { points: [[sx, sy], [sx, y], [px, y], [px, dst.y]], label: null };
+    }
+
+    if (kind === "back" || kind === "continue") {
+      const loop = dstNode?.type === "loop" ? dst : null;
+      if (!loop || !dstNode) {
+        const [sx, sy] = bottomCenter(src);
+        const [tx, ty] = topCenter(dst);
+        const mid = (sy + ty) / 2;
+        return { points: [[sx, sy], [sx, mid], [tx, mid], [tx, ty]], label: null };
+      }
+      const [sx, sy] = bottomCenter(src);
+      const y0 = sy + 20;
+      const laneIndex = lanes.alloc(`left:${dstNode.id}`, y0, dst.cy);
+      const bounds = bodyBounds(flow, dstNode.id, positions, blockMap, nodeMap);
+      const bodyMin = bounds ? bounds.minX : Math.min(...[...positions.values()].map(item => item.x));
+      const laneX = bodyMin - FLOW_GEOM.laneGap - laneIndex * FLOW_GEOM.laneStep;
+      return {
+        points: [[sx, sy], [sx, y0], [laneX, y0], [laneX, dst.cy], [dst.x, dst.cy]],
+        label: { x: laneX - 8, y: (y0 + dst.cy) / 2, anchor: "end" },
+      };
+    }
+
+    if (kind === "loop_exit" || kind === "break") {
+      const loopId = kind === "loop_exit" && srcNode?.type === "loop"
+        ? srcNode.id
+        : loopForFlowNode(edge.from, flow, blockMap, nodeMap);
+      const loop = loopId ? flowNodeRect(positions, loopId) : null;
+      if (!loopId || !loop) {
+        const [sx, sy] = bottomCenter(src);
+        const [tx, ty] = topCenter(dst);
+        const mid = (sy + ty) / 2;
+        return { points: [[sx, sy], [sx, mid], [tx, mid], [tx, ty]], label: null };
+      }
+      const sourcePoint = kind === "loop_exit" ? rightMid(loop) : bottomCenter(src);
+      const y0 = sourcePoint[1] + (kind === "loop_exit" ? 0 : 20);
+      const laneIndex = lanes.alloc(`right:${loopId}`, y0, dst.y - 20);
+      const bounds = bodyBounds(flow, loopId, positions, blockMap, nodeMap);
+      const bodyMax = bounds ? bounds.maxX : Math.max(...[...positions.values()].map(item => item.x + item.w));
+      const laneX = bodyMax + FLOW_GEOM.laneGap + laneIndex * FLOW_GEOM.laneStep;
+      const y = dst.y - 20;
+      if (kind === "loop_exit") {
+        return { points: [sourcePoint, [laneX, sourcePoint[1]], [laneX, y], [dst.cx, y], [dst.cx, dst.y]], label: null };
+      }
+      return {
+        points: [[sourcePoint[0], sourcePoint[1]], [sourcePoint[0], y0], [laneX, y0], [laneX, y], [dst.cx, y], [dst.cx, dst.y]],
+        label: null,
+      };
+    }
+
+    if (kind === "return" || kind === "exception") {
+      const [sx, sy] = bottomCenter(src);
+      const [tx, ty] = topCenter(dst);
+      if (Math.abs(sx - tx) < 0.5 && sy < ty) return { points: [[sx, sy], [tx, ty]], label: null };
+      const side = sx < tx ? "left" : "right";
+      const laneIndex = lanes.alloc(`global:${side}`, sy + 20, ty - 16);
+      const laneX = side === "left"
+        ? nodesMinX - FLOW_GEOM.laneGap - laneIndex * FLOW_GEOM.laneStep
+        : nodesMaxX + FLOW_GEOM.laneGap + laneIndex * FLOW_GEOM.laneStep;
+      const busY = ty - 16;
+      return {
+        points: [[sx, sy], [sx, sy + 20], [laneX, sy + 20], [laneX, busY], [tx, busY], [tx, ty]],
+        label: null,
+      };
+    }
+
+    const [sx, sy] = bottomCenter(src);
+    const [tx, ty] = topCenter(dst);
+    const mid = (sy + ty) / 2;
+    return { points: [[sx, sy], [sx, mid], [tx, mid], [tx, ty]], label: null };
+  }
+
+  function refreshFlowRoutes() {
+    if (!flowPage) return;
+    const flow = flowPage.flow;
+    const positions = flowPage.positions;
+    const { blockMap, flowNodeMap } = flowBlockMaps(flow);
+    const allRects = [...positions.values()];
+    if (!allRects.length) return;
+    const nodesMinX = Math.min(...allRects.map(item => item.x));
+    const nodesMaxX = Math.max(...allRects.map(item => item.x + item.w));
+    const canvasCx = (nodesMinX + nodesMaxX) / 2;
+    const lanes = createLaneRegistry();
+    const context = { flow, positions, lanes, blockMap, nodeMap: flowNodeMap, nodesMinX, nodesMaxX, canvasCx };
+    const pathMap = new Map(
+      [...world.querySelectorAll(".flow-edges path")].map(path => [path.dataset.edgeId, path])
+    );
+    const labelMap = new Map(
+      [...world.querySelectorAll("[data-edge-label]")].map(label => [label.dataset.edgeLabel, label])
+    );
+    flow.edges.forEach(edge => {
+      const route = routeFlowEdge(edge, context);
+      const path = pathMap.get(edge.id);
+      const label = labelMap.get(edge.id);
+      if (!route) {
+        if (path) path.style.display = "none";
+        if (label) label.style.display = "none";
+        return;
+      }
+      if (path) {
+        path.style.display = "";
+        path.setAttribute("d", roundedFlowPath(route.points));
+        path.dataset.dynamic = "true";
+      }
+      if (label) {
+        if (route.label) {
+          label.style.display = "";
+          label.setAttribute("x", String(roundCoord(route.label.x)));
+          label.setAttribute("y", String(roundCoord(route.label.y)));
+          label.setAttribute("text-anchor", route.label.anchor || "start");
+        } else {
+          label.style.display = "";
+        }
+      }
+    });
+    flowPage.dynamicRouting = true;
+  }
+
+  function updateFlowCanvasSize() {
+    if (!flowPage) return;
+    const base = flowPage.flow.layout?.canvas || { width: 900, height: 700 };
+    let maxX = Number(base.width || 900);
+    let maxY = Number(base.height || 700);
+    flowPage.positions.forEach(item => {
+      maxX = Math.max(maxX, item.x + item.w + 120);
+      maxY = Math.max(maxY, item.y + item.h + 120);
+    });
+    const width = Math.max(640, Math.round(maxX));
+    const height = Math.max(480, Math.round(maxY));
+    world.style.width = `${width}px`;
+    world.style.height = `${height}px`;
+    const svg = world.querySelector(".function-flow-svg");
+    if (svg) {
+      svg.setAttribute("width", String(width));
+      svg.setAttribute("height", String(height));
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.style.width = `${width}px`;
+      svg.style.height = `${height}px`;
+    }
+    flowPage.canvasWidth = width;
+    flowPage.canvasHeight = height;
+  }
+
+  function updateResetFunctionButton() {
+    const isFunction = state.pageKind === "function" && state.route.kind === "function";
+    resetFunctionBtn.style.display = isFunction ? "" : "none";
+    resetFunctionBtn.disabled = !isFunction || !hasFunctionOverride(state.route.functionId);
+  }
+
+  function attachFlowNodeDrag(element, flow, nodeId) {
+    element.addEventListener("pointerdown", event => {
+      if (event.button !== 0) return;
+      const origin = flowPage?.positions.get(nodeId);
+      if (!origin) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const start = { x: event.clientX, y: event.clientY };
+      const originPosition = { x: origin.x, y: origin.y };
+      const renderRootX = Number(element.dataset.rootX ?? origin.x);
+      const renderRootY = Number(element.dataset.rootY ?? origin.y);
+      let moved = false;
+      let scheduled = false;
+      let currentX = origin.x;
+      let currentY = origin.y;
+      element.classList.add("is-dragging");
+      document.body.style.userSelect = "none";
+
+      const scheduleRoutes = () => {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => {
+          scheduled = false;
+          refreshFlowRoutes();
+        });
+      };
+
+      const onMove = moveEvent => {
+        const dx = (moveEvent.clientX - start.x) / state.scale;
+        const dy = (moveEvent.clientY - start.y) / state.scale;
+        if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+        moved = true;
+        currentX = Math.max(8, originPosition.x + dx);
+        currentY = Math.max(8, originPosition.y + dy);
+        const position = flowPage.positions.get(nodeId);
+        position.x = currentX;
+        position.y = currentY;
+        element.setAttribute("transform", `translate(${roundCoord(currentX - renderRootX)} ${roundCoord(currentY - renderRootY)})`);
+        scheduleRoutes();
+      };
+
+      const finish = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", finish);
+        window.removeEventListener("pointercancel", finish);
+        element.classList.remove("is-dragging");
+        document.body.style.userSelect = "";
+        if (!moved) return;
+        state.suppressClickUntil = Date.now() + 240;
+        if (!override.functions[flow.id]) override.functions[flow.id] = { nodes: {} };
+        if (!override.functions[flow.id].nodes) override.functions[flow.id].nodes = {};
+        override.functions[flow.id].nodes[nodeId] = { x: Math.round(currentX), y: Math.round(currentY) };
+        persistOverride();
+        refreshFlowRoutes();
+        updateFlowCanvasSize();
+        updateResetFunctionButton();
+        selectUid(nodeId);
+        flowFocus(nodeId);
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", finish);
+      window.addEventListener("pointercancel", finish);
+    });
+  }
+
+  function renderFlowSvg(flow, positions) {
     const layout = flow.layout;
+    const nodePositions = positions || buildFlowPositions(flow);
     const width = layout.canvas.width;
     const height = layout.canvas.height;
-    const nodeMap = new Map(flow.nodes.map(node => [node.id, node]));
     const colorSet = new Set(["next", "true", "false", "loop_body", "loop_exit", "back", "break", "continue", "return", "exception", "merge", "data_dep"]);
     const defs = [...colorSet].map(key => {
       const color = FLOW_COLORS[key] || FLOW_COLORS.next;
@@ -1041,26 +1473,26 @@
       const label = edge.label || edge.variable || "";
       const labelPos = layout.edges?.[edge.id]?.label;
       const labelMarkup = label && labelPos
-        ? `<text class="flow-label" x="${labelPos.x}" y="${labelPos.y}" text-anchor="start" fill="${color}">${escapeXml(truncate(label, 26))}</text>`
+        ? `<text class="flow-label" data-edge-label="${escapeXml(edge.id)}" x="${labelPos.x}" y="${labelPos.y}" text-anchor="start" fill="${color}">${escapeXml(truncate(label, 26))}</text>`
         : "";
-      return `<path d="${edge.d}" data-from="${escapeXml(edge.from)}" data-to="${escapeXml(edge.to)}" data-edge-type="${escapeXml(edge.type)}" fill="none" stroke="${color}" stroke-width="${edge.type === "data_dep" ? 1.4 : 1.6}" stroke-linecap="round" stroke-linejoin="round"${dashAttr} opacity="${opacity}" marker-end="url(#${flowMarkerId(edge)})"></path>${labelMarkup}`;
+      return `<path data-edge-id="${escapeXml(edge.id)}" data-from="${escapeXml(edge.from)}" data-to="${escapeXml(edge.to)}" data-edge-type="${escapeXml(edge.type)}" data-flow="${escapeXml(edge.flow || "")}" d="${edge.d}" fill="none" stroke="${color}" stroke-width="${edge.type === "data_dep" ? 1.4 : 1.6}" stroke-linecap="round" stroke-linejoin="round"${dashAttr} opacity="${opacity}" marker-end="url(#${flowMarkerId(edge)})"></path>${labelMarkup}`;
     }).join("");
     const nodeMarkup = flow.nodes.map(node => {
-      const rect = layout.nodes[node.id];
+      const rect = nodePositions.get(node.id) || flow.layout.nodes[node.id];
       const x = rect.x, y = rect.y, w = rect.w, h = rect.h;
-      const common = `class="flow-node" data-uid="${escapeXml(node.id)}" tabindex="0" role="button" style="pointer-events:all;cursor:pointer"`;
+      const common = `class="flow-node" data-uid="${escapeXml(node.id)}" data-node-type="${escapeXml(node.type)}" data-root-x="${x}" data-root-y="${y}" tabindex="0" role="button" style="pointer-events:all" aria-label="${escapeXml(truncate(node.code || node.type, 60))}，可拖拽"`;
       if (node.type === "entry" || node.type === "exit") {
         const isEntry = node.type === "entry";
-        return `<g ${common} aria-label="${isEntry ? "ENTRY" : "EXIT"}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="${isEntry ? "#ecfdf5" : "#fff1f2"}" stroke="${isEntry ? "#059669" : "#e11d48"}" stroke-width="1.5"></rect><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" class="flow-node-title" fill="${isEntry ? "#047857" : "#be123c"}" letter-spacing=".08em">${isEntry ? "ENTRY" : "EXIT"}</text></g>`;
+        return `<g ${common}><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="${isEntry ? "#ecfdf5" : "#fff1f2"}" stroke="${isEntry ? "#059669" : "#e11d48"}" stroke-width="1.5"></rect><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" class="flow-node-title" fill="${isEntry ? "#047857" : "#be123c"}" letter-spacing=".08em">${isEntry ? "ENTRY" : "EXIT"}</text></g>`;
       }
       if (node.type === "branch") {
-        return `<g ${common} aria-label="${escapeXml(truncate(node.code, 60))}"><polygon points="${x + 16},${y} ${x + w - 16},${y} ${x + w},${y + h / 2} ${x + w - 16},${y + h} ${x + 16},${y + h} ${x},${y + h / 2}" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"></polygon><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" class="flow-node-code" fill="#334155">${escapeXml(truncate(node.code, 34))}</text></g>`;
+        return `<g ${common}><polygon points="${x + 16},${y} ${x + w - 16},${y} ${x + w},${y + h / 2} ${x + w - 16},${y + h} ${x + 16},${y + h} ${x},${y + h / 2}" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"></polygon><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" class="flow-node-code" fill="#334155">${escapeXml(truncate(node.code, 34))}</text></g>`;
       }
       if (node.type === "loop") {
-        return `<g ${common} aria-label="${escapeXml(truncate(node.code, 60))}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"></rect><text x="${x + 14}" y="${y + h / 2 + 4}" class="flow-node-code" fill="#1d4ed8">↻ ${escapeXml(truncate(node.code, 31))}</text></g>`;
+        return `<g ${common}><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"></rect><text x="${x + 14}" y="${y + h / 2 + 4}" class="flow-node-code" fill="#1d4ed8">↻ ${escapeXml(truncate(node.code, 31))}</text></g>`;
       }
       if (node.type === "merge") {
-        return `<g ${common} aria-label="汇合节点"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="#f1f5f9" stroke="#94a3b8"></rect><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" style="font-size:10px" fill="#64748b">汇合</text></g>`;
+        return `<g ${common}><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="#f1f5f9" stroke="#94a3b8"></rect><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" style="font-size:10px" fill="#64748b">汇合</text></g>`;
       }
       const stepType = String(node.stepType || "step").toUpperCase();
       const accent = {
@@ -1071,7 +1503,7 @@
         continue: "#f59e0b", with: "#64748b", assert: "#64748b", delete: "#dc2626", pass: "#94a3b8",
       }[node.stepType] || "#64748b";
       const badge = node.call?.recursive ? "↺" : node.call?.external ? "↗" : node.call && !node.call.resolved ? "?" : "";
-      return `<g ${common} aria-label="${escapeXml(stepType + " " + truncate(node.code, 60))}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#ffffff" stroke="#cbd5e1"></rect><rect x="${x}" y="${y}" width="4" height="${h}" rx="2" fill="${accent}"></rect><text x="${x + 14}" y="${y + 19}" style="font-size:10px;letter-spacing:.05em" fill="${accent}" font-weight="700">${escapeXml(stepType)}${badge ? ` ${escapeXml(badge)}` : ""}</text><text x="${x + 14}" y="${y + 39}" class="flow-node-code" fill="#1e293b">${escapeXml(truncate(node.code, 28))}</text></g>`;
+      return `<g ${common}><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#ffffff" stroke="#cbd5e1"></rect><rect x="${x}" y="${y}" width="4" height="${h}" rx="2" fill="${accent}"></rect><text x="${x + 14}" y="${y + 19}" style="font-size:10px;letter-spacing:.05em" fill="${accent}" font-weight="700">${escapeXml(stepType)}${badge ? ` ${escapeXml(badge)}` : ""}</text><text x="${x + 14}" y="${y + 39}" class="flow-node-code" fill="#1e293b">${escapeXml(truncate(node.code, 28))}</text></g>`;
     }).join("");
     return `<svg class="function-flow-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg"><defs>${defs}</defs><g class="flow-edges">${edgeMarkup}</g><g class="flow-nodes">${nodeMarkup}</g></svg>`;
   }
@@ -1110,7 +1542,9 @@
     state.functionId = functionId;
     viewport.classList.add("is-light");
     updateChrome("function");
-    world.innerHTML = renderFlowSvg(flow);
+    const positions = buildFlowPositions(flow);
+    flowPage = { flow, positions, dynamicRouting: false };
+    world.innerHTML = renderFlowSvg(flow, positions);
     const svg = world.querySelector(".function-flow-svg");
     world.style.width = `${flow.layout.canvas.width}px`;
     world.style.height = `${flow.layout.canvas.height}px`;
@@ -1118,19 +1552,28 @@
       svg.style.width = `${flow.layout.canvas.width}px`;
       svg.style.height = `${flow.layout.canvas.height}px`;
     }
+    if (hasFunctionOverride(flow.id)) {
+      refreshFlowRoutes();
+      updateFlowCanvasSize();
+    }
     world.classList.remove("page-enter");
     world.querySelectorAll(".flow-node").forEach(element => {
+      const nodeId = element.dataset.uid;
       element.addEventListener("click", () => {
-        selectUid(element.dataset.uid);
-        flowFocus(element.dataset.uid);
+        if (Date.now() < state.suppressClickUntil) return;
+        selectUid(nodeId);
+        flowFocus(nodeId);
       });
       element.addEventListener("dblclick", () => {
-        const node = flow.nodes.find(item => item.id === element.dataset.uid);
+        if (Date.now() < state.suppressClickUntil) return;
+        const node = flow.nodes.find(item => item.id === nodeId);
         const target = node?.call?.targetFunctionId;
         const targetFlow = target ? flowById.get(target) : null;
         if (targetFlow) navigate({ kind: "function", moduleId: targetFlow.moduleId, functionId: targetFlow.id });
       });
+      attachFlowNodeDrag(element, flow, nodeId);
     });
+    updateResetFunctionButton();
     requestAnimationFrame(() => {
       applyTransform();
       fitView();
@@ -1180,6 +1623,13 @@
   // Global controls.
   $("saveBtn").addEventListener("click", () => { persistOverride(); showToast("布局已保存到浏览器"); });
   $("resetBtn").addEventListener("click", () => { resetOverride(); renderRoute(); showToast("已恢复默认布局"); });
+  resetFunctionBtn.addEventListener("click", () => {
+    if (state.pageKind !== "function" || state.route.kind !== "function") return;
+    if (override.functions?.[state.route.functionId]) delete override.functions[state.route.functionId];
+    persistOverride();
+    renderFunctionPage(state.moduleId, state.route.functionId);
+    showToast("已恢复当前函数的自动布局");
+  });
   $("fitBtn").addEventListener("click", () => fitView());
   $("zoomIn").addEventListener("click", () => zoomAt(1.16));
   $("zoomOut").addEventListener("click", () => zoomAt(1 / 1.16));
@@ -1236,7 +1686,7 @@
   let panning = false;
   let panStart = null;
   viewport.addEventListener("pointerdown", event => {
-    if (event.button !== 0 || event.target.closest(".node-card, button, input, .detail-panel")) return;
+    if (event.button !== 0 || event.target.closest(".node-card, .flow-node, button, input, .detail-panel")) return;
     panning = true;
     panStart = { x: event.clientX - state.x, y: event.clientY - state.y };
     viewport.classList.add("is-panning");
@@ -1252,7 +1702,7 @@
   viewport.addEventListener("pointerup", endPan);
   viewport.addEventListener("pointercancel", endPan);
   viewport.addEventListener("dblclick", event => {
-    if (event.target.closest(".node-card, button, input")) return;
+    if (event.target.closest(".node-card, .flow-node, button, input")) return;
     fitView();
   });
 

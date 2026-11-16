@@ -23,6 +23,8 @@ diagnostics: error=0 warning=0 info=5
 - 入口：`main.server`、`main.client`、`main.__main__`。
 - 源码备注提取、LLM 注解占位与侧车读取路径已接通。
 - 布局覆盖保存、重置、导出和导入已实现。
+- 函数执行流页节点支持拖拽，边会正交重算，并支持“恢复当前函数自动布局”。
+- 函数执行流页背景跟随系统浅色/深色模式。
 
 ## 自动化验证
 
@@ -34,8 +36,8 @@ ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q
 结果：
 
 - bundle 结构、交叉引用、函数不变量和布局校验通过。
-- `16 passed`（含 Firefox Headless WebDriver 冒烟测试）。
-- 浏览器测试覆盖：项目页、模块页、函数页、模块展开、Hash 刷新恢复。
+- `18 passed`（含 Firefox Headless WebDriver 冒烟测试）。
+- 浏览器测试覆盖：项目页、模块页、函数页、模块展开、函数节点拖拽与边重路由、恢复自动布局、Hash 刷新恢复。
 
 ## 性能
 

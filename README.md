@@ -21,6 +21,11 @@ python -m archmap build /path/to/student_system \
   --config examples/student_system.archmap.json \
   --out .archmap/student_system
 
+# 分析 ArchMap 自身
+python -m archmap build . \
+  --config examples/archmap_v3.archmap.json \
+  --out .archmap/self
+
 # 校验产物
 python -m archmap check .archmap/student_system/architecture.json
 
@@ -42,9 +47,11 @@ python -m archmap serve .archmap/student_system
 
 - **项目页**：模块节点、项目输入/输出边界、模块间真实调用/数据关系。
 - **模块页**：模块输入/输出、函数节点、函数间真实调用/数据关系。
-- **函数执行流页**：每个函数恰好一个 ENTRY/EXIT；仅使用 `next_step` 和 `data_dep`；采用 Python 预计算的正交布局、Merge 对齐和 Lane。
+- **函数执行流页**：每个函数恰好一个 ENTRY/EXIT；仅使用 `next_step` 和 `data_dep`；默认采用 Python 预计算的正交布局、Merge 对齐和 Lane，用户拖拽后由浏览器正交重算。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
 - 模块节点、项目边界、模块页函数节点、展开卡片内函数节点支持拖拽。
+- 函数执行流页的 ENTRY/EXIT、step、branch、loop、merge 节点同样支持拖拽；边会正交重算并保存为函数级布局覆盖。
+- 函数页提供“恢复自动布局”，不会影响项目页和模块页的用户布局。
 - 布局默认坐标由 Python 生成，浏览器只保存用户覆盖。
 
 ## 配置
@@ -156,4 +163,5 @@ python -m pytest -q
 - `match` 不展开 case，并输出 `MATCH_UNSUPPORTED`。
 - 动态 `getattr`、`**kwargs` 分发、运行时注册表无法静态解析。
 - 函数内 call step 已保留目标函数 ID，但三层页面导航仍是主要路径。
+- 函数页自由拖拽后不强制保持 Merge 中心对齐和 Lane 语义；默认自动布局仍是确定性、可校验的基线。
 - 不实现插件、远程 LLM 调用、外部网络请求或前端自动布局。

@@ -64,3 +64,17 @@ def test_bundle_matches_v3_schema() -> None:
     schema_path = Path(__file__).parent.parent / "docs" / "schema" / "archmap-v3-bundle.schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     jsonschema.validate(bundle, schema)
+
+
+def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
+    repo_root = Path(__file__).parent.parent
+    config_path = repo_root / "examples" / "archmap_v3.archmap.json"
+    bundle = build_architecture(repo_root, config_path)
+    assert len(bundle["projectGraph"]["modules"]) == 6
+    internal_edges = [
+        edge for edge in bundle["projectGraph"]["edges"] if edge["role"] == "internal"
+    ]
+    assert internal_edges
+    module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
+    assert {"cli-pipeline", "python-frontend", "flow-build", "graph-projection", "layout-routing", "validate-render"} <= module_ids
+    assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]

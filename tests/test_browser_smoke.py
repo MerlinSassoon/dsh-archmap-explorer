@@ -100,6 +100,57 @@ def test_browser_smoke() -> None:
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.flow-node').length") > 2
         assert execute("return window.__ARCHMAP_ERRORS__") == []
+
+        # Function flow nodes are draggable; move one node and verify that the
+        # position override is persisted and the incident edge is re-routed.
+        drag_result = execute("""
+          const node = document.querySelector('.flow-node');
+          const rect = node.getBoundingClientRect();
+          const uid = node.dataset.uid;
+          const beforeEdge = [...document.querySelectorAll('.flow-edges path')]
+            .find(path => path.dataset.from === uid || path.dataset.to === uid);
+          window.__archmapDragBefore = beforeEdge ? beforeEdge.getAttribute('d') : '';
+          node.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true, button: 0, pointerId: 11,
+            clientX: rect.left + 20, clientY: rect.top + 20
+          }));
+          window.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true, button: 0, pointerId: 11,
+            clientX: rect.left + 120, clientY: rect.top + 90
+          }));
+          window.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true, button: 0, pointerId: 11,
+            clientX: rect.left + 120, clientY: rect.top + 90
+          }));
+          return uid;
+        """)
+        time.sleep(.45)
+        assert drag_result
+        assert execute("return document.querySelector('.flow-node').getAttribute('transform') !== null") is True
+        assert execute("return document.getElementById('resetFunctionBtn').disabled") is False
+        assert execute("""
+          const raw = localStorage.getItem('archmap-v3-layout-v1');
+          const data = raw ? JSON.parse(raw) : null;
+          return Boolean(data && data.functions && Object.keys(data.functions).length);
+        """) is True
+        assert execute("""
+          const node = document.querySelector('.flow-node');
+          const uid = node.dataset.uid;
+          const edge = [...document.querySelectorAll('.flow-edges path')]
+            .find(path => path.dataset.from === uid || path.dataset.to === uid);
+          return Boolean(edge && edge.getAttribute('d') !== window.__archmapDragBefore);
+        """) is True
+        assert execute("""
+          return [...document.querySelectorAll('.flow-edges path')]
+            .every(path => /^[MLQ0-9. -]+$/.test(path.getAttribute('d') || ''));
+        """) is True
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
+        execute("document.getElementById('resetFunctionBtn').click(); return true")
+        time.sleep(.35)
+        assert execute("return document.getElementById('resetFunctionBtn').disabled") is True
+        assert execute("return document.querySelector('.flow-node').getAttribute('transform') === null") is True
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
     finally:
         if session:
             try:

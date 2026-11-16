@@ -7,6 +7,16 @@
     --shadow: 0 18px 50px rgba(0, 0, 0, .42);
     --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --flow-next: #475569;
+    --flow-true: #16a34a;
+    --flow-false: #dc2626;
+    --flow-loop-body: #2563eb;
+    --flow-loop-exit: #64748b;
+    --flow-back: #f59e0b;
+    --flow-return: #7c3aed;
+    --flow-exception: #dc2626;
+    --flow-merge: #94a3b8;
+    --flow-data: #a855f7;
   }
   * { box-sizing: border-box; }
   html, body { width: 100%; height: 100%; margin: 0; }
@@ -330,3 +340,55 @@
   .function-flow-svg { display: block; overflow: visible; }
   .viewport.is-light .world { background: #f8fafc; }
   @media (max-width: 1120px) { .top-actions .save-state { display: none; } }
+
+
+  .btn:disabled { opacity: .35; cursor: default; pointer-events: none; }
+  .flow-node { cursor: grab; user-select: none; touch-action: none; }
+  .flow-node.is-dragging { cursor: grabbing; }
+  .flow-node.is-dragging > rect, .flow-node.is-dragging > polygon { filter: drop-shadow(0 5px 9px rgba(15,23,42,.16)); }
+  .flow-node.is-manual { }
+
+  /* Function-flow canvas follows the operating system color scheme. */
+  .function-flow-svg { background: transparent; }
+  .viewport.is-light .world { background: transparent; }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --flow-next: #94a3b8;
+      --flow-true: #4ade80;
+      --flow-false: #f87171;
+      --flow-loop-body: #60a5fa;
+      --flow-loop-exit: #94a3b8;
+      --flow-back: #fbbf24;
+      --flow-return: #a78bfa;
+      --flow-exception: #f87171;
+      --flow-merge: #64748b;
+      --flow-data: #c084fc;
+    }
+    .viewport.is-light {
+      background:
+        radial-gradient(circle at 50% 12%, rgba(50,72,111,.12), transparent 42%),
+        #090d13;
+    }
+    .viewport.is-light::after { box-shadow: inset 0 0 130px 22px rgba(0,0,0,.32); }
+    .viewport.is-light .viewport-grid {
+      background-image: radial-gradient(circle, rgba(101,120,148,.26) 1px, transparent 1px);
+      mask-image: linear-gradient(to bottom, black, rgba(0,0,0,.67) 76%, transparent);
+      opacity: .84;
+    }
+    .viewport.is-light .graph-legend {
+      background: rgba(11,16,23,.82);
+      border-color: var(--line-soft);
+      color: var(--muted);
+    }
+    .viewport.is-light .legend-line { background: #64748b; }
+    .viewport.is-light .legend-line::after { border-left-color: #64748b; }
+    .viewport.is-light .zoombar {
+      background: rgba(11,16,23,.82);
+      border-color: var(--line-soft);
+    }
+    .viewport.is-light .zoombar button { color: var(--muted); }
+    .viewport.is-light .zoombar button:hover { color: var(--ink); background: rgba(255,255,255,.06); }
+    .viewport.is-light .zoom-value { color: var(--muted-2); }
+    .flow-label { fill: #cbd5e1; stroke: #0b1220; }
+  }

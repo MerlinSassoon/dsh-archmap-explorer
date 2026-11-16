@@ -107,6 +107,16 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 - 覆盖项按稳定 ID 保存，忽略过期或无效键。
 - 覆盖不进入语义指纹。
 
+### 函数页手动布局
+
+- 函数执行流页的 ENTRY/EXIT、step、branch、loop、merge 节点均支持拖拽。
+- 拖拽位移按当前画布缩放换算，拖拽结束后写入 `override.functions[functionId].nodes`。
+- 浏览器复用边类型、端口规则和 Lane 规则，对边路径进行正交重算；颜色、线宽、虚实线和箭头样式保持不变。
+- 函数级覆盖按稳定函数 ID 和节点 ID 保存，刷新、导入、导出后可恢复。
+- “恢复自动布局”只删除当前函数的覆盖，不影响项目页和模块页。
+- 手动布局是用户视图覆盖，不反写后端 `layout`，不参与语义指纹，也不要求继续满足 Merge 中心对齐或 Lane 校验。
+- 函数页背景遵循系统 `prefers-color-scheme`；深色模式同步切换网格、图例、缩放控件和流程边 token。
+
 ## 7. 语言前端接口
 
 `archmap/frontends/base.py` 定义 `LanguageFrontend`：

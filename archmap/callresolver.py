@@ -54,6 +54,29 @@ class CallResolver:
     def _find_module_function(self, module: ModuleInfo, name: str) -> FunctionInfo | None:
         return module.functions.get(name)
 
+    def _is_package(self, module: ModuleInfo) -> bool:
+        return module.file.rel_path.endswith("__init__.py")
+
+    def _resolve_module_name(self, current: ModuleInfo, ref: Any) -> str | None:
+        if ref.level <= 0:
+            return ref.module or None
+        parts = current.name.split(".")
+        base = parts if self._is_package(current) else parts[:-1]
+        up = ref.level - 1
+        if up > len(base):
+            return None
+        if up:
+            base = base[:-up]
+        if ref.module:
+            base = base + ref.module.split(".")
+        return ".".join(base) if base else None
+
+    def _imported_target_module(self, current: ModuleInfo, ref: Any) -> ModuleInfo | None:
+        module_name = self._resolve_module_name(current, ref)
+        if not module_name:
+            return None
+        return self.module_by_name.get(module_name)
+
     def _find_class_method(self, module: ModuleInfo, class_name: str, name: str) -> FunctionInfo | None:
         cls = module.classes.get(class_name)
         if cls is None:
@@ -64,19 +87,37 @@ class CallResolver:
         if cls is None:
             ref = module.imports.get(class_name)
             if ref is not None:
-                target_module = self.module_by_name.get(ref.module)
+                target_module = self._imported_target_module(module, ref)
                 if target_module is not None:
                     cls = target_module.classes.get(ref.name or class_name)
         if cls is None:
             return None
         return cls.methods.get(name)
 
-    def _resolve_imported(self, current: ModuleInfo, ref: Any, attr_name: str) -> FunctionInfo | None:
-        target_module = self.module_by_name.get(ref.module)
+    def _resolve_imported(
+        self,
+        current: ModuleInfo,
+        ref: Any,
+        attr_name: str,
+        visited: set[tuple[str, str]] | None = None,
+    ) -> FunctionInfo | None:
+        target_module = self._imported_target_module(current, ref)
         if target_module is None:
             return None
         if ref.name:
-            return target_module.functions.get(ref.name)
+            direct = target_module.functions.get(ref.name)
+            if direct is not None:
+                return direct
+            # Follow re-exports declared in package __init__ modules.
+            nested = target_module.imports.get(ref.name)
+            if nested is None:
+                return None
+            seen = visited if visited is not None else set()
+            key = (target_module.name, ref.name)
+            if key in seen:
+                return None
+            seen.add(key)
+            return self._resolve_imported(target_module, nested, ref.name, seen)
         return target_module.functions.get(attr_name)
 
     def _candidates(self, nodes: list[FunctionInfo]) -> list[str]:
@@ -102,9 +143,9 @@ class CallResolver:
                 imported = self._resolve_imported(current_module, ref, name)
                 if imported:
                     candidates.append(imported)
-                elif ref.name and ref.module in self.module_by_name:
-                    target_module = self.module_by_name[ref.module]
-                    cls = target_module.classes.get(ref.name)
+                elif ref.name:
+                    target_module = self._imported_target_module(current_module, ref)
+                    cls = target_module.classes.get(ref.name) if target_module else None
                     if cls and cls.methods.get("__init__"):
                         candidates.append(cls.methods["__init__"])
             if not candidates:
@@ -153,9 +194,10 @@ class CallResolver:
                 return self._finish(full, candidates, current_fn)
             if isinstance(func.value, ast.Name) and func.value.id in current_module.imports:
                 ref = current_module.imports[func.value.id]
+                resolved_module = self._resolve_module_name(current_module, ref) or ref.module
                 return ResolvedCall(
                     name=full,
-                    qualified_name=f"{ref.module}.{name}",
+                    qualified_name=f"{resolved_module}.{name}",
                     external=True,
                     confidence="medium",
                 )
