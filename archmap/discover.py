@@ -16,7 +16,14 @@ class SourceFile:
 
 
 def _matches(rel: str, patterns: list[str]) -> bool:
-    return any(fnmatch.fnmatch(rel, pattern) for pattern in patterns)
+    # fnmatch's ``**/dir/**`` form does not match a root-level ``dir/...``
+    # because the leading slash is absent.  Test both the plain relative path
+    # and a slash-prefixed form so default excludes work at any depth.
+    candidate = "/" + rel.lstrip("/")
+    return any(
+        fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(candidate, pattern)
+        for pattern in patterns
+    )
 
 
 def module_name_for(rel_path: str) -> str:

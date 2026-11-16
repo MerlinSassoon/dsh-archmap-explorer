@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from .analysis import AnalysisResult, FunctionInfo
+from .analysis import AnalysisResult, ClassInfo, ENTRY_METHOD_NAMES, FunctionInfo
 from .config import ModuleConfig, ProjectConfig
 
 
@@ -19,6 +19,8 @@ MODULE_EXPANDED_W = 560
 MODULE_EXPANDED_H = 360
 FUNCTION_W = 210
 FUNCTION_H = 98
+CLASS_W = 280
+CLASS_H = 150
 BOUNDARY_W = 190
 BOUNDARY_H = 96
 MACRO_X_GAP = 360
@@ -56,6 +58,57 @@ def _boundary_id(scope: str, kind: str, index: int) -> str:
 
 def _function_lookup(analysis: AnalysisResult) -> dict[str, FunctionInfo]:
     return {fn.id: fn for fn in analysis.functions}
+
+
+def _class_id(cls: ClassInfo) -> str:
+    return f"cls:{cls.module_name}.{cls.qualname}"
+
+
+def _method_component_id(fn: FunctionInfo) -> str:
+    if fn.class_name:
+        return f"cls:{fn.module_name}.{fn.class_name}"
+    return fn.id
+
+
+def _method_summary(fn: FunctionInfo, owner_class_id: str) -> dict[str, Any]:
+    return {
+        "id": fn.id,
+        "kind": "method",
+        "name": fn.name,
+        "qualifiedName": f"{fn.module_name}.{fn.qualname}",
+        "ownerClassId": owner_class_id,
+        "methodKind": fn.method_kind,
+        "visibility": fn.visibility,
+        "isAbstract": fn.is_abstract,
+        "signature": fn.signature,
+        "note": fn.note,
+        "file": fn.file,
+        "line": fn.line,
+        "endLine": fn.end_line,
+        "functionFlowId": fn.id,
+    }
+
+
+def _class_entry_methods(
+    methods: list[FunctionInfo], configured_entry_ids: set[str] | None = None
+) -> list[FunctionInfo]:
+    public = [
+        method
+        for method in methods
+        if method.visibility in {"public", "lifecycle"}
+        and not method.is_abstract
+        and method.method_kind not in {"constructor", "internal", "dunder"}
+    ]
+    if configured_entry_ids:
+        configured = [method for method in public if method.id in configured_entry_ids]
+        if configured:
+            return configured
+    named = [
+        method
+        for method in public
+        if method.name in ENTRY_METHOD_NAMES | {"__call__", "__enter__"}
+    ]
+    return named or public
 
 
 def find_entrypoints(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -360,6 +413,8 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
     module_configs = {module.id: module for module in config.modules}
     entrypoints = find_entrypoints(analysis, flows)
     entry_ids = [item["functionId"] for item in entrypoints]
+    entry_id_set = set(entry_ids)
+    entry_reasons = {item["functionId"]: item["reason"] for item in entrypoints}
     calls = collect_calls(analysis, flows)
 
     module_function_ids: dict[str, list[str]] = defaultdict(list)
@@ -368,8 +423,15 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
     for module_id in module_function_ids:
         module_function_ids[module_id].sort()
 
+    # Classes are projected into their owning logical module.  A class may
+    # exist without a method being represented in module_function_ids if the
+    # source contains only class-level declarations; keep such modules visible.
+    classes_by_module: dict[str, list[ClassInfo]] = defaultdict(list)
+    for cls in analysis.classes:
+        classes_by_module[cls.module_id].append(cls)
+
     ordered_module_ids = [module.id for module in config.modules]
-    for module_id in sorted(module_function_ids):
+    for module_id in sorted(set(module_function_ids) | set(classes_by_module)):
         if module_id not in ordered_module_ids:
             ordered_module_ids.append(module_id)
     if not ordered_module_ids:
@@ -407,6 +469,16 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
     for index, module_id in enumerate(ordered_module_ids):
         configured = module_configs.get(module_id)
         function_ids = module_function_ids.get(module_id, [])
+        module_classes = sorted(classes_by_module.get(module_id, []), key=lambda item: item.qualname)
+        class_ids = [_class_id(cls) for cls in module_classes]
+        free_function_ids = [
+            fn_id for fn_id in function_ids
+            if fn_id in fn_by_id and fn_by_id[fn_id].class_name is None
+        ]
+        method_function_ids = [
+            fn_id for fn_id in function_ids
+            if fn_id in fn_by_id and fn_by_id[fn_id].class_name is not None
+        ]
         module_name = configured.name if configured else module_id
         module_note = configured.note if configured else ""
         input_labels = _module_input_labels(configured) if configured else ["模块输入"]
@@ -419,9 +491,15 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
             "note": module_note,
             "color": color,
             "functions": function_ids,
+            "freeFunctions": free_function_ids,
+            "classes": class_ids,
+            "methods": method_function_ids,
             "inputs": [{"id": _boundary_id(f"module:{module_id}", "input", i), "label": label} for i, label in enumerate(input_labels)],
             "outputs": [{"id": _boundary_id(f"module:{module_id}", "output", i), "label": label} for i, label in enumerate(output_labels)],
-            "sourceFiles": sorted({fn_by_id[fn_id].file for fn_id in function_ids if fn_id in fn_by_id}),
+            "sourceFiles": sorted({
+                *(fn_by_id[fn_id].file for fn_id in function_ids if fn_id in fn_by_id),
+                *(cls.file for cls in module_classes if cls.file),
+            }),
             "w": MODULE_W,
             "h": MODULE_H,
             "expandedW": MODULE_EXPANDED_W,
@@ -430,7 +508,9 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
         project_nodes[module_id] = module_node
         project_module_nodes.append(module_node)
 
-        # Module-level graph.
+        # Module-level graph.  Classes and free functions are the visible
+        # component nodes; methods remain owned by the class node and are
+        # projected into the method-level graph below.
         module_nodes: dict[str, dict[str, Any]] = {}
         boundaries: set[str] = set()
         for port in module_node["inputs"]:
@@ -455,7 +535,52 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
                 "w": BOUNDARY_W,
                 "h": BOUNDARY_H,
             }
-        for fn_id in function_ids:
+
+        class_method_meta: dict[str, list[FunctionInfo]] = {}
+        for cls in module_classes:
+            cls_id = _class_id(cls)
+            methods = [
+                fn_by_id[fn_id]
+                for fn_id in function_ids
+                if fn_id in fn_by_id
+                and fn_by_id[fn_id].class_name == cls.qualname
+                and fn_by_id[fn_id].module_name == cls.module_name
+            ]
+            methods.sort(key=lambda item: (item.line, item.id))
+            class_method_meta[cls_id] = methods
+            public_methods = [
+                method for method in methods
+                if method.visibility in {"public", "lifecycle"} and not method.is_abstract
+            ]
+            entry_methods = (
+                [] if cls.is_abstract or cls.class_kind in {"abstract", "interface"}
+                else _class_entry_methods(methods, entry_id_set)
+            )
+            module_nodes[cls_id] = {
+                "id": cls_id,
+                "kind": "class",
+                "uid": cls_id,
+                "name": cls.name,
+                "qualifiedName": cls.qualname,
+                "classKind": cls.class_kind,
+                "isAbstract": cls.is_abstract,
+                "bases": list(cls.bases),
+                "decorators": list(cls.decorators),
+                "note": cls.note,
+                "file": cls.file,
+                "line": cls.line,
+                "endLine": cls.end_line,
+                "moduleId": module_id,
+                "methodCount": len(methods),
+                "publicMethodIds": [method.id for method in public_methods],
+                "entryMethodIds": [method.id for method in entry_methods],
+                "exitMethodIds": [method.id for method in public_methods],
+                "methods": [_method_summary(method, cls_id) for method in methods],
+                "w": CLASS_W,
+                "h": CLASS_H,
+            }
+
+        for fn_id in free_function_ids:
             fn = fn_by_id[fn_id]
             module_nodes[fn_id] = {
                 "id": fn_id,
@@ -464,6 +589,7 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
                 "name": fn.name,
                 "qualifiedName": f"{fn.module_name}.{fn.qualname}",
                 "note": fn.note,
+                "visibility": fn.visibility,
                 "file": fn.file,
                 "line": fn.line,
                 "functionFlowId": fn_id,
@@ -476,11 +602,53 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
             for record in calls
             if record.from_module == module_id and record.to_module == module_id
         ]
-        aggregate: dict[tuple[str, str], list[CallRecord]] = defaultdict(list)
+
+        # Canonical method-level graph, used by the future class focus view.
+        method_aggregate: dict[tuple[str, str], list[CallRecord]] = defaultdict(list)
         for record in internal_records:
-            aggregate[(record.from_function, record.to_function)].append(record)
+            method_aggregate[(record.from_function, record.to_function)].append(record)
+        method_edges: list[dict[str, Any]] = []
+        for edge_index, ((from_id, to_id), records) in enumerate(sorted(method_aggregate.items()), start=1):
+            semantics = _aggregate_relations(records)
+            evidence = [
+                {
+                    "fromFunctionId": record.from_function,
+                    "toFunctionId": record.to_function,
+                    "file": record.file,
+                    "line": record.line,
+                }
+                for record in records
+            ]
+            method_edges.append(
+                _macro_edge(
+                    _edge_id(f"module:{module_id}:method", edge_index),
+                    from_id,
+                    to_id,
+                    primary_type=semantics["primaryType"],
+                    relations=semantics["relations"],
+                    role="internal",
+                    evidence=evidence,
+                    confidence="high" if len(records) == 1 else "medium",
+                )
+            )
+
+        # Component-level aggregation for the module page.  Calls internal to
+        # one class are intentionally hidden here and remain available in
+        # ``methodEdges`` for the class focus view.
+        component_aggregate: dict[tuple[str, str], list[CallRecord]] = defaultdict(list)
+        for record in internal_records:
+            source_fn = fn_by_id.get(record.from_function)
+            target_fn = fn_by_id.get(record.to_function)
+            if source_fn is None or target_fn is None:
+                continue
+            source_component = _method_component_id(source_fn)
+            target_component = _method_component_id(target_fn)
+            if source_component == target_component:
+                continue
+            component_aggregate[(source_component, target_component)].append(record)
+
         module_edges: list[dict[str, Any]] = []
-        for edge_index, ((from_id, to_id), records) in enumerate(sorted(aggregate.items()), start=1):
+        for edge_index, ((from_id, to_id), records) in enumerate(sorted(component_aggregate.items()), start=1):
             semantics = _aggregate_relations(records)
             evidence = [
                 {
@@ -504,22 +672,73 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
                 )
             )
 
-        internal_incoming = {edge["to"] for edge in module_edges}
-        internal_outgoing = {edge["from"] for edge in module_edges}
         input_boundary = module_node["inputs"][0]["id"]
         output_boundary = module_node["outputs"][0]["id"]
-        boundary_seed = [
-            fn_id
-            for fn_id in function_ids
-            if fn_id in entry_ids or fn_id not in internal_incoming
+
+        # Class boundaries are explicit component boundaries.  A class gets at
+        # most one module input and one module output edge; abstract classes and
+        # interface/protocol classes are contracts and never become runtime
+        # entry points.
+        for cls in module_classes:
+            if cls.is_abstract or cls.class_kind in {"abstract", "interface"}:
+                continue
+            cls_id = _class_id(cls)
+            methods = class_method_meta.get(cls_id, [])
+            entry_methods = _class_entry_methods(methods, entry_id_set)
+            public_methods = [
+                method for method in methods
+                if method.visibility in {"public", "lifecycle"} and not method.is_abstract
+            ]
+            if not entry_methods and not public_methods:
+                continue
+            via_input = [method.id for method in entry_methods] or [method.id for method in public_methods]
+            via_output = [method.id for method in public_methods] or via_input
+            input_edge = _macro_edge(
+                _edge_id(f"module:{module_id}", len(module_edges) + 1),
+                input_boundary,
+                cls_id,
+                primary_type="control",
+                relations=["control"],
+                role="module_input",
+                confidence="medium" if entry_methods and len(entry_methods) < len(public_methods) else "low",
+            )
+            input_edge["viaMethodIds"] = via_input
+            module_edges.append(input_edge)
+            output_edge = _macro_edge(
+                _edge_id(f"module:{module_id}", len(module_edges) + 1),
+                cls_id,
+                output_boundary,
+                primary_type="control",
+                relations=["control"],
+                role="module_output",
+                confidence="low",
+            )
+            output_edge["viaMethodIds"] = via_output
+            module_edges.append(output_edge)
+
+        # Free functions keep the old lexical boundary heuristic, but methods
+        # are excluded from it.  This is deliberately narrower than the old
+        # "every method without an incoming edge" logic.
+        free_incoming: set[str] = set()
+        for record in internal_records:
+            if record.to_function in free_function_ids:
+                free_incoming.add(record.to_function)
+        # A module that also contains classes should not expose every public
+        # helper function as a boundary.  Only configured/main/route entries
+        # qualify; the old lexical fallback applies only to class-free modules.
+        free_entry_ids = [
+            fn_id for fn_id in free_function_ids
+            if entry_reasons.get(fn_id) in {"configured", "main", "route"}
         ]
-        if not boundary_seed and function_ids:
-            boundary_seed = [function_ids[0]]
-        for fn_id in boundary_seed:
-            idx = len(module_edges) + 1
+        if not free_entry_ids and not module_classes:
+            free_entry_ids = [
+                fn_id for fn_id in free_function_ids
+                if fn_id not in free_incoming and fn_by_id[fn_id].visibility == "public"
+            ]
+        for fn_id in free_entry_ids:
             module_edges.append(
                 _macro_edge(
-                    _edge_id(f"module:{module_id}", idx),
+                    _edge_id(f"module:{module_id}", len(module_edges) + 1),
                     input_boundary,
                     fn_id,
                     primary_type="control",
@@ -529,14 +748,19 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
                     confidence="low",
                 )
             )
-        terminal = [fn_id for fn_id in function_ids if fn_id not in internal_outgoing]
-        if not terminal and function_ids:
-            terminal = [function_ids[-1]]
-        for fn_id in terminal:
-            idx = len(module_edges) + 1
+        free_outgoing = {
+            record.from_function
+            for record in internal_records
+            if record.from_function in free_function_ids
+        }
+        free_terminal = [
+            fn_id for fn_id in free_function_ids
+            if fn_id in free_entry_ids and fn_id not in free_outgoing
+        ]
+        for fn_id in free_terminal:
             module_edges.append(
                 _macro_edge(
-                    _edge_id(f"module:{module_id}", idx),
+                    _edge_id(f"module:{module_id}", len(module_edges) + 1),
                     fn_id,
                     output_boundary,
                     primary_type="control",
@@ -546,6 +770,7 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
                     confidence="low",
                 )
             )
+
         module_layout = _layout_macro(module_nodes, module_edges, boundary_ids=boundaries, scope=f"module:{module_id}")
         module_graphs.append(
             {
@@ -558,6 +783,9 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
                 "outputs": module_node["outputs"],
                 "nodes": [module_nodes[node_id] for node_id in sorted(module_nodes)],
                 "edges": module_edges,
+                "methodEdges": method_edges,
+                "classCount": len(module_classes),
+                "methodCount": len(method_function_ids),
                 "layout": module_layout,
             }
         )
@@ -686,7 +914,9 @@ def build_bundle(analysis: AnalysisResult, flows: list[dict[str, Any]]) -> dict[
     )
     stats = {
         "modules": len(project_module_nodes),
+        "classes": len(analysis.classes),
         "functions": len(flows),
+        "methods": sum(1 for fn in analysis.functions if fn.class_name),
         "nodes": sum(len(flow["nodes"]) for flow in flows),
         "edges": sum(len(flow["edges"]) for flow in flows),
         "macroEdges": len(project_edges) + sum(len(graph["edges"]) for graph in module_graphs),
@@ -738,6 +968,8 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "name": module["name"],
                     "note": module["note"],
                     "functions": sorted(module["functions"]),
+                    "freeFunctions": sorted(module.get("freeFunctions", [])),
+                    "classes": sorted(module.get("classes", [])),
                     "inputs": module["inputs"],
                     "outputs": module["outputs"],
                 }
@@ -763,6 +995,33 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                 {
                     "moduleId": graph["moduleId"],
                     "note": graph["note"],
+                    "classes": sorted(
+                        [
+                            {
+                                "id": node["id"],
+                                "classKind": node.get("classKind"),
+                                "isAbstract": node.get("isAbstract"),
+                                "bases": node.get("bases", []),
+                                "publicMethodIds": sorted(node.get("publicMethodIds", [])),
+                                "entryMethodIds": sorted(node.get("entryMethodIds", [])),
+                                "methods": sorted(
+                                    [
+                                        {
+                                            "id": method.get("id"),
+                                            "methodKind": method.get("methodKind"),
+                                            "visibility": method.get("visibility"),
+                                            "isAbstract": method.get("isAbstract"),
+                                        }
+                                        for method in node.get("methods", [])
+                                    ],
+                                    key=lambda item: item["id"] or "",
+                                ),
+                            }
+                            for node in graph.get("nodes", [])
+                            if node.get("kind") == "class"
+                        ],
+                        key=lambda item: item["id"],
+                    ),
                     "edges": sorted(
                         [
                             {
@@ -771,11 +1030,25 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                 "primaryType": edge["primaryType"],
                                 "relations": edge["relations"],
                                 "role": edge["role"],
+                                "viaMethodIds": sorted(edge.get("viaMethodIds", [])),
                                 "evidence": edge.get("evidence", []),
                             }
                             for edge in graph["edges"]
                         ],
                         key=lambda item: (item["from"], item["to"], item["primaryType"], item["role"]),
+                    ),
+                    "methodEdges": sorted(
+                        [
+                            {
+                                "from": edge["from"],
+                                "to": edge["to"],
+                                "primaryType": edge["primaryType"],
+                                "relations": edge["relations"],
+                                "evidence": edge.get("evidence", []),
+                            }
+                            for edge in graph.get("methodEdges", [])
+                        ],
+                        key=lambda item: (item["from"], item["to"], item["primaryType"]),
                     ),
                 }
                 for graph in bundle["moduleGraphs"]

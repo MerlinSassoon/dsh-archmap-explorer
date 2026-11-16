@@ -8,6 +8,7 @@ from archmap.pipeline import build_architecture
 from archmap.render import render_html
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
+CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
 
 
 def test_render_is_self_contained_and_embeds_real_data() -> None:
@@ -68,3 +69,12 @@ def test_function_flow_canvas_follows_system_color_scheme() -> None:
     assert "--flow-next" in html
     assert "--flow-data" in html
     assert "background: transparent" in html
+
+
+def test_render_contains_class_component_contract() -> None:
+    bundle = build_architecture(CLASS_ROOT)
+    html = render_html(bundle)
+    assert "renderModuleClassNode" in html
+    assert "class-method-row" in html
+    assert "cls:app.worker.EchoWorker" in html
+    assert "抽象类/接口是契约节点" in html

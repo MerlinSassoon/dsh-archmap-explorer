@@ -78,3 +78,16 @@ def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
     assert {"cli-pipeline", "python-frontend", "flow-build", "graph-projection", "layout-routing", "validate-render"} <= module_ids
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
+
+
+def test_default_excludes_skip_root_level_build_directory(tmp_path: Path) -> None:
+    from archmap.config import load_config
+    from archmap.discover import discover_sources
+
+    (tmp_path / "build" / "lib").mkdir(parents=True)
+    (tmp_path / "build" / "lib" / "generated.py").write_text("def generated():\n    return 1\n", encoding="utf-8")
+    (tmp_path / "app.py").write_text("def main():\n    return 1\n", encoding="utf-8")
+    config = load_config(tmp_path)
+    rel_paths = {source.rel_path for source in discover_sources(config)}
+    assert "app.py" in rel_paths
+    assert "build/lib/generated.py" not in rel_paths

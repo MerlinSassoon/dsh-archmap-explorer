@@ -429,6 +429,37 @@
         detailScroll.querySelector("[data-open-module-detail]")?.addEventListener("click", () => navigate({ kind: "module", moduleId: uid }));
         return;
       }
+      if (macroNode.kind === "class") {
+        const methods = Array.isArray(macroNode.methods) ? macroNode.methods : [];
+        const publicMethods = methods.filter(method =>
+          method.visibility === "public" || method.visibility === "lifecycle"
+        );
+        const internalMethods = methods.filter(method =>
+          method.visibility === "internal" || method.visibility === "dunder" || method.methodKind === "constructor"
+        );
+        const renderMethod = method => `<button class="class-method-row" type="button" data-open-method-flow="${escapeHtml(method.functionFlowId)}">
+            <span class="class-method-kind">${escapeHtml(method.methodKind || "method")}</span>
+            <span class="class-method-name">${escapeHtml(method.name)}()</span>
+            <span class="class-method-open">执行流 ↗</span>
+          </button>`;
+        detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#60a5fa"}"><div class="detail-color"></div><div>
+            <div class="eyebrow">Class component${macroNode.isAbstract ? " · contract" : ""}</div>
+            <h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
+            <div class="detail-module">${escapeHtml(macroNode.qualifiedName || "")}</div></div></div>
+          <div class="detail-note">${escapeHtml(macroNode.note || "暂无类备注")}</div>
+          <div class="port-detail"><span>类型 <b>${escapeHtml(macroNode.classKind || "class")}</b></span><span>方法 <b>${methods.length}</b></span></div>
+          <div class="source-line">${escapeHtml(macroNode.file || "")}:${macroNode.line || "—"}</div>
+          ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不接入模块输入输出。</div>` : ""}
+          <div class="class-method-section"><div class="class-method-heading">公开 API</div>${publicMethods.length ? publicMethods.map(renderMethod).join("") : `<div class="class-method-empty">无公开方法</div>`}</div>
+          ${internalMethods.length ? `<div class="class-method-section"><div class="class-method-heading">内部 / 生命周期</div>${internalMethods.map(renderMethod).join("")}</div>` : ""}`;
+        detailScroll.querySelectorAll("[data-open-method-flow]").forEach(button => {
+          button.addEventListener("click", () => {
+            const target = flowById.get(button.dataset.openMethodFlow);
+            if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
+          });
+        });
+        return;
+      }
       if (macroNode.kind === "function") {
         const flow = flowById.get(macroNode.functionFlowId);
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#60a5fa"}"><div class="detail-color"></div><div>
@@ -479,9 +510,9 @@
     } else if (kind === "module") {
       canvasKicker.textContent = "Module topology";
       canvasTitle.textContent = module?.name || state.route.moduleId;
-      canvasSub.textContent = "函数节点展示名称与人工备注 · 双击进入真实执行流";
+      canvasSub.textContent = "类与自由函数是模块组件 · 单击类查看方法，双击函数进入执行流";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>${escapeHtml(module?.name || state.route.moduleId)}</b>`;
-      legend.innerHTML = legendItem("line", "函数调用/数据关系") + legendItem("input", "模块输入") + legendItem("output", "模块输出");
+      legend.innerHTML = legendItem("line", "组件依赖关系") + legendItem("input", "模块输入") + legendItem("output", "模块输出");
     } else {
       canvasKicker.textContent = "Function execution flow";
       canvasTitle.textContent = flow?.name || state.route.functionId;
@@ -720,7 +751,7 @@
   function miniDefaultPositions(moduleId) {
     const graph = moduleGraphById.get(moduleId);
     if (!graph) return new Map();
-    const functions = graph.nodes.filter(node => node.kind === "function");
+    const functions = graph.nodes.filter(node => node.kind === "function" || node.kind === "class");
     if (!functions.length) return new Map();
     const layout = graph.layout?.nodes || {};
     const rects = functions.map(node => {
@@ -766,7 +797,7 @@
     const graph = moduleGraphById.get(moduleId);
     const defaults = miniDefaultPositions(moduleId);
     const positionMap = new Map();
-    graph.nodes.filter(node => node.kind === "function").forEach(node => {
+    graph.nodes.filter(node => node.kind === "function" || node.kind === "class").forEach(node => {
       const element = host.querySelector(`.mini-node[data-uid="${cssEscape(node.id)}"]`);
       if (!element) return;
       positionMap.set(node.id, {
@@ -806,25 +837,30 @@
       path.setAttribute("opacity", ".42");
       svg.appendChild(path);
     });
-    graph.nodes.filter(node => node.kind === "function").forEach(node => {
+    graph.nodes.filter(node => node.kind === "function" || node.kind === "class").forEach(node => {
       const pos = getMiniPosition(moduleId, node.id, defaults);
       const element = document.createElement("article");
-      element.className = "mini-node node-card";
+      element.className = `mini-node node-card${node.kind === "class" ? " mini-class" : ""}`;
       element.dataset.uid = node.id;
       element.style.left = `${pos.x}px`;
       element.style.top = `${pos.y}px`;
       element.style.width = "176px";
       element.style.height = "76px";
-      element.innerHTML = `<div class="mini-title">${escapeHtml(node.name)}</div><div class="mini-note">${escapeHtml(node.note || "暂无备注")}</div>`;
+      const prefix = node.kind === "class" ? "C · " : "";
+      element.innerHTML = `<div class="mini-title">${escapeHtml(prefix + node.name)}</div><div class="mini-note">${escapeHtml(node.note || (node.kind === "class" ? `${node.methodCount || 0} methods` : "暂无备注"))}</div>`;
       host.appendChild(element);
       bindNodeHover(element, node.id);
       element.addEventListener("click", event => {
         event.stopPropagation();
-        state.nodes.set(node.id, { ...node, kind: "function", color: graph.color });
+        state.nodes.set(node.id, { ...node, kind: node.kind, color: graph.color });
         selectUid(node.id);
       });
       element.addEventListener("dblclick", event => {
         event.stopPropagation();
+        if (node.kind === "class") {
+          navigate({ kind: "module", moduleId });
+          return;
+        }
         navigate({ kind: "function", moduleId, functionId: node.id });
       });
       attachDrag(element, element, {
@@ -854,7 +890,9 @@
   }
 
   function moduleNodeSize(node) {
-    return node.kind === "function" ? { w: node.w || 210, h: node.h || 98 } : { w: node.w || 190, h: node.h || 96 };
+    if (node.kind === "class") return { w: node.w || 280, h: node.h || 150 };
+    if (node.kind === "function") return { w: node.w || 210, h: node.h || 98 };
+    return { w: node.w || 190, h: node.h || 96 };
   }
 
   function updateModuleWorldSize(moduleId) {
@@ -898,7 +936,9 @@
     world.classList.remove("page-enter");
     state.nodes = new Map();
     graph.nodes.forEach(node => {
-      if (node.kind === "function") {
+      if (node.kind === "class") {
+        state.nodes.set(node.id, { ...node, kind: "class", color: graph.color });
+      } else if (node.kind === "function") {
         state.nodes.set(node.id, { ...node, kind: "function", color: graph.color });
       } else {
         state.nodes.set(node.id, { ...node, kind: node.kind === "input" ? "input" : "output" });
@@ -928,6 +968,7 @@
     });
     state.nodes.forEach((node, nodeId) => {
       if (node.kind === "function") renderModuleFunctionNode(moduleId, nodeId, node);
+      else if (node.kind === "class") renderModuleClassNode(moduleId, nodeId, node);
       else renderModuleBoundary(moduleId, nodeId, node);
     });
     updateModuleWorldSize(moduleId);
@@ -988,6 +1029,54 @@
     bindNodeHover(element, nodeId);
     element.addEventListener("click", () => selectUid(nodeId));
     element.addEventListener("dblclick", () => navigate({ kind: "function", moduleId, functionId: node.id }));
+    attachDrag(element, element, {
+      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
+      setPosition: (x, y) => {
+        const item = state.positions.get(nodeId);
+        item.x = x; item.y = y;
+        setModulePagePosition(moduleId, nodeId, x, y);
+      },
+      bounds: () => ({ w: 2200, h: 1600 }),
+      onMove: refreshModuleEdges,
+      onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
+    });
+  }
+
+  function renderModuleClassNode(moduleId, nodeId, node) {
+    const pos = state.positions.get(nodeId);
+    const graph = moduleGraphById.get(moduleId);
+    const kindLabel = {
+      service: "SERVICE", component: "COMPONENT", abstract: "ABSTRACT",
+      interface: "INTERFACE", dataclass: "DATACLASS", enum: "ENUM",
+      exception: "EXCEPTION", utility: "UTILITY", model: "MODEL",
+    }[node.classKind] || "CLASS";
+    const methods = Array.isArray(node.methods) ? node.methods : [];
+    const publicMethods = methods.filter(method =>
+      method.visibility === "public" || method.visibility === "lifecycle"
+    ).slice(0, 3);
+    const chips = publicMethods.length
+      ? `<div class="class-method-chips">${publicMethods.map(method => `<span class="class-method-chip">${escapeHtml(method.name)}()</span>`).join("")}${methods.length > publicMethods.length ? `<span class="class-method-chip more">+${methods.length - publicMethods.length}</span>` : ""}</div>`
+      : `<div class="class-method-chips"><span class="class-method-chip more">${methods.length} methods</span></div>`;
+    const element = document.createElement("article");
+    element.className = `node-card class-node${node.isAbstract ? " is-abstract" : ""}`;
+    element.dataset.uid = nodeId;
+    element.style.left = `${pos.x}px`;
+    element.style.top = `${pos.y}px`;
+    element.style.width = `${pos.w}px`;
+    element.style.height = `${pos.h}px`;
+    element.style.setProperty("--mc", graph?.color || "#60a5fa");
+    element.style.setProperty("--mc-rgb", rgbFromHex(graph?.color || "#60a5fa"));
+    element.innerHTML = `<div class="class-node-top">
+        <span class="class-node-icon">C</span>
+        <span class="class-node-kind">${kindLabel}</span>
+        <span class="class-node-count">${methods.length} methods</span>
+      </div>
+      <div class="class-node-name">${escapeHtml(node.name)}</div>
+      <div class="class-node-note">${escapeHtml(node.note || "暂无类备注")}</div>
+      ${chips}`;
+    world.appendChild(element);
+    bindNodeHover(element, nodeId);
+    element.addEventListener("click", () => selectUid(nodeId));
     attachDrag(element, element, {
       getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
       setPosition: (x, y) => {
@@ -1606,16 +1695,23 @@
         const graph = moduleGraphById.get(uid);
         const haystack = [
           node.name, node.note, ...(node.inputs || []).map(item => item.label), ...(node.outputs || []).map(item => item.label),
-          ...(graph?.nodes || []).filter(item => item.kind === "function").flatMap(item => [item.name, item.note]),
+          ...(graph?.nodes || []).flatMap(item => {
+            if (item.kind === "class") return [item.name, item.note, ...(item.methods || []).flatMap(method => [method.name, method.note])];
+            if (item.kind === "function") return [item.name, item.note];
+            return [];
+          }),
         ].join(" ").toLowerCase();
         world.querySelector(`.module-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
       });
       world.querySelectorAll(".boundary-node").forEach(node => node.classList.remove("is-search-dim"));
     } else if (state.pageKind === "module") {
       state.nodes.forEach((node, uid) => {
-        if (node.kind !== "function") return;
-        const haystack = [node.name, node.note].join(" ").toLowerCase();
-        world.querySelector(`.function-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
+        if (node.kind !== "function" && node.kind !== "class") return;
+        const haystack = node.kind === "class"
+          ? [node.name, node.note, ...(node.methods || []).flatMap(method => [method.name, method.note])].join(" ").toLowerCase()
+          : [node.name, node.note].join(" ").toLowerCase();
+        const selector = node.kind === "class" ? ".class-node" : ".function-node";
+        world.querySelector(`${selector}[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
       });
     }
   }

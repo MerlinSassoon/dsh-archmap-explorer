@@ -138,6 +138,9 @@
         "outputs": {"type": "array", "items": {"$ref": "#/$defs/port"}},
         "nodes": {"type": "array", "items": {"$ref": "#/$defs/macroNode"}},
         "edges": {"type": "array", "items": {"$ref": "#/$defs/macroEdge"}},
+        "methodEdges": {"type": "array", "items": {"$ref": "#/$defs/macroEdge"}},
+        "classCount": {"type": "integer", "minimum": 0},
+        "methodCount": {"type": "integer", "minimum": 0},
         "layout": {"$ref": "#/$defs/layout"}
       }
     },
@@ -196,6 +199,10 @@
         "qualifiedName": {"type": "string"},
         "module": {"type": "string"},
         "moduleId": {"$ref": "#/$defs/identifier"},
+        "ownerClassId": {"type": ["string", "null"]},
+        "methodKind": {"type": "string"},
+        "visibility": {"type": "string"},
+        "isAbstract": {"type": "boolean"},
         "file": {"type": "string"},
         "line": {"type": "integer"},
         "endLine": {"type": "integer"},
@@ -232,7 +239,9 @@
       "required": ["modules", "functions", "nodes", "edges", "maxRank", "diagnostics"],
       "properties": {
         "modules": {"type": "integer"},
+        "classes": {"type": "integer"},
         "functions": {"type": "integer"},
+        "methods": {"type": "integer"},
         "nodes": {"type": "integer"},
         "edges": {"type": "integer"},
         "macroEdges": {"type": "integer"},

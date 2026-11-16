@@ -200,12 +200,42 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     for graph in module_graphs:
         module_id = graph.get("moduleId")
         node_ids = {node.get("id") for node in graph.get("nodes", [])}
+        class_ids = {
+            node.get("id") for node in graph.get("nodes", []) if node.get("kind") == "class"
+        }
         for node in graph.get("nodes", []):
             if node.get("kind") == "function" and node.get("functionFlowId") not in flow_by_id:
                 issues.append(_issue("error", "FLOW_REF_MISSING", f"module {module_id} references missing flow {node.get('functionFlowId')}"))
+            if node.get("kind") == "class":
+                class_id = node.get("id")
+                if not node.get("classKind"):
+                    issues.append(_issue("error", "CLASS_KIND_MISSING", f"module {module_id} class {class_id} missing classKind"))
+                for method in node.get("methods", []):
+                    method_id = method.get("id")
+                    if method.get("ownerClassId") != class_id:
+                        issues.append(_issue("error", "METHOD_OWNER", f"module {module_id} method {method_id} has wrong ownerClassId"))
+                    if method.get("functionFlowId") not in flow_by_id:
+                        issues.append(_issue("error", "METHOD_FLOW_MISSING", f"module {module_id} class {class_id} method {method_id} references missing flow"))
+                for key in ("publicMethodIds", "entryMethodIds", "exitMethodIds"):
+                    for method_id in node.get(key, []):
+                        method = flow_by_id.get(method_id)
+                        if method is None:
+                            issues.append(_issue("error", "CLASS_METHOD_REF", f"module {module_id} class {class_id} references missing method {method_id}"))
+                        elif method.get("ownerClassId") != class_id:
+                            issues.append(_issue("error", "CLASS_METHOD_OWNER", f"module {module_id} class {class_id} references method {method_id} owned by another class"))
         for edge in graph.get("edges", []):
             if edge.get("from") not in node_ids or edge.get("to") not in node_ids:
                 issues.append(_issue("error", "MODULE_EDGE_ENDPOINT", f"module {module_id} edge endpoint missing: {edge.get('id')}"))
+        for edge in graph.get("methodEdges", []):
+            for endpoint in (edge.get("from"), edge.get("to")):
+                if endpoint not in flow_by_id:
+                    issues.append(_issue("error", "METHOD_EDGE_ENDPOINT", f"module {module_id} method edge endpoint missing: {endpoint}"))
+        for module in project_graph.get("modules", []):
+            if module.get("id") != module_id:
+                continue
+            for class_id in module.get("classes", []):
+                if class_id not in class_ids:
+                    issues.append(_issue("error", "MODULE_CLASS_MISSING", f"module {module_id} references missing class {class_id}"))
     for flow in flows:
         issues.extend(_validate_function(flow))
     for issue in issues:

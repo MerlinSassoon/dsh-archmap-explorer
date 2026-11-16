@@ -17,6 +17,7 @@ from archmap.pipeline import build_architecture
 from archmap.render import render_html
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
+CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
 
 
 def _free_port() -> int:
@@ -150,6 +151,23 @@ def test_browser_smoke() -> None:
         time.sleep(.35)
         assert execute("return document.getElementById('resetFunctionBtn').disabled") is True
         assert execute("return document.querySelector('.flow-node').getAttribute('transform') === null") is True
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
+        # Phase 1 class layer: classes are component nodes on the module page;
+        # methods are listed in the class detail instead of being flattened.
+        class_bundle = build_architecture(CLASS_ROOT)
+        class_html = browser_dir / "class-layer.html"
+        class_html.write_text(render_html(class_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": class_html.resolve().as_uri()})
+        time.sleep(.6)
+        execute("location.hash='#/module/worker'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.4)
+        assert execute("return document.querySelectorAll('.class-node').length") == 2
+        assert execute("return document.querySelectorAll('.class-node.is-abstract').length") == 1
+        assert execute("return document.querySelectorAll('.function-node').length") == 1
+        execute("document.querySelector('.class-node[data-uid=\"cls:app.worker.EchoWorker\"]').click(); return true")
+        time.sleep(.2)
+        assert execute("return document.querySelectorAll('.class-method-row').length") == 2
         assert execute("return window.__ARCHMAP_ERRORS__") == []
     finally:
         if session:
