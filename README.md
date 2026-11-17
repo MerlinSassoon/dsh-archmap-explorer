@@ -46,19 +46,21 @@ python3 -m archmap build . \
   --out .archmap/self
 
 # 校验产物
-python -m archmap check .archmap/student_system/architecture.json
+python -m archmap check yield/student_system/architecture.json
 
 # 查看单个函数/方法详情
-python -m archmap method . --file menu_system.py --function run
+python -m archmap method Projects/student_system \
+  --file student_system/managers/menu_manager.py \
+  --function run
 
 # 本地预览
-python -m archmap serve .archmap/student_system
+python -m archmap serve yield/student_system
 ```
 
 产物：
 
 ```text
-.archmap/student_system/
+yield/student_system/
 ├── architecture.json       # projectGraph + moduleGraphs + functionDetails + callSites
 ├── architecture.html       # 自包含交互页面
 ├── llm-annotations.json    # 可选输入

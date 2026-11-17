@@ -11,7 +11,7 @@
 |---|---|
 | [`../README.md`](../README.md) | 产品定位、快速开始、配置、CLI、已知边界 |
 | [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) | 最新交接文档：当前状态、代码地图、数据契约、P3–P4 规划与风险 |
-| [`archmap-architecture-spec.md`](archmap-architecture-spec.md) | P2.3 架构与编码规范：四类物理文件、八角色语义、依赖方向与可见性 |
+| [`archmap-architecture-spec.md`](archmap-architecture-spec.md) | P2.3/P2.4 架构与编码规范：四类物理文件、八角色语义、主模块/主流程边界、依赖方向与可见性 |
 | [`p2.3-migration-plan.md`](p2.3-migration-plan.md) | P2.3 旧路径到新路径迁移记录、执行阶段与验收结果 |
 | [`archmap-v3-design.md`](archmap-v3-design.md) | v3.6 数据契约、Provider Role/Visibility/Ownership、三层投影、CallSite、布局覆盖与语言前端边界 |
 | [`archmap-api-contract-model.md`](archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、延期项与 ArkTS 映射 |
@@ -46,7 +46,7 @@ P4    类关系、API impact/user surface/DSM    未开始
 
 当前**没有**类焦点页路由，也**没有**语句级 FunctionFlow。类焦点页与类内方法图不在产品计划中。项目页默认不绘制模块依赖线；依赖证据保留在 `projectGraph.edges` 中。
 
-P2.4 已完成模块语义纠偏：每个项目恰好一个主模块，功能模块数量为 0..N；所有模块输入输出端口已删除；主模块页展示函数级主流程 DAG，功能模块页只展示 Provider/Capability。动态分发使用 dispatch 节点，候选边以虚线 low-confidence composition 表达。下一步进入 P3：继承、接口、多态与继承 API。
+P2.4 已完成模块语义纠偏与主流程边界冻结：每个项目恰好一个主模块，功能模块数量为 0..N；模块输入输出端口已删除；主流程只在主模块内部继续遍历，进入功能模块 canonical interface/provider 后停止，不穿透内部 utility。动态分发使用 dispatch 节点，候选边以虚线 low-confidence composition 表达。下一步进入 P3：继承、接口、多态与继承 API。
 
 ## 3. 历史归档文档
 

@@ -8,6 +8,70 @@
 
 ---
 
+## 0. 当前交接快照（2026-11-18）
+
+### 当前状态
+
+```text
+版本：ArchMap 1.6.0 / bundle schema 3.6
+分支：p2.4-main-flow
+P0 / P1 / P1.5 / P2.0 / P2.1 / P2.2 / P2.3 / P2.4  已完成
+P3 / P4                                           未开始
+```
+
+P2.4 已完成模块语义纠偏与主流程边界修复：
+
+- 每个项目恰好一个主模块，功能模块 0..N；
+- 模块输入/输出端口、boundaryNodes、module_input/module_output 边全部移除；
+- 主流程只在主模块内部继续遍历；
+- 进入功能模块 canonical interface/provider 后停止，不穿透内部 utility；
+- 功能模块边界节点为 `flowBoundary=true`、`expandable=false`、无出边；
+- dispatch 候选使用低置信度虚线 composition，未解析时保留 unresolved；
+- 主流程 interface 必须是 canonical `providedApis` capability；
+- `Projects/student_system` 已按 `main/config/model/managers/utility/tests` 规范化。
+
+### 当前验收
+
+```text
+pytest:                  61 passed, 1 skipped
+browser smoke:           1 passed
+schemaVersion:           3.6
+self modules:            6
+self main flow:          15 nodes / 16 edges, 5 boundary nodes
+self diagnostics:        0
+student_system modules:  7（1 main + 6 functional）
+student main flow:       10 nodes / 10 edges, 7 boundary nodes
+student diagnostics:     0
+archmap build/check:     OK
+```
+
+### 近期提交
+
+```text
+9857df4 feat(p2.4): add main module flow and dispatch contracts
+5ff23cc refactor(student_system): normalize sample architecture
+a7d574c fix(main-flow): bound composition traversal at module interfaces
+```
+
+### 后续推进
+
+1. 先以当前 61 passed / browser 1 passed / build+check 为基线。
+2. 进入 P3：继承/实现边、继承 API、多态 candidates。
+3. P3 必须复用 canonical Capability 与主流程边界规则，不得重新引入 utility interface。
+4. P3 完成并通过验收后再进入 P4。
+5. P4 优先做角色感知关系、API/type/provider impact 与 trace，再做 user surface 与 DSM。
+
+### 不要做
+
+- 不要恢复语句级 FunctionFlow。
+- 不要新增类焦点页或类内方法图。
+- 不要让主流程穿透功能模块接口。
+- 不要把 utility/config/model 物化成主流程 interface。
+- 不要为了架构图完整而伪造 dispatch 候选或调用边。
+- 不要同时推进 P3/P4。
+
+---
+
 ## 1. 新会话阅读顺序
 
 建议按以下顺序阅读：
@@ -15,18 +79,20 @@
 1. 本文 `docs/HANDOFF-P2-P4.md`
 2. `docs/README.md` — 当前/历史文档边界
 3. `README.md`
-4. `docs/function-detail-p1.5-plan.md`
-5. `docs/archmap-api-contract-model.md` — Provider + Capability API 契约模型与角色规划
-6. `docs/archmap-architecture-spec.md` — P2.3 四类物理文件、八角色语义、依赖方向与可见性
-7. `docs/archmap-v3-design.md`
-8. `archmap/model/contract_model.py` — 语言中立契约 IR
-9. `archmap/utility/contract_utility.py` — Python exposure 与协议能力辅助
-10. `archmap/utility/role_utility.py` / `archmap/frontends/python/role_utility.py` — Provider Role 判定、owner 归属、组合与类型摘要
-11. `archmap/managers/graph_manager.py` / `archmap/utility/graph_utility.py` — 三层投影、apiProviders、类节点、模块边界
-12. `archmap/frontends/python/call_utility.py` — 静态调用事实
-13. `archmap/frontends/python/detail_utility.py` — FunctionDetail / 源码 / callers / callees
-14. `archmap/render/assets/app.js` — 契约卡片、类型卡片、模块页与方法详情页
-15. `tests/test_api_contracts.py`、`tests/test_provider_roles.py`、`tests/test_class_layer.py`、`tests/test_build.py`
+4. `docs/p2.4-main-module-flow.md` — 主模块、功能模块、主流程边界、dispatch 与 composition 契约
+5. `docs/function-detail-p1.5-plan.md`
+6. `docs/archmap-api-contract-model.md` — Provider + Capability API 契约模型与角色规划
+7. `docs/archmap-architecture-spec.md` — 四类物理文件、八角色语义、依赖方向与可见性
+8. `docs/archmap-v3-design.md` — v3.6 数据契约
+9. `archmap/model/contract_model.py` — 语言中立契约 IR
+10. `archmap/utility/contract_utility.py` — Python exposure 与协议能力辅助
+11. `archmap/utility/role_utility.py` / `archmap/frontends/python/role_utility.py` — Provider Role 判定、owner 归属、组合与类型摘要
+12. `archmap/managers/graph_manager.py` / `archmap/utility/graph_utility.py` — 三层投影与 apiProviders
+13. `archmap/utility/main_flow_utility.py` — 有边界的主流程 DAG、dispatch 与边界节点
+14. `archmap/frontends/python/call_utility.py` — 静态调用事实
+15. `archmap/frontends/python/detail_utility.py` — FunctionDetail / 源码 / callers / callees
+16. `archmap/render/assets/app.js` — 主流程、能力卡片、类型卡片与方法详情页
+17. `tests/test_main_flow.py`、`tests/test_api_contracts.py`、`tests/test_provider_roles.py`、`tests/test_class_layer.py`、`tests/test_build.py`
 
 历史文档 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md` 中关于 FunctionFlow 的章节是历史设计，不是当前默认契约。当前产品已明确移除语句级执行流。
 
@@ -94,7 +160,8 @@ utility  纯函数 / 助手
   - `decorators`
   - `methodKind`
   - `visibility`
-- 模块角色：`main` / `service` / `adapter` / `test` / `other`；
+- 模块结构类型：`moduleKind = main | functional`；
+- 模块运行/展示提示：`role = main / service / adapter / test / other`；
 - API 契约模型：Provider + Capability、`apiExposure`、`apiProviders`；
 - Provider Role：config / model / manager / entry / adapter / component / contract / utility；
 - `moduleComposition` / `providerRoleCounts` 与 config/model `typeSummary`；
@@ -111,7 +178,12 @@ utility  纯函数 / 助手
   - 显示职责、角色、Provider/Capability、类/Provider/API 数量；
   - 主模块视觉强调；
   - 可选“关系”模式查看保留的模块调用证据；
-- 模块页：
+- 主模块页：
+  - 默认展示有边界的主流程 DAG；
+  - 可切换到能力视图；
+  - dispatch 节点使用虚线 low-confidence composition；
+  - 功能模块 interface/provider 是叶子边界，不继续穿透。
+- 功能模块页：
   - 顶部提供接口条；
   - 已移除的模块输入/输出端口；
   - 类节点；
@@ -149,62 +221,66 @@ utility  纯函数 / 助手
 
 ### 3.4 当前验收数据
 
-最近一次自举（P2.3 后）：
+最近一次自举（P2.4 + 主流程边界修复后）：
 
 ```text
 project:       archmap_v3
-modules:       5
-classes:       24
-functions:     158
+modules:       6
+classes:       25
+functions:     172
 methods:       39
-call sites:    1699
-resolvedCalls: 296
-macroEdges:    164
+call sites:    2153
+resolvedCalls: 337
+macroEdges:    151
 providedApis:  16
 apiProviders:  9
-providerRoles: config=2, model=13, manager=6, entry=2, contract=1, utility=119
-publicProviders: config=2, model=13, manager=6, entry=2, contract=1
-HTML:          ~2.4 MB
-JSON:          ~3.2 MB
+mainFlows:     1
+main flow:     15 nodes / 16 edges
+boundaries:    5（均无出边）
+providerRoles: config=3, model=13, manager=6, entry=2, contract=1, utility=133
+HTML:          ~2.9 MB
+JSON:          ~3.8 MB
 ```
 
-`examples/archmap_v3.archmap.json` 已更新为 5 个逻辑模块，并排除旧 import shim；自举只分析 `config/model/utility/managers/entry/frontends` 中的规范源码。
-
-`student_system` 历史验收数据（P2.1/P2.2 阶段，未随 P2.3 规范迁移重新自举）：
+`examples/archmap_v3.archmap.json` 为 6 个逻辑模块并排除旧 import shim：
 
 ```text
-modules:       5
-classes:       3
-functions:     45
-methods:       36
-call sites:    269
-resolvedCalls: 43
+main-pipeline / core-contracts / python-frontend /
+graph-projection / validation / rendering
+```
+
+`Projects/student_system` 已规范化后重新自举：
+
+```text
+project:       student_system
+modules:       7（main + network/database/menu/async/contracts/test）
+classes:       7
+functions:     52
+methods:       40
+call sites:    265
+resolvedCalls: 50
+macroEdges:    19
 providedApis:  13
+apiProviders:  10
+mainFlows:     1
+main flow:     10 nodes / 10 edges
+boundaries:    7（均无出边）
+providerRoles: config=1, model=2, manager=1, entry=5,
+               adapter=2, component=2, contract=0, utility=6
 ```
 
-历史类语义验收：
-
-- `MenuSystem`：类节点 + 模块级辅助函数；
-- `MenuSystem` 模块边界：1 进 / 1 出；
-- `Spinner`：1 个类节点；
-- `Spinner` 模块边界：1 进 / 1 出；
-- 抽象类 `Worker`：不接模块边界，`entryMethodIds=[]`。
-
-测试：
+测试与校验：
 
 ```text
-pytest: 48 passed, 1 skipped（默认跳过浏览器测试）
-ARCHMAP_RUN_BROWSER=1 pytest tests/test_browser_smoke.py: 1 passed
-archmap check: OK
+pytest:                 61 passed, 1 skipped（默认跳过浏览器测试）
+browser smoke:          1 passed（ARCHMAP_RUN_BROWSER=1）
+self build/check:       OK
+student build/check:    OK
+schemaVersion:          3.6
+diagnostics:            0
 ```
 
-P2.1 契约验收：
-
-- `thread_waiting.Spinner` → `with Spinner(message='加载中')`；
-- `database.Database` → `with Database(password)` + `Database.actions(client_input)`；
-- `menu_system.MenuSystem` → `MenuSystem.run()`；
-- 魔术方法、`__init__`、内部下划线方法不进入普通 API；
-- 序列协议延期。
+历史 P2.1/P2.2 验收数据仅用于追溯，不再代表当前 bundle。
 
 ---
 
@@ -219,13 +295,14 @@ entry.cli_entry.main
   → frontends.python.python_manager.PythonFrontend
   → frontends.python.*_utility stage functions
   → managers.graph_manager.GraphManager.build_bundle
+  → utility.main_flow_utility.build_main_flows（有边界的主流程投影）
   → managers.validate_manager.ValidationManager.validate
   → managers.render_manager.RenderManager.render
 ```
 
 ### 4.1 语言前端
 
-`archmap/frontends/base.py`：
+`archmap/model/frontend_contract.py`：
 
 ```python
 class LanguageFrontend(Protocol):
@@ -238,11 +315,11 @@ class LanguageFrontend(Protocol):
 Python 前端：
 
 ```text
-archmap/frontends/python/__init__.py
-  → analysis.analyze_project
-  → callsites.collect_call_sites
-  → details.build_function_details
-  → frontends.python.capabilities.build_capabilities
+archmap/frontends/python/python_manager.py
+  → frontends/python/analysis_utility.py
+  → frontends/python/call_utility.py
+  → frontends/python/detail_utility.py
+  → frontends/python/contract_utility.py
 ```
 
 ArkTS 未来应实现相同接口，不应修改 HTML 渲染核心。
@@ -251,24 +328,27 @@ ArkTS 未来应实现相同接口，不应修改 HTML 渲染核心。
 
 | 文件 | 职责 |
 |---|---|
-| `archmap/config.py` | 配置加载 |
-| `archmap/discover.py` | 源码发现、模块归属 |
-| `archmap/analysis.py` | AST 索引、类/函数/方法元数据 |
-| `archmap/callresolver.py` | 调用目标解析 |
-| `archmap/callsites.py` | 独立 CallSite 提取 |
-| `archmap/details.py` | FunctionDetail、源码切片、callers/callees、API exposure |
-| `archmap/contracts.py` | 语言中立的 Provider/Capability 契约模型 |
-| `archmap/frontends/python/capabilities.py` | Python exposure、协议能力与构造签名，按 Provider Role 过滤能力 |
-| `archmap/frontends/python/roles.py` | Provider Role 判定、模块组合来源与 config/model 类型摘要 |
-| `archmap/graph.py` | ProjectGraph、ModuleGraph、类节点、apiProviders、moduleComposition、聚合边、指纹 |
-| `archmap/validate.py` | bundle 交叉引用与数据校验 |
-| `archmap/render.py` | 单文件 HTML 模板注入 |
-| `archmap/cli.py` | build / check / method / serve / diff |
-| `archmap/render/assets/app.js` | 三层页面、类详情、方法详情 |
-| `archmap/render/assets/app.css` | 页面样式 |
-| `archmap/frontends/` | 语言前端抽象 |
+| `archmap/config/project_config.py` | 项目、模块、dispatch hint 配置模型 |
+| `archmap/utility/config_utility.py` | JSON 配置加载与标准化 |
+| `archmap/frontends/python/discovery_utility.py` | 源码发现、模块归属 |
+| `archmap/frontends/python/analysis_utility.py` | AST 索引、类/函数/方法元数据 |
+| `archmap/frontends/python/call_utility.py` | 调用目标解析、CallSite 提取 |
+| `archmap/frontends/python/detail_utility.py` | FunctionDetail、源码切片、callers/callees |
+| `archmap/frontends/python/contract_utility.py` | Provider/Capability 契约投影 |
+| `archmap/frontends/python/role_utility.py` | Provider Role、ownership、visibility |
+| `archmap/model/contract_model.py` | 语言中立契约 IR |
+| `archmap/utility/role_utility.py` | 通用角色/类型摘要/owner 推断辅助 |
+| `archmap/managers/graph_manager.py` | GraphManager facade |
+| `archmap/utility/graph_utility.py` | ProjectGraph/ModuleGraph、apiProviders、聚合边、指纹 |
+| `archmap/utility/main_flow_utility.py` | 主流程 DAG、dispatch、候选、边界节点与布局 |
+| `archmap/managers/validate_manager.py` / `archmap/utility/validate_utility.py` | bundle 契约、主流程边界、交叉引用校验 |
+| `archmap/managers/render_manager.py` / `archmap/utility/render_utility.py` | 自包含 HTML 渲染 |
+| `archmap/render/assets/app.js` | 项目页、主模块流程、功能模块页、Method Detail |
+| `archmap/render/assets/app.css` | 页面样式、主流程节点与 composition 虚线 |
+| `archmap/entry/cli_entry.py` / `archmap/utility/cli_utility.py` | CLI 入口与命令实现 |
+| `tests/test_main_flow.py` | 主流程边界、dispatch、模块语义与规范化样例回归 |
 
-旧模块路径（`archmap/analysis.py`、`archmap/graph.py`、`archmap/contracts.py` 等）现在都是兼容 shim，只转发到新目录。自举配置默认排除 shim 文件。
+旧模块路径（`archmap/analysis.py`、`archmap/graph.py`、`archmap/contracts.py` 等）是兼容 shim，只转发到新目录。自举配置默认排除 shim 文件。
 
 已删除：
 
@@ -1045,7 +1125,7 @@ Class 节点增加或完善：
 
 - `class_demo` 中 `EchoWorker` 继承 `Worker`，产生 `inherits` 边；
 - `Worker` 抽象方法列表正确；
-- 抽象类不接模块边界；
+- 抽象类不进入主流程执行节点；
 - 调用抽象方法时产生 candidates，而不是伪造唯一目标；
 - 类型关系视图不出现兄弟节点污染；
 - 不影响 ModuleGraph 和 Method Detail。
@@ -1204,30 +1284,48 @@ entry    -> surface    produces user interaction
 
 ## 13. 当前已知问题
 
-1. 静态调用解析仍不完整：
+1. P3 尚未实现：
+   - `ClassInfo.bases` 仍是原始字符串，没有解析为 `baseClassIds`；
+   - 没有全局 base/subclass 索引；
+   - 没有 `inherits` / `implements` 结构边；
+   - 继承 API、`declaredOn` / `inheritedFrom` / `implementedFrom` 未实现；
+   - 抽象方法多态 candidates 未实现。
+2. P4 尚未实现：
+   - 角色感知的 `composes` / `aggregates` / `uses` / `instantiates`；
+   - API/type/provider impact；
+   - trace 查询；
+   - user surface 投影与传播；
+   - DSM 与项目级视图切换。
+3. 主流程边界已强制：
+   - 只在主模块内部遍历；
+   - 功能模块 interface/provider 是叶子边界；
+   - utility/config/model 不得成为 flow interface。
+   - P3/P4 必须复用这一规则，不得再次穿透。
+4. 动态分发候选发现仍有限：
+   - 已支持显式配置、源码注释、argparse set_defaults、字典/列表注册表；
+   - 装饰器注册、插件扫描、运行时 `getattr`、动态导入仍只能在配置中声明，否则保留 unresolved；
+   - 自动静态发现默认 `candidateSetComplete=false`。
+5. 静态调用解析仍不完整：
    - 动态 `getattr`；
    - `**kwargs` 分发；
    - 运行时注册表；
-   - 继承来的方法调用；
-   - 跨包导入路径差异。
-2. 抽象/接口检测是基础 AST 规则，不是完整 Python 类型系统。
-3. `ClassInfo.bases` 仍是原始字符串，没有解析为类 ID。
-4. 方法详情源码目前纯文本展示，没有完整语法高亮。
-5. 单函数源码有 24000 字符上限，超长会 truncated。
-6. 方法详情页没有“调用路径搜索”，目前只有 callers/callees 列表。
-7. 类焦点页和类内方法图已明确不在产品计划中；类卡片只展示构造签名与提供接口。
-8. 旧 schema 3.0/3.1 bundle 不再通过 `archmap check`。
-9. 旧 FunctionFlow 注解的 `sourceHash` 会过期，需要重新生成。
-10. 旧函数级布局覆盖 `override.functions` 不再生效。
-11. `config.py` 中部分旧 `maxSteps` / `maxDataDeps` 配置已失去主要用途，后续可清理。
-12. 浏览器测试默认跳过，只有当 `ARCHMAP_RUN_BROWSER=1` 时执行。
-13. P2.0 已清理自举配置中的 `flow-build` / `layout-routing` 空模块，并把 `callsites.py` / `details.py` 归入 Python 前端模块。
-14. 旧 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md`、`docs/v1-acceptance-report.md` 已加归档说明；维护时不要把其中的 FunctionFlow 设计重新写回当前契约。
+   - 部分继承方法调用；
+   - 复杂跨包重导出。
+6. 抽象/接口检测是基础 AST 规则，不是完整 Python 类型系统。
+7. 方法详情源码目前纯文本展示，没有完整语法高亮。
+8. 单函数源码有 24000 字符上限，超长会 truncated。
+9. 方法详情页没有“调用路径搜索”，目前只有 callers/callees 列表。
+10. 类焦点页和类内方法图已明确不在产品计划中；类卡片只展示构造签名与提供接口。
+11. 旧 schema（3.0–3.5）bundle 不再通过 `archmap check`；当前必须为 3.6。
+12. 旧 FunctionFlow 注解的 `sourceHash` 会过期，需要重新生成。
+13. 旧函数级布局覆盖 `override.functions` 不再生效。
+14. 浏览器测试默认跳过，只有 `ARCHMAP_RUN_BROWSER=1` 时执行。
 15. 模块层次/子模块（`parentId`）尚未建模，当前模块配置仍是扁平的。
-16. P2.1 明确延期序列协议：`__len__` / `__getitem__` / `__contains__` / 切片 / ArkTS index signature；后续不得遗忘。
-17. 用户交互面（user surface）尚未建模；主模块默认仍按普通模块展示 developer API。
-19. Provider Role 自动判定仍是启发式，模糊类型应使用 `contract.providerRoles` 显式覆盖。
-20. 角色化、可见性、owner 归属和物理文件规范已影响模块 API、指纹和 UI；后续 P3/P4 必须保持 bundle schema 3.6 与默认视图行为稳定。
+16. 序列协议（`__len__` / `__getitem__` / `__contains__` / 切片 / ArkTS index signature）继续延期。
+17. 用户交互面（user surface）尚未建模；当前主模块先展示 developer composition flow，P4 再引入真实用户交互面。
+18. Provider Role 自动判定仍是启发式，模糊类型应使用 `contract.providerRoles` 显式覆盖。
+19. `config.py` 中部分旧 `maxSteps` / `maxDataDeps` 配置已失去主要用途，后续可清理。
+20. 历史文档 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md`、`docs/v1-acceptance-report.md`、`docs/archmap-class-layer-plan.md` 中有旧 FunctionFlow / 模块 I/O 内容，只用于追溯，不代表当前契约。
 
 ---
 
@@ -1237,17 +1335,26 @@ entry    -> surface    produces user interaction
 # 全量测试
 python3 -m pytest -q
 
-# 浏览器测试
+# 浏览器冒烟测试
 ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py
 
-# 构建（自举配置已清理为 4 个有效源码模块）
+# 自举构建与校验
 python3 -m archmap build . --config examples/archmap_v3.archmap.json --out .archmap/self
-
-# 校验
 python3 -m archmap check .archmap/self/architecture.json
 
+# student_system 构建与校验
+python3 -m archmap build Projects/student_system \
+  --config examples/student_system.archmap.json \
+  --out yield/student_system
+python3 -m archmap check yield/student_system/architecture.json
+
+# 运行规范化样例
+python3 -m student_system
+
 # 查看单个方法
-python3 -m archmap method . --file archmap/graph.py --function build_bundle
+python3 -m archmap method Projects/student_system \
+  --file student_system/managers/menu_manager.py \
+  --function run
 
 # 本地预览
 python3 -m archmap serve .archmap/self
@@ -1257,14 +1364,30 @@ python3 -m archmap serve .archmap/self
 
 ## 15. 新会话建议开工顺序
 
-1. 先跑全量测试和浏览器测试，确认当前基线。
-2. P2.3 已完成，下一步进入 P3：继承/实现边、继承 API、多态 candidates。
-3. P3 在角色与可见性之上做类型契约、manager 接口和继承 API，不做类焦点页。
-4. P4 先做角色感知关系提取和 API/type/provider impact，再做 user surface 传播与可选 DSM。
-5. 序列协议继续延期；若要实现，先更新契约文档和通用 fixture。
-6. 规范模式的源码识别与发现规则在 P3 前或 P3 中按 `archmap-architecture-spec.md` 落地，兼容模式保留。
+1. 先跑全量测试、浏览器测试、自举 build/check 和 student_system build/check，确认当前基线。
+2. 当前 P2.4 已完成，主流程边界已冻结；下一步进入 P3。
+3. P3 先做类型关系与继承 API：
+   - import-aware 类引用解析；
+   - `baseClassIds` / `subclassIds` / `implementsIds`；
+   - `inherits` / `implements` 结构边；
+   - 继承/实现的公开能力合入 canonical Capability；
+   - 多态 candidates 与 `self.abstract_method()`。
+4. P3 必须保持：
+   - 主流程 interface 只来自 canonical Capability；
+   - 功能模块 interface/provider 是主流程叶子；
+   - utility/config/model 不进入主流程节点；
+   - 不新增类焦点页或类内方法图。
+5. P3 全量验收后再启动 P4，顺序建议：
+   - 角色感知结构关系；
+   - API/type/provider impact；
+   - trace；
+   - user surface；
+   - DSM 与项目级视图切换。
+6. 序列协议继续延期；实现前先更新数据契约与通用 fixture。
+7. 当前分支为 `p2.4-main-flow`；合并或继续开发前先确认 `git status` 干净。
 
 不要跳过 P3/P4 的既有前置约束。
 不要同时开始 P3、P4。
 不要重新引入 FunctionFlow。
 不要新增类焦点页或类内方法图。
+不要穿透功能模块主流程边界。
