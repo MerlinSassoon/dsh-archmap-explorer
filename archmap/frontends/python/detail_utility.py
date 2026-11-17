@@ -24,10 +24,17 @@ def build_function_details(
     calls = list(call_sites)
     callers_by_function: dict[str, list[CallSite]] = defaultdict(list)
     callees_by_function: dict[str, list[CallSite]] = defaultdict(list)
+    polymorphic_callers_by_function: dict[str, list[CallSite]] = defaultdict(list)
     for site in calls:
         callers_by_function[site.to_function_id or ""].append(site)
         callees_by_function[site.from_function_id].append(site)
+        if site.polymorphic:
+            for candidate_id in site.candidates:
+                polymorphic_callers_by_function[candidate_id].append(site)
 
+    class_by_id = {
+        f"cls:{cls.module_name}.{cls.qualname}": cls for cls in analysis.classes
+    }
     details: list[dict[str, Any]] = []
     for fn in sorted(analysis.functions, key=lambda item: item.id):
         source = _source_slice(analysis, fn)
@@ -50,6 +57,35 @@ def build_function_details(
             _callee_entry(analysis, site)
             for site in sorted(
                 callees_by_function.get(fn.id, []),
+                key=lambda item: (item.line, item.column, item.id),
+            )
+        ]
+        override_of = None
+        overridden_by: list[str] = []
+        if fn.class_name:
+            owner_id = _owner_class_id(fn)
+            owner = class_by_id.get(owner_id or "")
+            if owner is not None:
+                for ancestor_id in owner.mro_class_ids[1:]:
+                    ancestor = class_by_id.get(ancestor_id)
+                    if ancestor is not None and fn.name in ancestor.methods:
+                        override_of = ancestor.methods[fn.name].id
+                        break
+                for subclass_id in owner.subclass_ids:
+                    subclass = class_by_id.get(subclass_id)
+                    if subclass is not None and fn.name in subclass.methods:
+                        overridden_by.append(subclass.methods[fn.name].id)
+        polymorphic_callers = [
+            _caller_entry(analysis, site)
+            for site in sorted(
+                polymorphic_callers_by_function.get(fn.id, []),
+                key=lambda item: (item.file, item.line, item.column, item.id),
+            )
+        ]
+        polymorphic_callees = [
+            _callee_entry(analysis, site)
+            for site in sorted(
+                (site for site in callees_by_function.get(fn.id, []) if site.polymorphic),
                 key=lambda item: (item.line, item.column, item.id),
             )
         ]
@@ -81,6 +117,12 @@ def build_function_details(
                 "callees": callees,
                 "callerCount": len(callers),
                 "calleeCount": len(callees),
+                "overrideOfFunctionId": override_of,
+                "overriddenByFunctionIds": sorted(set(overridden_by)),
+                "polymorphicCallers": polymorphic_callers,
+                "polymorphicCallees": polymorphic_callees,
+                "polymorphicCallerCount": len(polymorphic_callers),
+                "polymorphicCalleeCount": len(polymorphic_callees),
             }
         )
     return details

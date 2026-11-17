@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from typing import Any, Iterable
 
-from ...model.analysis_model import AnalysisResult, FunctionInfo, ModuleInfo
+from ...model.analysis_model import AnalysisResult, ClassInfo, FunctionInfo, ModuleInfo
 from ...model.call_model import CallSite, ResolvedCall
 from ...utility.call_utility import (
     BUILTIN_NAMES,
@@ -13,6 +13,7 @@ from ...utility.call_utility import (
     _calls_in_function,
     _unparse,
 )
+from .type_utility import _resolve_class_expr, class_id
 
 
 class CallResolver:
@@ -20,6 +21,7 @@ class CallResolver:
         self.analysis = analysis
         self.module_by_name = {module.name: module for module in analysis.modules}
         self.module_by_id = {module.module_id: module for module in analysis.modules}
+        self.class_by_id = {class_id(cls): cls for cls in analysis.classes}
 
     def _find_module_function(self, module: ModuleInfo, name: str) -> FunctionInfo | None:
         return module.functions.get(name)
@@ -48,9 +50,6 @@ class CallResolver:
         target = self.module_by_name.get(module_name)
         if target is not None:
             return target
-        # Python packages often use imports relative to the package root
-        # (``from service import ...`` inside ``app.main``).  Resolve against
-        # the current package ancestry before falling back to a unique suffix.
         current_parts = current.name.split(".")
         package_parts = current_parts if self._is_package(current) else current_parts[:-1]
         for depth in range(len(package_parts), 0, -1):
@@ -62,22 +61,123 @@ class CallResolver:
         matches = [module for name, module in self.module_by_name.items() if name.endswith(suffix)]
         return matches[0] if len(matches) == 1 else None
 
-    def _find_class_method(self, module: ModuleInfo, class_name: str, name: str) -> FunctionInfo | None:
-        cls = module.classes.get(class_name)
+    def _class_for_name(self, current: ModuleInfo, name: str) -> ClassInfo | None:
+        found, _ = _resolve_class_expr(self.analysis, current, name)
+        return found
+
+    def _find_class(self, module: ModuleInfo, class_name: str) -> ClassInfo | None:
+        cls = self._class_for_name(module, class_name)
+        if cls is not None:
+            return cls
+        tail = str(class_name).split(".")[-1]
+        matches = [item for item in self.analysis.classes if item.name == tail]
+        return matches[0] if len(matches) == 1 else None
+
+    def _find_declared_method(self, cls: ClassInfo, name: str) -> FunctionInfo | None:
+        """Find a method in the class's MRO (nearest definition wins)."""
+
+        for cid in cls.mro_class_ids or [class_id(cls)]:
+            current = self.class_by_id.get(cid)
+            if current is None:
+                continue
+            method = current.methods.get(name)
+            if method is not None:
+                return method
+        return None
+
+    def _find_constructor(self, cls: ClassInfo) -> FunctionInfo | None:
+        return self._find_declared_method(cls, "__init__")
+
+    def _descendant_implementations(self, cls: ClassInfo, name: str) -> list[FunctionInfo]:
+        """Return concrete overrides below ``cls`` without sibling bleeding."""
+
+        result: dict[str, FunctionInfo] = {}
+        queue = list(cls.subclass_ids)
+        seen: set[str] = set()
+        while queue:
+            cid = queue.pop(0)
+            if cid in seen:
+                continue
+            seen.add(cid)
+            child = self.class_by_id.get(cid)
+            if child is None:
+                continue
+            method = child.methods.get(name)
+            if method is not None and not method.is_abstract:
+                result[method.id] = method
+            queue.extend(child.subclass_ids)
+        return [result[key] for key in sorted(result)]
+
+    def _polymorphic_call(
+        self,
+        name: str,
+        receiver: ClassInfo,
+        method: FunctionInfo | None,
+        candidates: list[FunctionInfo],
+    ) -> ResolvedCall:
+        qualified = method.qualname if method is not None else name
+        return ResolvedCall(
+            name=name,
+            qualified_name=f"{receiver.module_name}.{qualified}",
+            target_function_id=None,
+            resolved=False,
+            external=False,
+            recursive=False,
+            confidence="medium" if candidates else "low",
+            candidates=[item.id for item in candidates],
+            polymorphic=True,
+            dispatch_kind="polymorphic",
+        )
+
+    def _resolve_method_on_class(
+        self,
+        name: str,
+        cls: ClassInfo,
+        *,
+        allow_polymorphic: bool = True,
+    ) -> ResolvedCall:
+        method = self._find_declared_method(cls, name)
+        contract_method = bool(
+            method is not None
+            and (
+                method.is_abstract
+                or (cls.class_kind == "interface" and method.class_name == cls.qualname)
+            )
+        )
+        if contract_method and allow_polymorphic:
+            candidates = self._descendant_implementations(cls, name)
+            return self._polymorphic_call(name, cls, method, candidates)
+        if method is None:
+            if allow_polymorphic and cls.is_abstract:
+                candidates = self._descendant_implementations(cls, name)
+                if candidates:
+                    return self._polymorphic_call(name, cls, method, candidates)
+            return ResolvedCall(name=name, confidence="low")
+        return ResolvedCall(
+            name=name,
+            qualified_name=f"{method.module_name}.{method.qualname}",
+            target_function_id=method.id,
+            resolved=True,
+            external=False,
+            recursive=False,
+            confidence="high",
+            candidates=[method.id],
+            polymorphic=False,
+            dispatch_kind="static",
+        )
+
+    def _find_imported_class_method(self, module: ModuleInfo, ref: Any, attr_name: str) -> FunctionInfo | None:
+        target_module = self._imported_target_module(module, ref)
+        if target_module is None:
+            return None
+        cls = None
+        if ref.name:
+            cls = next((item for item in target_module.classes.values() if item.name == ref.name), None)
         if cls is None:
-            for candidate in module.classes.values():
-                if candidate.name == class_name:
-                    cls = candidate
-                    break
-        if cls is None:
-            ref = module.imports.get(class_name)
-            if ref is not None:
-                target_module = self._imported_target_module(module, ref)
-                if target_module is not None:
-                    cls = target_module.classes.get(ref.name or class_name)
+            cls = next((item for item in target_module.classes.values() if item.name == attr_name), None)
         if cls is None:
             return None
-        return cls.methods.get(name)
+        return self._find_declared_method(cls, attr_name)
 
     def _resolve_imported(
         self,
@@ -93,7 +193,6 @@ class CallResolver:
             direct = target_module.functions.get(ref.name)
             if direct is not None:
                 return direct
-            # Follow re-exports declared in package __init__ modules.
             nested = target_module.imports.get(ref.name)
             if nested is None:
                 return None
@@ -120,7 +219,7 @@ class CallResolver:
             if name in current_module.functions:
                 candidates.append(current_module.functions[name])
             if name in current_module.classes:
-                init = current_module.classes[name].methods.get("__init__")
+                init = self._find_constructor(current_module.classes[name])
                 if init:
                     candidates.append(init)
             ref = current_module.imports.get(name)
@@ -130,61 +229,99 @@ class CallResolver:
                     candidates.append(imported)
                 elif ref.name:
                     target_module = self._imported_target_module(current_module, ref)
-                    cls = target_module.classes.get(ref.name) if target_module else None
-                    if cls and cls.methods.get("__init__"):
-                        candidates.append(cls.methods["__init__"])
+                    cls = None
+                    if target_module is not None:
+                        cls = next((item for item in target_module.classes.values() if item.name == ref.name), None)
+                    if cls is not None:
+                        init = self._find_constructor(cls)
+                        if init is not None:
+                            candidates.append(init)
             if not candidates:
                 if name in BUILTIN_NAMES:
                     return ResolvedCall(name=name, external=True, confidence="high")
-                # Method name available through self? Fall through to unresolved.
                 return ResolvedCall(name=name, confidence="low")
             return self._finish(name, candidates, current_fn)
 
         if isinstance(func, ast.Attribute):
             name = func.attr
-            if isinstance(func.value, ast.Call):
-                ctor = func.value.func
+            receiver_expr = func.value
+
+            # super().method(): statically target the nearest base declaration.
+            if isinstance(receiver_expr, ast.Call) and isinstance(receiver_expr.func, ast.Name) and receiver_expr.func.id == "super":
+                if current_fn.class_name:
+                    current_cls = self._find_class(current_module, current_fn.class_name)
+                    if current_cls is not None and len(current_cls.mro_class_ids) > 1:
+                        base_cls = self.class_by_id.get(current_cls.mro_class_ids[1])
+                        if base_cls is not None:
+                            resolved = self._resolve_method_on_class(name, base_cls, allow_polymorphic=False)
+                            if resolved.resolved:
+                                return resolved
+                return ResolvedCall(name=ast.unparse(func), confidence="low")
+
+            # Constructed receiver: EchoWorker().run().
+            if isinstance(receiver_expr, ast.Call):
+                ctor = receiver_expr.func
                 ctor_name = ""
                 if isinstance(ctor, ast.Name):
                     ctor_name = ctor.id
                 elif isinstance(ctor, ast.Attribute):
-                    ctor_name = ctor.attr
-                if ctor_name:
-                    method = self._find_class_method(current_module, ctor_name, name)
-                    if method:
-                        candidates.append(method)
-            if isinstance(func.value, ast.Name):
-                base = func.value.id
+                    ctor_name = ast.unparse(ctor)
+                receiver_cls = self._find_class(current_module, ctor_name) if ctor_name else None
+                if receiver_cls is not None:
+                    return self._resolve_method_on_class(name, receiver_cls)
+                method = self._find_imported_class_method(current_module, current_module.imports.get(ctor_name), name) if ctor_name in current_module.imports else None
+                if method is not None:
+                    return ResolvedCall(
+                        name=ast.unparse(func), qualified_name=f"{method.module_name}.{method.qualname}",
+                        target_function_id=method.id, resolved=True, confidence="high",
+                        candidates=[method.id],
+                    )
+
+            if isinstance(receiver_expr, ast.Name):
+                base = receiver_expr.id
+                # Module-level function via imported module alias.
                 ref = current_module.imports.get(base)
                 if ref is not None:
                     imported = self._resolve_imported(current_module, ref, name)
                     if imported:
                         candidates.append(imported)
-                if base == "self" and current_fn.class_name:
-                    method = self._find_class_method(current_module, current_fn.class_name, name)
-                    if method:
-                        candidates.append(method)
+                if base in {"self", "cls"} and current_fn.class_name:
+                    current_cls = self._find_class(current_module, current_fn.class_name)
+                    if current_cls is not None:
+                        return self._resolve_method_on_class(name, current_cls)
+                    fallback = next(
+                        (
+                            item
+                            for item in self.analysis.classes
+                            if item.qualname == current_fn.class_name
+                            and item.module_name == current_fn.module_name
+                        ),
+                        None,
+                    )
+                    if fallback is not None:
+                        return self._resolve_method_on_class(name, fallback)
                 module = self.module_by_name.get(base)
                 if module is not None:
                     fn = module.functions.get(name)
                     if fn:
                         candidates.append(fn)
-                # Type-annotated parameter / local variable.
-                if not candidates and base in {"cls", "super"} and current_fn.class_name:
-                    method = self._find_class_method(current_module, current_fn.class_name, name)
-                    if method:
-                        candidates.append(method)
                 if not candidates:
                     type_name = self._find_local_type(current_fn.node, base)
                     if type_name:
-                        method = self._find_class_method(current_module, type_name, name)
-                        if method:
-                            candidates.append(method)
+                        receiver_cls = self._class_for_name(current_module, type_name)
+                        if receiver_cls is not None:
+                            return self._resolve_method_on_class(name, receiver_cls)
                 if not candidates:
-                    # Class.method() form inside this module.
-                    method = self._find_class_method(current_module, base, name)
-                    if method:
-                        candidates.append(method)
+                    receiver_cls = self._find_class(current_module, base)
+                    if receiver_cls is not None:
+                        return self._resolve_method_on_class(name, receiver_cls)
+            elif isinstance(receiver_expr, ast.Attribute):
+                # Module/class-qualified receiver such as pkg.Base.run().
+                receiver_name = ast.unparse(receiver_expr)
+                receiver_cls = self._find_class(current_module, receiver_name)
+                if receiver_cls is not None:
+                    return self._resolve_method_on_class(name, receiver_cls)
+
             full = ast.unparse(func)
             if candidates:
                 return self._finish(full, candidates, current_fn)
@@ -254,6 +391,8 @@ class CallResolver:
     def _finish(self, name: str, candidates: list[FunctionInfo], current_fn: FunctionInfo) -> ResolvedCall:
         unique: dict[str, FunctionInfo] = {item.id: item for item in candidates}
         values = [unique[key] for key in sorted(unique)]
+        if not values:
+            return ResolvedCall(name=name, confidence="low")
         target = values[0]
         return ResolvedCall(
             name=name,
@@ -264,6 +403,8 @@ class CallResolver:
             recursive=target.id == current_fn.id,
             confidence="high" if len(values) == 1 else "medium",
             candidates=self._candidates(values),
+            polymorphic=False,
+            dispatch_kind="static",
         )
 
 
@@ -302,6 +443,8 @@ def collect_call_sites(
                     confidence=resolved.confidence,
                     candidates=list(resolved.candidates),
                     argument_count=len(call.args) + len(call.keywords),
+                    polymorphic=resolved.polymorphic,
+                    dispatch_kind=resolved.dispatch_kind,
                 )
             )
     return result

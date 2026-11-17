@@ -570,3 +570,112 @@
   .api-role-group + .api-role-group { border-top: 1px solid var(--line-soft); padding-top: 8px; }
   .api-role-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
   .api-role-heading span { color: #7f93ac; font-family: var(--mono); font-size: 6.5px; }
+
+/* P3 type hierarchy and polymorphic call surfaces */
+.class-hierarchy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.hierarchy-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  font-size: 10px;
+}
+.hierarchy-row > span {
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .04em;
+  padding-top: 2px;
+}
+.hierarchy-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.hierarchy-row code,
+.method-call-candidates code {
+  color: var(--text);
+  background: rgba(110, 168, 255, .12);
+  border: 1px solid rgba(110, 168, 255, .22);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.hierarchy-row.is-unresolved code {
+  color: var(--warn, #fbbf24);
+  background: rgba(251, 191, 36, .08);
+  border-color: rgba(251, 191, 36, .2);
+}
+.class-hierarchy-empty {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.detail-api-badge.is-inherited {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, .35);
+}
+.detail-api-badge.is-override {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, .35);
+}
+.method-call-item.is-polymorphic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 8px;
+  border-left: 2px solid rgba(251, 191, 36, .45);
+}
+.method-call-candidates {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.method-call-kind {
+  white-space: nowrap;
+}
+
+.contracts-types {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.type-relation-track {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+}
+.type-relation-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .02);
+  font-family: var(--mono);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.type-relation-chip b,
+.type-relation-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.type-relation-chip em {
+  color: var(--text-dim);
+  font-style: normal;
+  font-size: 8px;
+  text-transform: uppercase;
+}
+.type-relation-chip.kind-implements em { color: #93c5fd; }
+.type-relation-chip.kind-inherits em { color: #86efac; }

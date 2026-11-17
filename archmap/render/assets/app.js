@@ -470,10 +470,54 @@
 
   function apiExposureBadge(api) {
     if (!api) return "";
+    if (api.inherited) return `inherited · ${api.declaredInProviderId ? String(api.declaredInProviderId).split(".").pop() : "base"}`;
+    if (api.overridesCapabilityId) return "override";
     if (api.isEntry) return "entry";
     if (api.exposureSource === "protocol") return "protocol";
     if (api.exposureSource === "naming") return "inferred";
     return api.exposure || "public";
+  }
+
+  function typeRelationLabel(kind) {
+    return kind === "implements" ? "implements" : "inherits";
+  }
+
+  function classHierarchyBlock(node) {
+    const bases = node.baseClassIds || [];
+    const subclasses = node.subclassIds || [];
+    const unresolved = node.unresolvedBases || [];
+    if (!bases.length && !subclasses.length && !unresolved.length) {
+      return `<div class="class-method-empty">无已解析的继承/实现关系</div>`;
+    }
+    const list = (ids, empty) => ids.length ? ids.map(id => `<code>${escapeHtml(String(id).split(".").pop())}</code>`).join("") : `<span class="class-hierarchy-empty">${empty}</span>`;
+    return `<div class="class-hierarchy">
+      <div class="hierarchy-row"><span>BASES</span><div>${list(bases, "—")}</div></div>
+      <div class="hierarchy-row"><span>SUBCLASSES</span><div>${list(subclasses, "—")}</div></div>
+      ${unresolved.length ? `<div class="hierarchy-row is-unresolved"><span>UNRESOLVED</span><div>${unresolved.map(item => `<code>${escapeHtml(item)}</code>`).join("")}</div></div>` : ""}
+    </div>`;
+  }
+
+  function typeRelationChips(graph, limit = 8) {
+    const relations = graph?.typeRelations || [];
+    if (!relations.length) return `<span class="contracts-empty">暂无继承/实现关系</span>`;
+    const short = id => String(id || "").split(".").pop();
+    return relations.slice(0, limit).map(relation => `<span class="type-relation-chip kind-${escapeHtml(relation.kind)}" title="${escapeHtml(`${relation.fromClassId} ${typeRelationLabel(relation.kind)} ${relation.toClassId}`)}">
+      <b>${escapeHtml(short(relation.fromClassId))}</b><em>${escapeHtml(typeRelationLabel(relation.kind))}</em><span>${escapeHtml(short(relation.toClassId))}</span>
+    </span>`).join("") + (relations.length > limit ? `<span class="type-relation-chip more">+${relations.length - limit}</span>` : "");
+  }
+
+  function polymorphicCallList(entries, emptyText) {
+    if (!entries || !entries.length) return `<div class="method-call-empty">${escapeHtml(emptyText)}</div>`;
+    return entries.map(entry => {
+      const candidates = entry.candidates || [];
+      const targetNames = candidates.map(id => String(id).split(".").slice(-2).join("."));
+      return `<div class="method-call-item is-polymorphic">
+        <span class="method-call-name">${escapeHtml(entry.calleeText || entry.qualifiedName || "polymorphic call")}</span>
+        <span class="method-call-meta">${escapeHtml(entry.file || "")}:${entry.line || "—"} · ${candidates.length} candidate${candidates.length === 1 ? "" : "s"}</span>
+        <span class="method-call-kind">polymorphic</span>
+        ${targetNames.length ? `<span class="method-call-candidates">${targetNames.map(name => `<code>${escapeHtml(name)}</code>`).join("")}</span>` : ""}
+      </div>`;
+    }).join("");
   }
 
   function apiButtonAttrs(api) {
@@ -508,7 +552,7 @@
     return apis.map(api => `<button class="detail-api-row" type="button" ${apiButtonAttrs(api)}>
         <span class="detail-api-kind">${escapeHtml(api.kind)}</span>
         <span class="detail-api-name">${escapeHtml(apiDisplayName(api))}</span>
-        <span class="detail-api-badge">${escapeHtml(apiExposureBadge(api))}</span>
+        <span class="detail-api-badge${api.inherited ? " is-inherited" : api.overridesCapabilityId ? " is-override" : ""}">${escapeHtml(apiExposureBadge(api))}</span>
       </button>`).join("");
   }
 
@@ -533,7 +577,7 @@
         <div class="api-provider-head">
           <span class="api-provider-kind">${escapeHtml(provider.providerKind || "provider")}</span>
           <b>${escapeHtml(provider.providerName || provider.providerId)}</b>
-          <em>${provider.apiCount || (provider.apis || []).length}</em>
+          <em>${provider.apiCount || (provider.apis || []).length}${Number(provider.inheritedApiCount || 0) ? ` · ${Number(provider.inheritedApiCount)} inherited` : ""}</em>
         </div>
         ${apiDetailList(provider.apis || [])}
       </div>`).join("")}
@@ -594,7 +638,7 @@
       detailScroll.innerHTML = `<div class="eyebrow">Project composition map</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(DATA.project.name)}</h2>
         <div class="detail-note">项目页展示主模块与功能模块能力。主模块承载程序主流程；功能模块只暴露能力，不再拥有僵硬的输入输出端口。</div>
-        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>主模块 <b>${escapeHtml(mainModule?.name || "—")}</b></span><span>功能模块 <b>${functionalCount}</b></span><span>主流程节点 <b>${flow?.nodeCount || 0}</b></span></div>
+        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>主模块 <b>${escapeHtml(mainModule?.name || "—")}</b></span><span>功能模块 <b>${functionalCount}</b></span><span>类型关系 <b>${(projectGraph.typeRelations || []).length}</b></span><span>主流程节点 <b>${flow?.nodeCount || 0}</b></span></div>
         ${annotationBlock(DATA.project.name)}
         <div class="empty-hint">双击主模块查看主流程；双击功能模块查看 Provider 与提供接口。</div>`;
       return;
@@ -610,7 +654,7 @@
           <div class="eyebrow">${isMain ? "Main flow" : "Module capability"}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
           <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
-        <div class="port-detail"><span>类型 <b>${isMain ? "主模块" : "功能模块"}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>流程节点 <b>${isMain ? (flow?.nodeCount || 0) : "—"}</b></span></div>
+        <div class="port-detail"><span>类型 <b>${isMain ? "主模块" : "功能模块"}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span><span>流程节点 <b>${isMain ? (flow?.nodeCount || 0) : "—"}</b></span></div>
         <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(module)}</div>
         <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
         ${annotationBlock(module.moduleId)}
@@ -644,7 +688,7 @@
             <div class="detail-module">${escapeHtml(module?.name || macroNode.moduleName || macroNode.moduleId)}${macroNode.providerName ? ` · ${escapeHtml(macroNode.providerName)}` : ""}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "主流程组合节点")}</div>
           <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId)}</b></span><span>边界 <b>${macroNode.flowBoundary ? "功能模块接口" : "主模块编排"}</b></span>${macroNode.signature ? `<span>签名 <b>${escapeHtml(macroNode.signature)}</b></span>` : ""}</div>
-          ${isDispatch ? `<div class="llm-stale">动态分发边界：候选连线使用低置信度 composition 语义，${macroNode.candidateSetComplete ? "候选集已声明完整" : "候选集未声明完整"}。</div>
+          ${isDispatch ? `<div class="llm-stale">${macroNode.candidateSource === "polymorphic" ? "多态分发边界：按已解析的本地实现候选生成低置信度 composition 连线。" : "动态分发边界：候选连线使用低置信度 composition 语义"}，${macroNode.candidateSetComplete ? "候选集已声明完整" : "候选集未声明完整"}。</div>
             <div class="source-line">表达式：${escapeHtml(macroNode.expression || macroNode.label || "")} · 候选：${Number(macroNode.candidateCount || 0)} · 来源：${escapeHtml(macroNode.candidateSource || "unknown")}</div>` : ""}
           ${detail ? `<div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>` : ""}
           ${annotationBlock(functionId || uid, detail?.sourceHash)}
@@ -691,7 +735,9 @@
           <div class="source-line">角色来源：${escapeHtml(macroNode.roleSource || "structure")} · ${escapeHtml(macroNode.roleConfidence || "medium")}</div>
           ${isTypeCard ? "" : `<div class="source-line">用法：${escapeHtml(constructorSignature)}</div>`}
           <div class="source-line">${escapeHtml(macroNode.file || "")}:${macroNode.line || "—"}</div>
+          <div class="port-detail"><span>声明接口 <b>${Number(macroNode.declaredApiCount || apis.filter(api => !api.inherited).length)}</b></span><span>继承接口 <b>${Number(macroNode.inheritedApiCount || apis.filter(api => api.inherited).length)}</b></span></div>
           ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不进入主流程执行节点。</div>` : ""}
+          <div class="class-method-section"><div class="class-method-heading">Type hierarchy</div>${classHierarchyBlock(macroNode)}</div>
           ${isTypeCard ? `<div class="class-method-section"><div class="class-method-heading">Type fields · ${Number(typeSummary?.fieldCount || 0)}</div>${typeFieldList(typeSummary)}</div>` : `<div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>`}
           <div class="class-method-section"><div class="class-method-heading">内部实现</div><div class="class-method-empty">${internalCount} 个内部方法，不在契约视图展示。</div></div>`;
         bindApiNavigation(detailScroll);
@@ -748,7 +794,8 @@
         <div class="contracts-track">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
         <div class="contracts-count">${apis.length} apis</div>
       </div>
-      <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>`;
+      <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>
+      <div class="contracts-types"><div class="contracts-label">TYPE RELATIONS</div><div class="type-relation-track">${typeRelationChips(graph)}</div><div class="contracts-count">${(graph.typeRelations || []).length} relations</div></div>`;
     moduleContracts.classList.add("is-visible");
     bindApiNavigation(moduleContracts);
     moduleContracts.querySelectorAll("[data-main-view]").forEach(button => {
@@ -1439,9 +1486,11 @@
     const typeSummary = node.typeSummary || usage.typeSummary || null;
     const isTypeCard = node.providerRole === "config" || node.providerRole === "model";
     const constructorSignature = usage.constructor?.signature || `${node.name}()`;
+    const inheritanceText = (node.baseClassIds || []).length ? ` · ${node.baseClassIds.length} base` : "";
+    const inheritedText = Number(node.inheritedApiCount || 0) ? ` · ${Number(node.inheritedApiCount)} inherited` : "";
     const bodySummary = isTypeCard
-      ? `<div class="class-usage">${Number(typeSummary?.fieldCount || 0)} fields · type contract</div>`
-      : `<div class="class-usage">${escapeHtml(constructorSignature)}</div>`;
+      ? `<div class="class-usage">${Number(typeSummary?.fieldCount || 0)} fields · type contract${inheritanceText}</div>`
+      : `<div class="class-usage">${escapeHtml(constructorSignature)}${escapeHtml(inheritanceText + inheritedText)}</div>`;
     const chips = isTypeCard
       ? `<div class="class-method-chips type-fields">${typeFieldChips(typeSummary, 2)}</div>`
       : `<div class="class-method-chips">${apiChips(apis, 2)}</div>`;
@@ -1497,7 +1546,7 @@
       const clickable = Boolean(entry.functionId && functionDetailById.has(entry.functionId));
       const content = `<span class="method-call-name">${escapeHtml(name)}</span>
         <span class="method-call-meta">${escapeHtml(meta)}</span>
-        <span class="method-call-kind">${entry.resolved === false ? (entry.external ? "external" : "unresolved") : "detail ↗"}</span>`;
+        <span class="method-call-kind">${entry.polymorphic ? `polymorphic ×${(entry.candidates || []).length}` : entry.resolved === false ? (entry.external ? "external" : "unresolved") : "detail ↗"}</span>`;
       return clickable
         ? `<button class="method-call-item" type="button" data-goto-method="${escapeHtml(entry.functionId)}">${content}</button>`
         : `<div class="method-call-item is-static">${content}</div>`;
@@ -1550,6 +1599,8 @@
       detail.apiExposureSource ? `source:${detail.apiExposureSource}` : "",
       detail.isAsync ? "async" : "",
       detail.isAbstract ? "abstract" : "",
+      detail.overrideOfFunctionId ? "override" : "",
+      Number(detail.polymorphicCallerCount || 0) ? `poly-callers:${detail.polymorphicCallerCount}` : "",
     ].filter(Boolean);
 
     world.innerHTML = `<div class="method-page">
@@ -1574,6 +1625,14 @@
             <div class="method-panel-heading"><span>Callees</span><em>${detail.calleeCount || 0}</em></div>
             ${methodCallList(detail.callees || [], "暂无被调用者")}
           </section>
+          ${(detail.polymorphicCallers || []).length ? `<section>
+            <div class="method-panel-heading"><span>Polymorphic callers</span><em>${detail.polymorphicCallerCount || 0}</em></div>
+            ${polymorphicCallList(detail.polymorphicCallers, "暂无多态调用者")}
+          </section>` : ""}
+          ${(detail.polymorphicCallees || []).length ? `<section>
+            <div class="method-panel-heading"><span>Polymorphic callees</span><em>${detail.polymorphicCalleeCount || 0}</em></div>
+            ${polymorphicCallList(detail.polymorphicCallees, "暂无多态候选")}
+          </section>` : ""}
         </aside>
       </div>
     </div>`;
@@ -1593,6 +1652,8 @@
       <div class="detail-note">${escapeHtml(detail.note || "暂无函数备注")}</div>
       <div class="port-detail"><span>API <b>${escapeHtml(detail.apiExposure || "public")}</b></span><span>来源 <b>${escapeHtml(detail.apiExposureSource || "naming")}</b></span><span>返回 <b>${escapeHtml(detail.returns || "—")}</b></span><span>异常 <b>${escapeHtml((detail.raises || []).join(" / ") || "—")}</b></span></div>
       ${ownerLine}
+      ${detail.overrideOfFunctionId ? `<div class="source-line">override of <code>${escapeHtml(detail.overrideOfFunctionId)}</code></div>` : ""}
+      ${(detail.overriddenByFunctionIds || []).length ? `<div class="source-line">overridden by ${detail.overriddenByFunctionIds.map(id => `<code>${escapeHtml(id)}</code>`).join(" ")}</div>` : ""}
       <div class="source-line">${escapeHtml(detail.file)}:${detail.line}</div>
       ${annotationBlock(detail.id, detail.sourceHash)}`;
 

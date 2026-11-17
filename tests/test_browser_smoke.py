@@ -20,6 +20,7 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
 ROLE_ROOT = Path(__file__).parent / "fixtures" / "roles_demo"
 DISPATCH_ROOT = Path(__file__).parent / "fixtures" / "dispatch_demo"
+INHERITANCE_ROOT = Path(__file__).parent / "fixtures" / "inheritance_demo"
 
 
 def _free_port() -> int:
@@ -178,6 +179,31 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.graph-edge.kind-composition').length") == 2
         assert execute("return document.querySelectorAll('.graph-edge.kind-composition.is-low').length") == 2
         assert execute("return document.querySelectorAll('.boundary-node').length") == 0
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
+        # P3: inheritance/implements and polymorphic dispatch are visible as
+        # structural hierarchy data and low-confidence composition edges.
+        inheritance_bundle = build_architecture(INHERITANCE_ROOT)
+        inheritance_html = browser_dir / "inheritance-flow.html"
+        inheritance_html.write_text(render_html(inheritance_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": inheritance_html.resolve().as_uri()})
+        time.sleep(.6)
+        execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.4)
+        assert execute("return document.querySelectorAll('.flow-dispatch').length") == 2
+        assert execute("return document.querySelectorAll('.graph-edge.kind-composition.is-low').length") == 3
+        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
+        time.sleep(.25)
+        assert execute("return document.querySelectorAll('.main-flow-node').length") == 0
+        execute("location.hash='#/module/impl'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.4)
+        execute("document.querySelector('[data-main-view=\"capabilities\"]')?.click(); return true")
+        time.sleep(.25)
+        assert execute("return document.querySelectorAll('.class-node').length") == 4
+        execute("document.querySelector('.class-node[data-uid=\"cls:app.impl.EchoWorker\"]').click(); return true")
+        time.sleep(.2)
+        assert execute("return document.querySelectorAll('.class-hierarchy .hierarchy-row').length") >= 2
+        assert execute("return document.querySelectorAll('.detail-api-badge.is-inherited').length") >= 1
         assert execute("return window.__ARCHMAP_ERRORS__") == []
     finally:
         if session:

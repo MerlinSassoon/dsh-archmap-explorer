@@ -1,7 +1,7 @@
 # ArchMap 架构与编码规范
 
 > 状态：P2.3 已落盘并完成 ArchMap 自身代码迁移<br>
-> 版本：ArchMap 1.6.0 / bundle schema 3.6<br>
+> 版本：ArchMap 1.7.0 / bundle schema 3.7<br>
 > 日期：2026-11-17<br>
 > 适用范围：ArchMap 自身源码、P3/P4 扩展和后续 ArchMap 分析的规范项目。
 

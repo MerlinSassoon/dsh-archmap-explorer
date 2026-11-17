@@ -111,7 +111,9 @@ def _method_component_id(fn: FunctionInfo) -> str:
     return fn.id
 
 
-def _method_summary(fn: FunctionInfo, owner_class_id: str) -> dict[str, Any]:
+def _method_summary(
+    fn: FunctionInfo, owner_class_id: str, override_of_function_id: str | None = None
+) -> dict[str, Any]:
     return {
         "id": fn.id,
         "kind": "method",
@@ -130,6 +132,7 @@ def _method_summary(fn: FunctionInfo, owner_class_id: str) -> dict[str, Any]:
         "line": fn.line,
         "endLine": fn.end_line,
         "functionDetailId": fn.id,
+        "overrideOfFunctionId": override_of_function_id,
     }
 
 
@@ -420,6 +423,8 @@ def _provider_groups(
                 "typeSummary": info.type_summary if info else None,
                 "moduleId": module_id,
                 "apiCount": len(items),
+                "declaredApiCount": sum(1 for item in items if not item.inherited),
+                "inheritedApiCount": sum(1 for item in items if item.inherited),
                 "apis": [item.as_dict() for item in items],
             }
         )
@@ -601,6 +606,7 @@ def build_bundle(
             detail["roleConfidence"] = info.role_confidence
     capabilities_by_provider = contract_model.capabilities_by_provider()
     capabilities_by_module = contract_model.capabilities_by_module()
+    class_by_id = {_class_id(cls): cls for cls in analysis.classes}
     calls = collect_calls(analysis, call_site_list)
 
     module_function_ids: dict[str, list[str]] = defaultdict(list)
@@ -732,7 +738,7 @@ def build_bundle(
             public_method_ids = [
                 capability.function_id
                 for capability in public_method_caps
-                if capability.function_id
+                if capability.function_id and not capability.inherited
             ]
             public_methods = [
                 fn_by_id[method_id] for method_id in public_method_ids if method_id in fn_by_id
@@ -758,6 +764,11 @@ def build_bundle(
                 "typeSummary": role_payload["typeSummary"],
                 "isAbstract": cls.is_abstract,
                 "bases": list(cls.bases),
+                "baseClassIds": list(cls.base_class_ids),
+                "subclassIds": list(cls.subclass_ids),
+                "mroClassIds": list(cls.mro_class_ids),
+                "unresolvedBases": list(cls.unresolved_bases),
+                "abstractMethodNames": list(cls.abstract_method_names),
                 "decorators": list(cls.decorators),
                 "note": cls.note,
                 "file": cls.file,
@@ -774,7 +785,24 @@ def build_bundle(
                 "usage": usage.as_dict() if usage else {"constructor": {"functionId": None, "signature": f"{cls.name}()"}, "protocols": []},
                 "providedApis": [capability.as_dict() for capability in class_capabilities],
                 "providedApiCount": len(class_capabilities),
-                "methods": [_method_summary(method, cls_id) for method in methods],
+                "declaredApiCount": sum(1 for api in class_capabilities if not api.inherited),
+                "inheritedApiCount": sum(1 for api in class_capabilities if api.inherited),
+                "methods": [
+                    _method_summary(
+                        method,
+                        cls_id,
+                        next(
+                            (
+                                ancestor.methods[method.name].id
+                                for ancestor_id in cls.mro_class_ids[1:]
+                                if (ancestor := class_by_id.get(ancestor_id)) is not None
+                                and method.name in ancestor.methods
+                            ),
+                            None,
+                        ),
+                    )
+                    for method in methods
+                ],
                 "w": CLASS_W,
                 "h": CLASS_H,
             }
@@ -824,6 +852,12 @@ def build_bundle(
         # Canonical method-level graph, used by the future class focus view.
         method_aggregate: dict[tuple[str, str], list[CallRecord]] = defaultdict(list)
         for record in internal_records:
+            source_fn = fn_by_id.get(record.from_function)
+            target_fn = fn_by_id.get(record.to_function)
+            if source_fn is None or target_fn is None:
+                continue
+            if not source_fn.class_name or not target_fn.class_name:
+                continue
             method_aggregate[(record.from_function, record.to_function)].append(record)
         method_edges: list[dict[str, Any]] = []
         for edge_index, ((from_id, to_id), records) in enumerate(sorted(method_aggregate.items()), start=1):
@@ -907,6 +941,11 @@ def build_bundle(
                 "providerRoleCounts": provider_role_counts,
                 "publicModuleComposition": public_composition,
                 "publicProviderRoleCounts": public_provider_role_counts,
+                "typeRelations": [
+                    relation.as_dict()
+                    for relation in contract_model.class_relations
+                    if relation.module_id == module_id
+                ],
                 "nodes": [module_nodes[node_id] for node_id in sorted(module_nodes)],
                 "edges": module_edges,
                 "methodEdges": method_edges,
@@ -975,6 +1014,7 @@ def build_bundle(
         "mainFlows": main_flows,
         "modules": project_module_nodes,
         "edges": project_edges,
+        "typeRelations": [relation.as_dict() for relation in contract_model.class_relations],
         "layout": project_layout,
     }
 
@@ -990,6 +1030,8 @@ def build_bundle(
         "providedApis": sum(len(graph["providedApis"]) for graph in module_graphs),
         "apiProviders": sum(len(graph.get("apiProviders", [])) for graph in module_graphs),
         "mainFlows": len(main_flows),
+        "typeRelations": len(contract_model.class_relations),
+        "polymorphicCalls": sum(1 for site in call_site_list if site.polymorphic),
         "providerRoles": {
             role: sum(
                 1
@@ -1012,7 +1054,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "3.6",
+        "schemaVersion": "3.7",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,

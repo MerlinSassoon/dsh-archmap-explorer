@@ -80,6 +80,11 @@ def _capability(
     line: int = 0,
     end_line: int = 0,
     role_info: ProviderRoleInfo | None = None,
+    inherited: bool = False,
+    declared_in_provider_id: str | None = None,
+    inherited_from_provider_id: str | None = None,
+    overrides_capability_id: str | None = None,
+    inherited_from_class_ids: list[str] | None = None,
 ) -> ApiCapability:
     return ApiCapability(
         id=capability_id,
@@ -105,6 +110,11 @@ def _capability(
         role_confidence=role_info.role_confidence if role_info else "medium",
         provider_visibility=role_info.provider_visibility if role_info else "internal",
         owner_provider_id=role_info.owner_provider_id if role_info else None,
+        inherited=inherited,
+        declared_in_provider_id=declared_in_provider_id or provider_id,
+        inherited_from_provider_id=inherited_from_provider_id,
+        overrides_capability_id=overrides_capability_id,
+        inherited_from_class_ids=list(inherited_from_class_ids or []),
     )
 
 
@@ -142,6 +152,7 @@ def _protocol_capabilities(
                 line=cls.line,
                 end_line=cls.end_line,
                 role_info=role_info,
+                declared_in_provider_id=class_id,
             )
         )
 
@@ -187,9 +198,11 @@ def _function_capability(
         exposure_source=fn.api_exposure_source,
         exposure_confidence=fn.api_exposure_confidence,
         function_id=fn.id,
+        evidence_function_ids=[fn.id],
         note=fn.note,
         file=fn.file,
         line=fn.line,
         end_line=fn.end_line,
         role_info=role_info,
+        declared_in_provider_id=provider_id,
     )

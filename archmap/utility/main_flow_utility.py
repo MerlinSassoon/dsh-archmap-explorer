@@ -239,6 +239,11 @@ def _api_metadata(module_graphs: list[dict[str, Any]]) -> dict[str, dict[str, An
                 function_id = api.get("functionId")
                 if not function_id or api.get("exposure") != "public":
                     continue
+                # Inherited capabilities are class-card surfaces, not a second
+                # declaration of the base function.  Main-flow interface nodes
+                # must retain the canonical declaring provider.
+                if api.get("inherited"):
+                    continue
                 result[str(function_id)] = {
                     "kind": "interface",
                     "providerId": provider.get("providerId") or api.get("providerId"),
@@ -672,7 +677,7 @@ def build_main_flows(
                     truncated = True
                     break
                 branch = branch_info.get(_call_key(fn.id, site.line, site.column), {})
-                is_dispatch = _is_dynamic_dispatch_site(site)
+                is_dispatch = _is_dynamic_dispatch_site(site) or bool(site.polymorphic)
                 if not site.resolved or not site.to_function_id:
                     if not is_dispatch:
                         continue
@@ -691,6 +696,10 @@ def build_main_flows(
                     candidates: list[str] = []
                     candidate_source = "unknown"
                     reason = "dynamic_dispatch"
+                    if site.polymorphic:
+                        candidates.extend(site.candidates)
+                        candidate_source = "polymorphic"
+                        reason = "polymorphic_dispatch"
                     if hint and hint.candidates:
                         candidates.extend(
                             _resolve_hint_candidates(
@@ -709,7 +718,7 @@ def build_main_flows(
                         )
                         candidate_source = "comment" if candidate_source == "unknown" else candidate_source
                         reason = comment.get("reason") or reason
-                    if not declared_complete:
+                    if not declared_complete and not site.polymorphic:
                         static_candidates: list[str] = []
                         if site.callee_text.endswith(".func"):
                             static_candidates.extend(argparse_candidates)

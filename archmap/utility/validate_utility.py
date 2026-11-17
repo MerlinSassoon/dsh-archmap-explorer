@@ -61,6 +61,18 @@ def _validate_capability(
     visibility = api.get("providerVisibility")
     if visibility not in {"public", "internal"}:
         issues.append(_issue("error", "PROVIDED_API_VISIBILITY", f"module {module_id} provided API {api_id} has invalid providerVisibility: {visibility}"))
+    provider_id = api.get("providerId")
+    declared_in = api.get("declaredInProviderId")
+    if declared_in and declared_in not in class_ids and declared_in.startswith("cls:"):
+        issues.append(_issue("error", "PROVIDED_API_DECLARED_MISSING", f"module {module_id} provided API {api_id} references missing declaring provider {declared_in}"))
+    if api.get("inherited"):
+        if declared_in == provider_id:
+            issues.append(_issue("error", "INHERITED_API_DECLARATION", f"module {module_id} inherited API {api_id} must preserve a base declaration"))
+        inherited_from = api.get("inheritedFromProviderId")
+        if inherited_from and inherited_from not in class_ids:
+            issues.append(_issue("error", "INHERITED_API_SOURCE_MISSING", f"module {module_id} inherited API {api_id} references missing base provider {inherited_from}"))
+    elif declared_in and declared_in != provider_id:
+        issues.append(_issue("error", "DECLARED_API_OWNER", f"module {module_id} declared API {api_id} has mismatched declaring provider"))
     return issues
 
 
@@ -83,8 +95,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "3.6":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 3.6"))
+    if str(bundle.get("schemaVersion")) != "3.7":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 3.7"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []
@@ -272,6 +284,80 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                     elif detail.get("ownerClassId") != node.get("id"):
                         issues.append(_issue("error", "METHOD_DETAIL_OWNER", f"function detail {method_id} has wrong ownerClassId"))
 
+    # P3 structural type relations: endpoints must be canonical local classes,
+    # directions are directed, and cycles are rejected rather than silently
+    # rendered as a hierarchy.
+    project_relations = project_graph.get("typeRelations")
+    if project_relations is None:
+        issues.append(_issue("error", "TYPE_RELATIONS_MISSING", "projectGraph.typeRelations must be an array"))
+        project_relations = []
+    relation_keys: set[tuple[str, str, str]] = set()
+    graph_by_class: dict[str, list[str]] = {cid: [] for cid in class_ids}
+    module_relation_keys: set[tuple[str, str, str, str]] = set()
+    for graph in module_graphs:
+        for relation in graph.get("typeRelations", []):
+            key = (
+                str(relation.get("fromClassId")),
+                str(relation.get("kind")),
+                str(relation.get("toClassId")),
+                str(graph.get("moduleId")),
+            )
+            if key in module_relation_keys:
+                issues.append(_issue("error", "TYPE_RELATION_DUPLICATE", f"module {graph.get('moduleId')} has duplicate type relation {key}"))
+            module_relation_keys.add(key)
+    for relation in project_relations:
+        relation_id = relation.get("id")
+        from_id = relation.get("fromClassId")
+        to_id = relation.get("toClassId")
+        kind = relation.get("kind")
+        if kind not in {"inherits", "implements"}:
+            issues.append(_issue("error", "TYPE_RELATION_KIND", f"type relation {relation_id} has invalid kind: {kind}"))
+        if from_id not in class_ids or to_id not in class_ids:
+            issues.append(_issue("error", "TYPE_RELATION_ENDPOINT", f"type relation {relation_id} has missing class endpoint"))
+            continue
+        if from_id == to_id:
+            issues.append(_issue("error", "TYPE_RELATION_SELF", f"type relation {relation_id} cannot be self-referential"))
+        key = (str(from_id), str(kind), str(to_id))
+        if key in relation_keys:
+            issues.append(_issue("error", "TYPE_RELATION_DUPLICATE", f"duplicate type relation {key}"))
+        relation_keys.add(key)
+        graph_by_class.setdefault(str(from_id), []).append(str(to_id))
+        if relation.get("confidence") not in {"high", "medium", "low"}:
+            issues.append(_issue("error", "TYPE_RELATION_CONFIDENCE", f"type relation {relation_id} has invalid confidence"))
+
+    def _has_cycle(start: str, current: str, path: set[str]) -> bool:
+        if current in path:
+            return True
+        for target in graph_by_class.get(current, []):
+            if target == start or _has_cycle(start, target, {*path, current}):
+                return True
+        return False
+
+    for cid in graph_by_class:
+        if _has_cycle(cid, cid, set()):
+            issues.append(_issue("error", "TYPE_RELATION_CYCLE", f"type hierarchy contains a cycle involving {cid}"))
+            break
+
+    relation_module_tuples = {
+        (str(relation.get("fromClassId")), str(relation.get("kind")), str(relation.get("toClassId")), str(relation.get("moduleId")))
+        for relation in project_relations
+    }
+    if module_relation_keys != relation_module_tuples:
+        issues.append(_issue("error", "TYPE_RELATION_MODULE_MISMATCH", "module typeRelations do not match projectGraph.typeRelations"))
+
+    for graph in module_graphs:
+        for node in graph.get("nodes", []):
+            if node.get("kind") != "class":
+                continue
+            for base_id in node.get("baseClassIds", []):
+                if base_id not in class_ids:
+                    issues.append(_issue("error", "CLASS_BASE_MISSING", f"class {node.get('id')} references missing base {base_id}"))
+            for subclass_id in node.get("subclassIds", []):
+                if subclass_id not in class_ids:
+                    issues.append(_issue("error", "CLASS_SUBCLASS_MISSING", f"class {node.get('id')} references missing subclass {subclass_id}"))
+            if node.get("declaredApiCount", 0) + node.get("inheritedApiCount", 0) != node.get("providedApiCount", 0):
+                issues.append(_issue("error", "CLASS_API_COUNTS", f"class {node.get('id')} declared/inherited API counts do not sum to providedApiCount"))
+
     for entry in bundle.get("entrypoints", []):
         if entry.get("functionId") not in detail_by_id:
             issues.append(_issue("error", "ENTRYPOINT_MISSING", f"entrypoint function missing: {entry.get('functionId')}"))
@@ -436,4 +522,13 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
             issues.append(_issue("warning", "CALL_UNRESOLVED_TARGET", f"call site {site.get('id')} is unresolved but has a target"))
         if not isinstance(site.get("line"), int) or int(site.get("line", 0)) < 1:
             issues.append(_issue("error", "CALL_LINE", f"call site {site.get('id')} has invalid line"))
+        if site.get("polymorphic"):
+            candidates = site.get("candidates") or []
+            if site.get("resolved") or site.get("toFunctionId"):
+                issues.append(_issue("error", "POLYMORPHIC_CALL_RESOLVED", f"polymorphic call site {site.get('id')} must not claim one resolved target"))
+            if not candidates:
+                issues.append(_issue("error", "POLYMORPHIC_CALL_CANDIDATES", f"polymorphic call site {site.get('id')} has no candidates"))
+            for candidate in candidates:
+                if candidate not in detail_by_id:
+                    issues.append(_issue("error", "POLYMORPHIC_CANDIDATE_MISSING", f"polymorphic call site {site.get('id')} candidate missing: {candidate}"))
     return issues

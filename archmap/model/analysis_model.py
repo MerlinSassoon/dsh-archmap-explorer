@@ -58,6 +58,13 @@ class ClassInfo:
     decorators: list[str] = field(default_factory=list)
     is_abstract: bool = False
     class_kind: str = "service"
+    # P3 type hierarchy facts.  Base strings are retained as source evidence;
+    # *_class_ids/mro_class_ids are canonical IDs resolved by the frontend.
+    base_class_ids: list[str] = field(default_factory=list)
+    unresolved_bases: list[str] = field(default_factory=list)
+    subclass_ids: list[str] = field(default_factory=list)
+    mro_class_ids: list[str] = field(default_factory=list)
+    abstract_method_names: list[str] = field(default_factory=list)
 
 
 @dataclass

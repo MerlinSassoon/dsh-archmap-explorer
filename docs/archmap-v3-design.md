@@ -1,8 +1,8 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档冻结 v3.6 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md) 和 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 为准。
+> 本文档冻结 v3.7 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md)、[`HANDOFF-P3.md`](HANDOFF-P3.md) 为准。
 >
-> **当前状态（2026-11-17）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3 已完成；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中；结构关系和用户交互面是后续契约。
+> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3 已完成；P4 尚未开始。类焦点页与类内方法图不在产品计划中；用户交互面、组合/聚合关系和 impact/trace 是后续契约。
 
 ## 1. 三层投影
 
@@ -119,6 +119,31 @@ Provider 节点、`apiProviders` 与 API capability 均带：
 
 模块图输出 `moduleComposition` / `providerRoleCounts`，以及只含公开 Provider 的 `publicModuleComposition` / `publicProviderRoleCounts`。`config` / `model` 的 `providedApis` 必须为空，其字段通过 `typeSummary` 展示；`utility` 默认 internal，不进入默认项目页/模块页，但仍保留在 FunctionDetail 与 CallSite 事实层。内部阶段函数通过 `ownerProviderId` 指向其 facade manager。
 
+### 类型关系与继承 API（P3 已实现）
+
+P3 把 Python 基类表达式解析为 canonical 类型关系，并进入 ProjectGraph 与 ModuleGraph：
+
+```json
+{
+  "id": "type:cls:app.impl.EchoWorker:implements:cls:app.base.Worker",
+  "kind": "implements",
+  "fromClassId": "cls:app.impl.EchoWorker",
+  "toClassId": "cls:app.base.Worker",
+  "moduleId": "impl",
+  "targetModuleId": "base",
+  "confidence": "high",
+  "evidence": {"file": "app/impl.py", "line": 5}
+}
+```
+
+- 只有解析到项目内 canonical class ID 才生成关系；第三方/条件导入基类保留在 `unresolvedBases`。
+- `implements` 表示抽象类/Protocol/interface 目标，具体类目标使用 `inherits`。
+- 类节点携带 `baseClassIds`、`subclassIds`、`mroClassIds`、`abstractMethodNames` 和有效 `isAbstract`。
+- 继承 Capability 仍归属于子类 Provider，但携带 `inherited=true`、`declaredInProviderId`、`inheritedFromProviderId`、`overridesCapabilityId` 和真实 evidence function IDs。
+- 抽象/Protocol 方法调用不产生唯一调用边，而是生成 `polymorphic=true`、`resolved=false`、`candidates[]` 和 `dispatchKind=polymorphic` 的 CallSite。
+- 多态 candidates 进入主流程时使用 `candidateSource=polymorphic` 的 dispatch 节点和 `composition(low)` 虚线。
+- 本地候选集默认不标记完整，因为项目外实现不可知。
+
 ### User Surface（P4 规划）
 
 需要区分：
@@ -140,7 +165,7 @@ user surface    最终用户能感知或操作的交互面
 P1.5 起，默认产品不再生成语句级 FunctionFlow：
 
 - 每个函数/方法生成 `FunctionDetail`，包含源码切片、签名、备注、返回/异常、callers/callees、`apiExposure` 和 `sourceHash`。
-- 每次静态调用生成 `CallSite`，记录文件、行、列、调用文本、解析状态和置信度。
+- 每次静态调用生成 `CallSite`，记录文件、行、列、调用文本、解析状态和置信度；多态调用额外记录 `polymorphic`、`dispatchKind` 和候选函数集合。
 - `methodEdges` 和模块/项目边由 CallSite 聚合，不再从执行流节点反推调用。
 - 方法详情页以源码、人类备注、LLM 语义和调用邻域为主视图。
 - 旧 FunctionFlow 仅保留在历史设计文档中，不再是默认 bundle 或 UI 的一部分。
@@ -250,7 +275,7 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ```json
 {
-  "schemaVersion": "3.6",
+  "schemaVersion": "3.7",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],
