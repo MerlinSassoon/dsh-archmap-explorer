@@ -12,6 +12,7 @@ from typing import Any, Iterable
 from .analysis import AnalysisResult, ClassInfo, ENTRY_METHOD_NAMES, FunctionInfo
 from .callsites import CallSite
 from .config import MODULE_ROLES, ModuleConfig, ProjectConfig
+from .contracts import ApiCapability, ContractModel
 
 
 MODULE_W = 320
@@ -28,7 +29,7 @@ MODULE_CARD_GAP_Y = 70
 FUNCTION_W = 210
 FUNCTION_H = 98
 CLASS_W = 280
-CLASS_H = 150
+CLASS_H = 170
 BOUNDARY_W = 170
 BOUNDARY_H = 78
 MACRO_X_GAP = 360
@@ -88,6 +89,9 @@ def _method_summary(fn: FunctionInfo, owner_class_id: str) -> dict[str, Any]:
         "methodKind": fn.method_kind,
         "visibility": fn.visibility,
         "isAbstract": fn.is_abstract,
+        "apiExposure": fn.api_exposure,
+        "apiExposureSource": fn.api_exposure_source,
+        "apiExposureConfidence": fn.api_exposure_confidence,
         "signature": fn.signature,
         "note": fn.note,
         "file": fn.file,
@@ -103,7 +107,7 @@ def _class_entry_methods(
     public = [
         method
         for method in methods
-        if method.visibility in {"public", "lifecycle"}
+        if method.api_exposure == "public"
         and not method.is_abstract
         and method.method_kind not in {"constructor", "internal", "dunder"}
     ]
@@ -133,115 +137,6 @@ def _module_role(module: ModuleConfig | None, module_id: str, entry_module_ids: 
     if module_id in entry_module_ids:
         return "main"
     return "service"
-
-
-def _provided_api_entry(
-    fn: FunctionInfo,
-    *,
-    module_id: str,
-    module_name: str,
-    owner_id: str,
-    owner_name: str,
-    owner_kind: str,
-    owner_class_kind: str,
-    entry_id_set: set[str],
-) -> dict[str, Any]:
-    is_abstract = bool(fn.is_abstract)
-    kind = "function"
-    if owner_kind == "class":
-        kind = "abstract_method" if is_abstract else "method"
-    return {
-        "id": f"api:{fn.id}",
-        "kind": kind,
-        "name": fn.name,
-        "qualifiedName": f"{fn.module_name}.{fn.qualname}",
-        "ownerId": owner_id,
-        "ownerName": owner_name,
-        "ownerKind": owner_kind,
-        "ownerClassKind": owner_class_kind,
-        "moduleId": module_id,
-        "moduleName": module_name,
-        "functionId": fn.id,
-        "functionDetailId": fn.id,
-        "signature": fn.signature,
-        "note": fn.note,
-        "methodKind": fn.method_kind,
-        "visibility": fn.visibility,
-        "isAbstract": is_abstract,
-        "isEntry": fn.id in entry_id_set,
-        "file": fn.file,
-        "line": fn.line,
-        "endLine": fn.end_line,
-    }
-
-
-def _module_provided_apis(
-    module_id: str,
-    module_name: str,
-    module_classes: list[ClassInfo],
-    class_method_meta: dict[str, list[FunctionInfo]],
-    free_function_ids: list[str],
-    fn_by_id: dict[str, FunctionInfo],
-    entry_id_set: set[str],
-) -> list[dict[str, Any]]:
-    """Derive the module's externally callable surface from existing facts.
-
-    ``providedApis`` is a projection, not a second source of truth.  It is
-    built from public class methods (including abstract contract methods) and
-    public module-level free functions.  Constructors, dunder methods and
-    underscore-prefixed internals stay out of the capability card.
-    """
-    entries: list[dict[str, Any]] = []
-    for cls in module_classes:
-        cls_id = _class_id(cls)
-        methods = class_method_meta.get(cls_id, [])
-        for method in methods:
-            if method.method_kind in {"constructor", "dunder", "internal"}:
-                continue
-            if method.visibility in {"constructor", "dunder", "internal"}:
-                continue
-            entries.append(
-                _provided_api_entry(
-                    method,
-                    module_id=module_id,
-                    module_name=module_name,
-                    owner_id=cls_id,
-                    owner_name=cls.name,
-                    owner_kind="class",
-                    owner_class_kind=cls.class_kind,
-                    entry_id_set=entry_id_set,
-                )
-            )
-    for fn_id in free_function_ids:
-        fn = fn_by_id.get(fn_id)
-        if fn is None:
-            continue
-        if fn.visibility != "public":
-            continue
-        if fn.name.startswith("_") and not fn.synthetic:
-            continue
-        entries.append(
-            _provided_api_entry(
-                fn,
-                module_id=module_id,
-                module_name=module_name,
-                owner_id=module_id,
-                owner_name=module_name,
-                owner_kind="module",
-                owner_class_kind="",
-                entry_id_set=entry_id_set,
-            )
-        )
-    entries.sort(
-        key=lambda item: (
-            0 if item["isEntry"] else 1,
-            0 if item["ownerKind"] == "class" else 1,
-            item["ownerName"],
-            item["line"],
-            item["id"],
-        )
-    )
-    return entries
 
 
 def find_entrypoints(analysis: AnalysisResult, call_sites: Iterable[CallSite]) -> list[dict[str, Any]]:
@@ -582,10 +477,39 @@ def _module_color(index: int, module: ModuleConfig | None) -> str:
     return PALETTE[index % len(PALETTE)]
 
 
+def _provider_groups(module_id: str, capabilities: list[ApiCapability]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[ApiCapability]] = defaultdict(list)
+    for capability in capabilities:
+        grouped[capability.provider_id].append(capability)
+    providers: list[dict[str, Any]] = []
+    for provider_id, items in grouped.items():
+        items.sort(key=lambda item: (item.kind, item.display, item.id))
+        first = items[0]
+        providers.append(
+            {
+                "providerId": provider_id,
+                "providerKind": first.provider_kind,
+                "providerName": first.provider_name,
+                "moduleId": module_id,
+                "apiCount": len(items),
+                "apis": [item.as_dict() for item in items],
+            }
+        )
+    providers.sort(
+        key=lambda item: (
+            0 if item["providerKind"] == "class" else 1,
+            item["providerName"],
+            item["providerId"],
+        )
+    )
+    return providers
+
+
 def build_bundle(
     analysis: AnalysisResult,
     call_sites: Iterable[CallSite],
     function_details: list[dict[str, Any]],
+    contract_model: ContractModel | None = None,
 ) -> dict[str, Any]:
     config = analysis.config
     fn_by_id = _function_lookup(analysis)
@@ -600,6 +524,21 @@ def build_bundle(
         for item in entrypoints
         if item["functionId"] in fn_by_id
     }
+    contract_model = contract_model or ContractModel()
+    for capability in contract_model.capabilities:
+        if capability.function_id and capability.function_id in entry_id_set:
+            capability.exposure = "public"
+            capability.exposure_source = "entrypoint"
+            capability.exposure_confidence = "high"
+            capability.is_entry = True
+    for detail in function_details:
+        if detail.get("id") in entry_id_set:
+            detail["apiExposure"] = "public"
+            detail["apiExposureSource"] = "entrypoint"
+            detail["apiExposureConfidence"] = "high"
+            detail["isEntry"] = True
+    capabilities_by_provider = contract_model.capabilities_by_provider()
+    capabilities_by_module = contract_model.capabilities_by_module()
     calls = collect_calls(analysis, call_site_list)
 
     module_function_ids: dict[str, list[str]] = defaultdict(list)
@@ -669,6 +608,15 @@ def build_bundle(
         input_labels = _module_input_labels(configured) if configured else ["模块输入"]
         output_labels = _module_output_labels(configured) if configured else ["模块输出"]
         color = _module_color(index, configured)
+        module_capabilities = list(capabilities_by_module.get(module_id, []))
+        export_ids = config.module_exports.get(module_id)
+        if export_ids:
+            module_capabilities = [
+                capability
+                for capability in module_capabilities
+                if capability.provider_id in set(export_ids)
+            ]
+        module_capability_ids = {capability.id for capability in module_capabilities}
         role = _module_role(configured, module_id, entry_module_ids)
         is_main = role == "main"
         module_node = {
@@ -736,14 +684,27 @@ def build_bundle(
             ]
             methods.sort(key=lambda item: (item.line, item.id))
             class_method_meta[cls_id] = methods
+            class_capabilities = [
+                capability
+                for capability in capabilities_by_provider.get(cls_id, [])
+                if capability.id in module_capability_ids
+            ]
+            public_method_caps = [
+                capability for capability in class_capabilities if capability.kind == "method"
+            ]
+            public_method_ids = [
+                capability.function_id
+                for capability in public_method_caps
+                if capability.function_id
+            ]
             public_methods = [
-                method for method in methods
-                if method.visibility in {"public", "lifecycle"} and not method.is_abstract
+                fn_by_id[method_id] for method_id in public_method_ids if method_id in fn_by_id
             ]
             entry_methods = (
                 [] if cls.is_abstract or cls.class_kind in {"abstract", "interface"}
                 else _class_entry_methods(methods, entry_id_set)
             )
+            usage = contract_model.class_usage.get(cls_id)
             module_nodes[cls_id] = {
                 "id": cls_id,
                 "kind": "class",
@@ -760,9 +721,15 @@ def build_bundle(
                 "endLine": cls.end_line,
                 "moduleId": module_id,
                 "methodCount": len(methods),
-                "publicMethodIds": [method.id for method in public_methods],
+                "publicMethodIds": public_method_ids,
                 "entryMethodIds": [method.id for method in entry_methods],
-                "exitMethodIds": [method.id for method in public_methods],
+                "exitMethodIds": public_method_ids,
+                "internalMethodCount": sum(
+                    1 for method in methods if method.api_exposure != "public"
+                ),
+                "usage": usage.as_dict() if usage else {"constructor": {"functionId": None, "signature": f"{cls.name}()"}, "protocols": []},
+                "providedApis": [capability.as_dict() for capability in class_capabilities],
+                "providedApiCount": len(class_capabilities),
                 "methods": [_method_summary(method, cls_id) for method in methods],
                 "w": CLASS_W,
                 "h": CLASS_H,
@@ -770,6 +737,11 @@ def build_bundle(
 
         for fn_id in free_function_ids:
             fn = fn_by_id[fn_id]
+            function_capabilities = [
+                capability
+                for capability in module_capabilities
+                if capability.provider_id == fn_id
+            ]
             module_nodes[fn_id] = {
                 "id": fn_id,
                 "kind": "function",
@@ -778,23 +750,19 @@ def build_bundle(
                 "qualifiedName": f"{fn.module_name}.{fn.qualname}",
                 "note": fn.note,
                 "visibility": fn.visibility,
+                "apiExposure": fn.api_exposure,
+                "apiExposureSource": fn.api_exposure_source,
                 "file": fn.file,
                 "line": fn.line,
                 "functionDetailId": fn_id,
+                "providedApis": [capability.as_dict() for capability in function_capabilities],
+                "providedApiCount": len(function_capabilities),
                 "w": FUNCTION_W,
                 "h": FUNCTION_H,
             }
 
-        provided_apis = _module_provided_apis(
-            module_id,
-            module_name,
-            module_classes,
-            class_method_meta,
-            free_function_ids,
-            fn_by_id,
-            entry_id_set,
-        )
-        module_node["providedApiCount"] = len(provided_apis)
+        module_api_providers = _provider_groups(module_id, module_capabilities)
+        module_node["providedApiCount"] = len(module_capabilities)
 
         internal_records = [
             record
@@ -884,14 +852,24 @@ def build_bundle(
             cls_id = _class_id(cls)
             methods = class_method_meta.get(cls_id, [])
             entry_methods = _class_entry_methods(methods, entry_id_set)
-            public_methods = [
-                method for method in methods
-                if method.visibility in {"public", "lifecycle"} and not method.is_abstract
+            class_capabilities = [
+                capability
+                for capability in capabilities_by_provider.get(cls_id, [])
+                if capability.id in module_capability_ids and capability.exposure == "public"
             ]
-            if not entry_methods and not public_methods:
+            if not entry_methods and not class_capabilities:
                 continue
-            via_input = [method.id for method in entry_methods] or [method.id for method in public_methods]
-            via_output = [method.id for method in public_methods] or via_input
+            via_capability_ids: list[str] = []
+            for capability in class_capabilities:
+                if capability.function_id:
+                    via_capability_ids.append(capability.function_id)
+                via_capability_ids.extend(capability.evidence_function_ids)
+            via_capability_ids = sorted(set(via_capability_ids))
+            via_input: list[str] = []
+            for method_id in [method.id for method in entry_methods] + via_capability_ids:
+                if method_id not in via_input:
+                    via_input.append(method_id)
+            via_output = via_capability_ids or via_input
             input_edge = _macro_edge(
                 _edge_id(f"module:{module_id}", len(module_edges) + 1),
                 input_boundary,
@@ -899,7 +877,7 @@ def build_bundle(
                 primary_type="control",
                 relations=["control"],
                 role="module_input",
-                confidence="medium" if entry_methods and len(entry_methods) < len(public_methods) else "low",
+                confidence="medium" if entry_methods and len(entry_methods) < len(class_capabilities) else "low",
             )
             input_edge["viaMethodIds"] = via_input
             module_edges.append(input_edge)
@@ -981,8 +959,9 @@ def build_bundle(
                 "inputs": module_node["inputs"],
                 "outputs": module_node["outputs"],
                 "role": role,
-                "providedApis": provided_apis,
-                "providedApiCount": len(provided_apis),
+                "providedApis": [capability.as_dict() for capability in module_capabilities],
+                "providedApiCount": len(module_capabilities),
+                "apiProviders": module_api_providers,
                 "nodes": [module_nodes[node_id] for node_id in sorted(module_nodes)],
                 "edges": module_edges,
                 "methodEdges": method_edges,
@@ -1091,6 +1070,7 @@ def build_bundle(
         "resolvedCalls": sum(1 for site in call_site_list if site.resolved),
         "macroEdges": len(project_edges) + sum(len(graph["edges"]) for graph in module_graphs),
         "providedApis": sum(len(graph["providedApis"]) for graph in module_graphs),
+        "apiProviders": sum(len(graph.get("apiProviders", [])) for graph in module_graphs),
         "diagnostics": {
             level: sum(1 for item in diagnostics if item.get("severity") == level)
             for level in ("error", "warning", "info")
@@ -1103,7 +1083,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "3.1",
+        "schemaVersion": "3.2",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,
@@ -1142,6 +1122,7 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "name": module["name"],
                     "note": module["note"],
                     "role": module.get("role"),
+                    "providedApiCount": module.get("providedApiCount", 0),
                     "functions": sorted(module["functions"]),
                     "freeFunctions": sorted(module.get("freeFunctions", [])),
                     "classes": sorted(module.get("classes", [])),
@@ -1171,6 +1152,19 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "moduleId": graph["moduleId"],
                     "note": graph["note"],
                     "role": graph.get("role"),
+                    "providedApis": sorted(
+                        [
+                            {
+                                "id": api.get("id"),
+                                "kind": api.get("kind"),
+                                "display": api.get("display"),
+                                "exposure": api.get("exposure"),
+                                "exposureSource": api.get("exposureSource"),
+                            }
+                            for api in graph.get("providedApis", [])
+                        ],
+                        key=lambda item: item["id"] or "",
+                    ),
                     "classes": sorted(
                         [
                             {
@@ -1180,6 +1174,21 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                 "bases": node.get("bases", []),
                                 "publicMethodIds": sorted(node.get("publicMethodIds", [])),
                                 "entryMethodIds": sorted(node.get("entryMethodIds", [])),
+                                "internalMethodCount": node.get("internalMethodCount", 0),
+                                "usage": node.get("usage", {}),
+                                "providedApis": sorted(
+                                    [
+                                        {
+                                            "id": api.get("id"),
+                                            "kind": api.get("kind"),
+                                            "display": api.get("display"),
+                                            "exposure": api.get("exposure"),
+                                            "exposureSource": api.get("exposureSource"),
+                                        }
+                                        for api in node.get("providedApis", [])
+                                    ],
+                                    key=lambda item: item["id"] or "",
+                                ),
                                 "methods": sorted(
                                     [
                                         {
@@ -1187,6 +1196,8 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                             "methodKind": method.get("methodKind"),
                                             "visibility": method.get("visibility"),
                                             "isAbstract": method.get("isAbstract"),
+                                            "apiExposure": method.get("apiExposure"),
+                                            "apiExposureSource": method.get("apiExposureSource"),
                                         }
                                         for method in node.get("methods", [])
                                     ],
@@ -1239,6 +1250,8 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "ownerClassId": detail.get("ownerClassId"),
                     "methodKind": detail.get("methodKind"),
                     "visibility": detail.get("visibility"),
+                    "apiExposure": detail.get("apiExposure"),
+                    "apiExposureSource": detail.get("apiExposureSource"),
                     "signature": detail["signature"],
                     "returns": detail.get("returns", ""),
                     "raises": sorted(detail.get("raises", [])),

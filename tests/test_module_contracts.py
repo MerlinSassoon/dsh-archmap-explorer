@@ -33,24 +33,26 @@ def test_provided_apis_are_derived_from_existing_function_facts() -> None:
     graph = _module_graph(bundle, "entry")
     main_api = next(api for api in graph["providedApis"] if api["functionId"] == "fn:app.main.main")
     assert main_api["kind"] == "function"
-    assert main_api["ownerKind"] == "module"
+    assert main_api["providerKind"] == "function"
     assert main_api["isEntry"] is True
-    assert main_api["ownerId"] == "entry"
+    assert main_api["providerId"] == "fn:app.main.main"
     for module_graph in bundle["moduleGraphs"]:
         for api in module_graph["providedApis"]:
-            assert api["functionId"] in detail_ids
-            assert api["functionDetailId"] == api["functionId"]
+            if api["functionId"]:
+                assert api["functionId"] in detail_ids
+            for evidence_id in api["evidenceFunctionIds"]:
+                assert evidence_id in detail_ids
 
 
 def test_class_contracts_include_abstract_methods_but_not_private_internals() -> None:
     bundle = build_architecture(CLASS_ROOT)
     graph = _module_graph(bundle, "worker")
-    entries = {(api["ownerName"], api["name"], api["kind"]) for api in graph["providedApis"]}
-    assert ("Worker", "run", "abstract_method") in entries
-    assert ("Worker", "label", "method") in entries
-    assert ("EchoWorker", "run", "method") in entries
-    assert ("Worker 模块", "make_worker", "function") in entries
-    assert not any(name in {"__init__", "_helper"} for _, name, _ in entries)
+    entries = {(api["providerName"], api["display"], api["kind"]) for api in graph["providedApis"]}
+    assert ("Worker", "Worker.run()", "method") in entries
+    assert ("Worker", "Worker.label()", "method") in entries
+    assert ("EchoWorker", "EchoWorker.run()", "method") in entries
+    assert ("make_worker", "make_worker()", "function") in entries
+    assert not any("__init__" in display or "_helper" in display for _, display, _ in entries)
 
 
 def test_project_layout_is_a_capability_board_with_edges_preserved() -> None:

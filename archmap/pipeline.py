@@ -14,4 +14,5 @@ def build_architecture(project_root: Path, config_path: Path | None = None) -> d
     analysis = frontend.analyze(project_root, config_path)
     call_sites = frontend.build_call_sites(analysis)
     function_details = frontend.build_function_details(analysis, call_sites)
-    return build_bundle(analysis, call_sites, function_details)
+    contracts = frontend.build_contracts(analysis)
+    return build_bundle(analysis, call_sites, function_details, contracts)

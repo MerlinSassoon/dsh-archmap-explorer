@@ -8,6 +8,7 @@ from ...callsites import collect_call_sites
 from ...config import load_config
 from ...details import build_function_details as build_details
 from ...discover import discover_sources
+from .capabilities import build_capabilities
 
 
 class PythonFrontend:
@@ -26,3 +27,6 @@ class PythonFrontend:
         self, analysis: Any, call_sites: list[Any]
     ) -> list[dict[str, Any]]:
         return build_details(analysis, call_sites)
+
+    def build_contracts(self, analysis: Any) -> Any:
+        return build_capabilities(analysis)

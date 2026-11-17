@@ -36,3 +36,12 @@ class LanguageFrontend(Protocol):
     ) -> list[dict[str, Any]]:
         """Build source-backed detail records for every function/method."""
         ...
+
+    def build_contracts(self, analysis: Any) -> Any:
+        """Build the language-neutral API contract projection.
+
+        The result must be an ``archmap.contracts.ContractModel``.  Frontends
+        own language-specific exposure tags, naming rules and protocol
+        detection; graph.py only consumes canonical capabilities.
+        """
+        ...

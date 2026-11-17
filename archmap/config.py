@@ -8,6 +8,20 @@ from typing import Any
 
 MODULE_ROLES = {"main", "service", "adapter", "test", "other"}
 
+DEFAULT_PUBLIC_API_TAGS = [
+    "公开API",
+    "公开 API",
+    "public API",
+    "@public",
+]
+
+DEFAULT_INTERNAL_API_TAGS = [
+    "内部API",
+    "内部 API",
+    "internal API",
+    "@internal",
+]
+
 
 DEFAULT_EXCLUDES = [
     "**/__pycache__/**",
@@ -47,6 +61,10 @@ class ProjectConfig:
     max_functions: int = 2000
     max_steps: int = 300
     max_data_deps: int = 200
+    contract_public_tags: list[str] = field(default_factory=lambda: list(DEFAULT_PUBLIC_API_TAGS))
+    contract_internal_tags: list[str] = field(default_factory=lambda: list(DEFAULT_INTERNAL_API_TAGS))
+    api_exposure_overrides: dict[str, str] = field(default_factory=dict)
+    module_exports: dict[str, list[str]] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -96,6 +114,22 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
             )
         )
 
+    contract = raw.get("contract") if isinstance(raw.get("contract"), dict) else {}
+    public_tags = _as_list(contract.get("publicTags"), DEFAULT_PUBLIC_API_TAGS)
+    internal_tags = _as_list(contract.get("internalTags"), DEFAULT_INTERNAL_API_TAGS)
+    exposure_overrides: dict[str, str] = {}
+    raw_overrides = contract.get("apiExposure")
+    if isinstance(raw_overrides, dict):
+        for key, value in raw_overrides.items():
+            normalized = str(value or "").strip().lower()
+            if normalized in {"public", "internal"}:
+                exposure_overrides[str(key)] = normalized
+    module_exports: dict[str, list[str]] = {}
+    raw_exports = contract.get("moduleExports")
+    if isinstance(raw_exports, dict):
+        for key, value in raw_exports.items():
+            module_exports[str(key)] = _as_list(value, [])
+
     limits = raw.get("limits") if isinstance(raw.get("limits"), dict) else {}
     return ProjectConfig(
         root=root,
@@ -110,5 +144,9 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         max_functions=int(limits.get("maxFunctions", 2000)),
         max_steps=int(limits.get("maxStepsPerFunction", 300)),
         max_data_deps=int(limits.get("maxDataDepsPerFunction", 200)),
+        contract_public_tags=public_tags,
+        contract_internal_tags=internal_tags,
+        api_exposure_overrides=exposure_overrides,
+        module_exports=module_exports,
         raw=raw,
     )

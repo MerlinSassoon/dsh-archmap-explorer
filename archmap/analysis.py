@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from .config import ProjectConfig
+from .config import DEFAULT_INTERNAL_API_TAGS, DEFAULT_PUBLIC_API_TAGS, ProjectConfig
 from .discover import SourceFile
 
 
@@ -42,6 +42,9 @@ class FunctionInfo:
     method_kind: str = "function"
     visibility: str = "public"
     is_abstract: bool = False
+    api_exposure: str = "public"
+    api_exposure_source: str = "naming"
+    api_exposure_confidence: str = "medium"
 
 
 @dataclass
@@ -165,6 +168,100 @@ def _comment_note(lines: list[str], node: ast.FunctionDef | ast.AsyncFunctionDef
             continue
         break
     return _first_paragraph(" ".join(reversed(collected)))
+
+
+PUBLIC_DECORATOR_NAMES = {"public_api", "api_public", "publicapi", "public"}
+INTERNAL_DECORATOR_NAMES = {"internal_api", "api_internal", "internalapi", "internal"}
+API_TAGGED_RE = re.compile(r"^\s*API\s*[:：]\s*(public|internal)\b", re.IGNORECASE)
+
+
+def _leading_comment_text(lines: list[str], node: ast.AST) -> str:
+    lineno = int(getattr(node, "lineno", 1) or 1)
+    idx = lineno - 2
+    collected: list[str] = []
+    while idx >= 0:
+        stripped = lines[idx].strip()
+        if stripped.startswith("#"):
+            collected.append(stripped.lstrip("#").strip())
+            idx -= 1
+            continue
+        break
+    return " ".join(reversed(collected)).strip()
+
+
+def _tag_matches(text: str, tags: list[str]) -> bool:
+    if not text:
+        return False
+    stripped = text.lstrip()
+    while stripped[:1] in {"[", "("}:
+        stripped = stripped[1:].lstrip()
+    for tag in tags:
+        candidate = str(tag or "").strip()
+        if not candidate:
+            continue
+        if stripped.lower().startswith(candidate.lower()):
+            return True
+    return False
+
+
+def _api_exposure(
+    node: ast.AST,
+    lines: list[str],
+    module_name: str,
+    qualname: str,
+    config: ProjectConfig,
+) -> tuple[str, str, str]:
+    """Return ``(exposure, source, confidence)`` for a function or method.
+
+    Explicit config wins.  Then decorators, then docstring/comment tags.  The
+    fallback is language naming convention: underscore-prefixed names are
+    internal, everything else is an inferred public surface.  Magic methods are
+    kept as internal at the method level; protocol capabilities are synthesized
+    by the frontend capability builder instead of exposing dunders directly.
+    """
+    override_keys = [
+        f"{module_name}.{qualname}",
+        qualname,
+        f"{module_name}.{node.name}",
+        node.name,
+    ]
+    for key in override_keys:
+        value = config.api_exposure_overrides.get(key)
+        if value in {"public", "internal"}:
+            return value, "config", "high"
+
+    decorator_names = _decorator_names(node)
+    for name in decorator_names:
+        tail = name.split(".")[-1].strip().lower()
+        if tail in PUBLIC_DECORATOR_NAMES:
+            return "public", "decorator", "high"
+        if tail in INTERNAL_DECORATOR_NAMES:
+            return "internal", "decorator", "high"
+
+    doc = ""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        doc = ast.get_docstring(node, clean=False) or ""
+    first_paragraph = _first_paragraph(doc)
+    tagged = API_TAGGED_RE.match(first_paragraph)
+    if tagged:
+        return tagged.group(1).lower(), "docstring", "high"
+    public_tags = config.contract_public_tags or DEFAULT_PUBLIC_API_TAGS
+    internal_tags = config.contract_internal_tags or DEFAULT_INTERNAL_API_TAGS
+    if _tag_matches(first_paragraph, public_tags):
+        return "public", "docstring", "high"
+    if _tag_matches(first_paragraph, internal_tags):
+        return "internal", "docstring", "high"
+
+    comment_text = _leading_comment_text(lines, node)
+    if _tag_matches(comment_text, public_tags):
+        return "public", "comment", "high"
+    if _tag_matches(comment_text, internal_tags):
+        return "internal", "comment", "high"
+
+    name = getattr(node, "name", "")
+    if name.startswith("_"):
+        return "internal", "naming", "high"
+    return "public", "naming", "medium"
 
 
 LIFECYCLE_METHOD_NAMES = {
@@ -319,6 +416,9 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     qualname = f"{qual_prefix}{child.name}"
                     fn_id = f"fn:{module.name}.{qualname}"
+                    exposure, exposure_source, exposure_confidence = _api_exposure(
+                        child, lines, module.name, qualname, config
+                    )
                     info = FunctionInfo(
                         id=fn_id,
                         name=child.name,
@@ -337,6 +437,9 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
                         method_kind="function",
                         visibility=_visibility(child.name),
                         is_abstract=_has_abstract_decorator(child),
+                        api_exposure=exposure,
+                        api_exposure_source=exposure_source,
+                        api_exposure_confidence=exposure_confidence,
                     )
                     module.functions[qualname] = info
                     functions.append(info)
@@ -362,6 +465,9 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
                             mqual = f"{qualname}.{member.name}"
                             fn_id = f"fn:{module.name}.{mqual}"
                             member_decorators = _decorator_names(member)
+                            exposure, exposure_source, exposure_confidence = _api_exposure(
+                                member, lines, module.name, mqual, config
+                            )
                             info = FunctionInfo(
                                 id=fn_id,
                                 name=member.name,
@@ -380,6 +486,9 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
                                 method_kind=_method_kind(member.name, member_decorators),
                                 visibility=_visibility(member.name),
                                 is_abstract=_has_abstract_decorator(member),
+                                api_exposure=exposure,
+                                api_exposure_source=exposure_source,
+                                api_exposure_confidence=exposure_confidence,
                             )
                             cls.methods[member.name] = info
                             module.functions[mqual] = info
@@ -442,6 +551,9 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
             method_kind="function",
             visibility="public",
             is_abstract=False,
+            api_exposure="public",
+            api_exposure_source="entrypoint",
+            api_exposure_confidence="high",
         )
         module.functions["__main__"] = info
         functions.append(info)
