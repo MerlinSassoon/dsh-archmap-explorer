@@ -384,7 +384,7 @@ visibility → default presentation
 
 - 先冻结契约，再迁移代码；
 - 先 config/model，再 utility，再 manager，最后 entry；
-- 保留旧 import shim，逐步移除；
+- 旧 import shim 最终已删除，所有内部引用使用新目录；
 - CLI、bundle schema、HTML 行为保持稳定；
 - utility 默认不进入主视图；
 - 迁移完成后更新自举配置和文档；

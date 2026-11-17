@@ -64,7 +64,7 @@
     return {
       version: OVERRIDE_VERSION,
       geometryVersion: GEOMETRY_VERSION,
-      project: { nodes: {}, miniNodes: {}, expanded: {}, singleModule: false },
+      project: { nodes: {}, singleModule: false },
       modules: {},
       functions: {},
     };
@@ -75,8 +75,6 @@
     if (!value || typeof value !== "object") return base;
     if (Number(value.version) !== OVERRIDE_VERSION) return base;
     base.project.nodes = value.project?.nodes && typeof value.project.nodes === "object" ? value.project.nodes : {};
-    base.project.miniNodes = value.project?.miniNodes && typeof value.project.miniNodes === "object" ? value.project.miniNodes : {};
-    base.project.expanded = value.project?.expanded && typeof value.project.expanded === "object" ? value.project.expanded : {};
     base.project.singleModule = Boolean(value.project?.singleModule);
     base.modules = value.modules && typeof value.modules === "object" ? value.modules : {};
     base.functions = value.functions && typeof value.functions === "object" ? value.functions : {};
@@ -178,7 +176,6 @@
     if (!focusUid) {
       nodes.forEach(node => node.classList.remove("is-dim", "is-highlight"));
       edges.forEach(edge => edge.classList.remove("is-dim", "is-highlight"));
-      world.querySelectorAll(".mini-node").forEach(node => node.classList.remove("is-dim", "is-selected"));
       return;
     }
     // Capability cards are siblings, not a dependency neighbourhood.  Without
@@ -188,6 +185,7 @@
       edges.forEach(edge => edge.classList.remove("is-dim", "is-highlight"));
       return;
     }
+    const isFlowPage = Boolean(world.querySelector(".main-flow-node"));
     const neighborUids = new Set([focusUid]);
     state.pageEdges.forEach(edge => {
       if (edge.from === focusUid || edge.to === focusUid) {
@@ -203,10 +201,8 @@
     edges.forEach(edge => {
       const highlighted = edge.dataset.from === focusUid || edge.dataset.to === focusUid;
       edge.classList.toggle("is-highlight", highlighted);
-      edge.classList.toggle("is-dim", !highlighted);
-    });
-    world.querySelectorAll(".mini-node").forEach(node => {
-      node.classList.toggle("is-dim", node.dataset.uid !== focusUid && ![...neighborUids].includes(node.dataset.uid));
+      if (isFlowPage) edge.classList.remove("is-dim");
+      else edge.classList.toggle("is-dim", !highlighted);
     });
   }
 
@@ -235,28 +231,72 @@
     zoomValue.textContent = `${Math.round(state.scale * 100)}%`;
   }
 
+  function contentBounds() {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    if (state.positions) {
+      state.positions.forEach((position, nodeId) => {
+        const size = state.sizes?.get(nodeId) || { w: position.w || 190, h: position.h || 96 };
+        const x = Number(position.x) || 0;
+        const y = Number(position.y) || 0;
+        const w = Number(size.w) || 190;
+        const h = Number(size.h) || 96;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x + w);
+        maxY = Math.max(maxY, y + h);
+      });
+    }
+    if (!Number.isFinite(minX)) {
+      return { minX: 0, minY: 0, maxX: 900, maxY: 640, width: 900, height: 640 };
+    }
+    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+  }
+
+  function updateWorldExtent(minWidth = 900, minHeight = 640, pad = 90) {
+    const bounds = contentBounds();
+    const width = Math.max(minWidth, bounds.maxX + pad);
+    const height = Math.max(minHeight, bounds.maxY + pad);
+    const svgX = bounds.minX - pad;
+    const svgY = bounds.minY - pad;
+    const svgWidth = Math.max(1, bounds.width + pad * 2);
+    const svgHeight = Math.max(1, bounds.height + pad * 2);
+    world.style.width = `${width}px`;
+    world.style.height = `${height}px`;
+    const svg = world.querySelector(".world-edges");
+    if (svg) {
+      svg.style.left = `${svgX}px`;
+      svg.style.top = `${svgY}px`;
+      svg.setAttribute("width", String(svgWidth));
+      svg.setAttribute("height", String(svgHeight));
+      svg.setAttribute("viewBox", `${svgX} ${svgY} ${svgWidth} ${svgHeight}`);
+    }
+    return { width, height, ...bounds };
+  }
+
   function fitView(animate = false) {
-    const width = world.offsetWidth || Number(world.style.width.replace("px", "")) || 900;
-    const height = world.offsetHeight || Number(world.style.height.replace("px", "")) || 700;
+    const bounds = contentBounds();
     const rect = viewport.getBoundingClientRect();
     const padX = 58;
     const padTop = state.pageKind === "module" ? 122 : state.pageKind === "method" ? 26 : 64;
     const padBottom = 46;
+    const availableW = rect.width - padX * 2;
+    const availableH = rect.height - padTop - padBottom;
     const scale = Math.min(
-      (rect.width - padX * 2) / Math.max(1, width),
-      (rect.height - padTop - padBottom) / Math.max(1, height),
+      availableW / Math.max(1, bounds.width),
+      availableH / Math.max(1, bounds.height),
       1
     );
     const minScale = state.pageKind === "method" ? .5 : .2;
     state.scale = Math.max(minScale, Math.min(1, scale));
-    const availableW = rect.width - padX * 2;
-    const availableH = rect.height - padTop - padBottom;
-    state.x = width * state.scale <= availableW
-      ? (rect.width - width * state.scale) / 2
-      : padX;
-    state.y = height * state.scale <= availableH
-      ? padTop + (availableH - height * state.scale) / 2
-      : padTop;
+    state.x = bounds.width * state.scale <= availableW
+      ? (rect.width - bounds.width * state.scale) / 2 - bounds.minX * state.scale
+      : padX - bounds.minX * state.scale;
+    state.y = bounds.height * state.scale <= availableH
+      ? padTop + (availableH - bounds.height * state.scale) / 2 - bounds.minY * state.scale
+      : padTop - bounds.minY * state.scale;
     applyTransform();
   }
 
@@ -329,9 +369,8 @@
       const dy = (event.clientY - start.y) / state.scale;
       if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
       moved = true;
-      const bounds = options.bounds ? options.bounds() : { w: 2200, h: 1600 };
-      const x = Math.max(0, Math.min(bounds.w, origin.x + dx));
-      const y = Math.max(0, Math.min(bounds.h, origin.y + dy));
+      const x = origin.x + dx;
+      const y = origin.y + dy;
       options.setPosition(x, y);
       element.style.left = `${x}px`;
       element.style.top = `${y}px`;
@@ -863,18 +902,9 @@
     backBtn.disabled = kind === "project" && history.length <= 1;
   }
 
-  function projectNodeExpanded(moduleId) {
-    if (Object.prototype.hasOwnProperty.call(override.project.expanded, moduleId)) {
-      return Boolean(override.project.expanded[moduleId]);
-    }
-    return false;
-  }
-
   function projectNodeSize(node) {
     if (node.kind === "module") {
-      return projectNodeExpanded(node.id)
-        ? { w: node.expandedW || 560, h: node.expandedH || 360 }
-        : { w: node.w || 270, h: node.h || 140 };
+      return { w: node.w || 270, h: node.h || 140 };
     }
     return { w: node.w || 190, h: node.h || 96 };
   }
@@ -894,22 +924,7 @@
   }
 
   function updateProjectWorldSize() {
-    let width = 900, height = 640;
-    state.nodes.forEach((node, nodeId) => {
-      const position = getProjectPosition(nodeId);
-      const size = state.sizes.get(nodeId) || projectNodeSize(node);
-      width = Math.max(width, position.x + size.w + 90);
-      height = Math.max(height, position.y + size.h + 100);
-    });
-    world.style.width = `${width}px`;
-    world.style.height = `${height}px`;
-    const svg = world.querySelector(".world-edges");
-    if (svg) {
-      svg.setAttribute("width", String(width));
-      svg.setAttribute("height", String(height));
-      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    }
-    return { width, height };
+    return updateWorldExtent(900, 640);
   }
 
   function refreshProjectEdges() {
@@ -996,7 +1011,6 @@
 
   function renderProjectModule(nodeId, module) {
     const position = state.positions.get(nodeId);
-    const expanded = projectNodeExpanded(nodeId);
     const size = state.sizes.get(nodeId);
     const graph = moduleGraphById.get(nodeId);
     const apis = graph?.providedApis || [];
@@ -1007,7 +1021,7 @@
     const providerCount = Number((graph?.apiProviders || []).length);
     const apiCount = Number(module.providedApiCount ?? apis.length);
     const element = document.createElement("article");
-    element.className = `node-card module-node${expanded ? " is-expanded" : ""}${isMain ? " is-main" : ""}`;
+    element.className = `node-card module-node${isMain ? " is-main" : ""}`;
     element.dataset.uid = nodeId;
     element.style.left = `${position.x}px`;
     element.style.top = `${position.y}px`;
@@ -1020,7 +1034,6 @@
           <span class="module-dot"></span><span class="module-kind">${escapeHtml(moduleRoleLabel(role))}</span>
           <span class="module-title">${escapeHtml(module.name)}</span>
           <div class="module-actions">
-            <button class="mini-action" type="button" data-expand="${escapeHtml(nodeId)}" aria-label="${expanded ? "收起模块" : "展开模块"}" title="${expanded ? "收起" : "展开"}">${expanded ? "−" : "+"}</button>
             <button class="mini-action" type="button" data-open-module="${escapeHtml(nodeId)}" aria-label="打开模块页面" title="打开独立模块页面">↗</button>
           </div>
         </div>
@@ -1037,12 +1050,6 @@
           ${module.moduleKind === "main" ? `<span class="has-apis">main flow${module.mainFlowId ? "" : " · empty"}</span>` : ""}
         </div>
       </header>`;
-    if (expanded) {
-      const mini = document.createElement("div");
-      mini.className = "module-mini";
-      mini.dataset.moduleId = nodeId;
-      element.appendChild(mini);
-    }
     world.appendChild(element);
     bindNodeHover(element, nodeId);
     bindApiNavigation(element);
@@ -1059,12 +1066,6 @@
       event.stopPropagation();
       navigate({ kind: "module", moduleId: nodeId });
     });
-    element.querySelector("[data-expand]")?.addEventListener("click", event => {
-      event.stopPropagation();
-      override.project.expanded[nodeId] = !expanded;
-      persistOverride();
-      renderProjectPage();
-    });
     attachDrag(header, element, {
       getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
       setPosition: (x, y) => {
@@ -1072,136 +1073,8 @@
         pos.x = x; pos.y = y;
         setProjectPosition(nodeId, x, y);
       },
-      bounds: () => ({ w: 2600, h: 1800 }),
-      onMove: refreshProjectEdges,
+      onMove: () => { updateProjectWorldSize(); refreshProjectEdges(); },
       onEnd: () => { persistOverride(); updateProjectWorldSize(); },
-    });
-    if (expanded) renderModuleMini(element.querySelector(".module-mini"), nodeId);
-  }
-
-  function miniDefaultPositions(moduleId) {
-    const graph = moduleGraphById.get(moduleId);
-    if (!graph) return new Map();
-    const functions = visibleProviderNodes(graph);
-    if (!functions.length) return new Map();
-    const layout = graph.layout?.nodes || {};
-    const rects = functions.map(node => {
-      const rect = layout[node.id] || { x: 0, y: 0, w: node.w || 210, h: node.h || 98 };
-      return { id: node.id, x: Number(rect.x || 0), y: Number(rect.y || 0) };
-    });
-    const minX = Math.min(...rects.map(item => item.x));
-    const maxX = Math.max(...rects.map(item => item.x));
-    const minY = Math.min(...rects.map(item => item.y));
-    const maxY = Math.max(...rects.map(item => item.y));
-    const areaW = 540, areaH = 218, nodeW = 176, nodeH = 76;
-    const spanX = Math.max(1, maxX - minX + 210);
-    const spanY = Math.max(1, maxY - minY + 98);
-    const scale = Math.min((areaW - nodeW - 20) / spanX, (areaH - nodeH - 18) / spanY, 1);
-    const offsetX = (areaW - spanX * scale) / 2;
-    const offsetY = (areaH - spanY * scale) / 2;
-    const result = new Map();
-    rects.forEach(item => {
-      result.set(item.id, {
-        x: Math.max(8, Math.min(areaW - nodeW - 8, offsetX + (item.x - minX) * scale)),
-        y: Math.max(8, Math.min(areaH - nodeH - 8, offsetY + (item.y - minY) * scale)),
-      });
-    });
-    return result;
-  }
-
-  function getMiniPosition(moduleId, functionId, defaults) {
-    const custom = override.project.miniNodes?.[moduleId]?.[functionId];
-    const base = defaults.get(functionId) || { x: 16, y: 20 };
-    return { x: Number(custom?.x ?? base.x), y: Number(custom?.y ?? base.y) };
-  }
-
-  function setMiniPosition(moduleId, functionId, x, y) {
-    if (!override.project.miniNodes[moduleId]) override.project.miniNodes[moduleId] = {};
-    override.project.miniNodes[moduleId][functionId] = { x: Math.round(x), y: Math.round(y) };
-  }
-
-  function refreshMiniEdges(moduleId) {
-    const host = world.querySelector(`.module-mini[data-module-id="${cssEscape(moduleId)}"]`);
-    if (!host) return;
-    const svg = host.querySelector(".mini-edges");
-    if (!svg) return;
-    const graph = moduleGraphById.get(moduleId);
-    const defaults = miniDefaultPositions(moduleId);
-    const positionMap = new Map();
-    visibleProviderNodes(graph).forEach(node => {
-      const element = host.querySelector(`.mini-node[data-uid="${cssEscape(node.id)}"]`);
-      if (!element) return;
-      positionMap.set(node.id, {
-        x: parseFloat(element.style.left),
-        y: parseFloat(element.style.top),
-        w: 176,
-        h: 76,
-      });
-    });
-    svg.querySelectorAll(".graph-edge").forEach(path => {
-      const from = positionMap.get(path.dataset.from);
-      const to = positionMap.get(path.dataset.to);
-      if (from && to) path.setAttribute("d", curvePath(from, to));
-    });
-  }
-
-  function renderModuleMini(host, moduleId) {
-    const graph = moduleGraphById.get(moduleId);
-    if (!host || !graph) return;
-    const defaults = miniDefaultPositions(moduleId);
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("class", "mini-edges");
-    svg.setAttribute("width", "540");
-    svg.setAttribute("height", "218");
-    svg.setAttribute("viewBox", "0 0 540 218");
-    host.appendChild(svg);
-    const visibleIds = new Set(visibleProviderNodes(graph).map(node => node.id));
-    const edges = graph.edges.filter(edge => edge.role === "internal" && visibleIds.has(edge.from) && visibleIds.has(edge.to));
-    edges.forEach(edge => {
-      const fromPos = getMiniPosition(moduleId, edge.from, defaults);
-      const toPos = getMiniPosition(moduleId, edge.to, defaults);
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("class", "graph-edge");
-      path.setAttribute("data-from", edge.from);
-      path.setAttribute("data-to", edge.to);
-      path.setAttribute("d", curvePath({ ...fromPos, w: 176, h: 76 }, { ...toPos, w: 176, h: 76 }));
-      path.setAttribute("stroke", graph.color || "#f59e0b");
-      path.setAttribute("opacity", ".42");
-      svg.appendChild(path);
-    });
-    visibleProviderNodes(graph).forEach(node => {
-      const pos = getMiniPosition(moduleId, node.id, defaults);
-      const element = document.createElement("article");
-      element.className = `mini-node node-card${node.kind === "class" ? " mini-class" : ""}`;
-      element.dataset.uid = node.id;
-      element.style.left = `${pos.x}px`;
-      element.style.top = `${pos.y}px`;
-      element.style.width = "176px";
-      element.style.height = "76px";
-      const prefix = node.kind === "class" ? "C · " : "";
-      element.innerHTML = `<div class="mini-title">${escapeHtml(prefix + node.name)}</div><div class="mini-note">${escapeHtml(node.note || (node.kind === "class" ? `${node.methodCount || 0} methods` : "暂无备注"))}</div>`;
-      host.appendChild(element);
-      bindNodeHover(element, node.id);
-      element.addEventListener("click", event => {
-        event.stopPropagation();
-        state.nodes.set(node.id, { ...node, kind: node.kind, color: graph.color });
-        selectUid(node.id);
-      });
-      element.addEventListener("dblclick", event => {
-        event.stopPropagation();
-        if (node.kind === "class") {
-          navigate({ kind: "module", moduleId });
-          return;
-        }
-        navigate({ kind: "function", moduleId, functionId: node.id });
-      });
-      attachDrag(element, element, {
-        getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
-        setPosition: (x, y) => setMiniPosition(moduleId, node.id, x, y),
-        bounds: () => ({ w: 540 - 176, h: 218 - 76 }),
-        onMove: () => refreshMiniEdges(moduleId),
-        onEnd: persistOverride,
-      });
     });
   }
 
@@ -1228,21 +1101,7 @@
   }
 
   function updateModuleWorldSize(moduleId) {
-    let width = 860, height = 640;
-    state.nodes.forEach((node, nodeId) => {
-      const pos = state.positions.get(nodeId);
-      const size = state.sizes.get(nodeId);
-      width = Math.max(width, pos.x + size.w + 90);
-      height = Math.max(height, pos.y + size.h + 100);
-    });
-    world.style.width = `${width}px`;
-    world.style.height = `${height}px`;
-    const svg = world.querySelector(".world-edges");
-    if (svg) {
-      svg.setAttribute("width", String(width));
-      svg.setAttribute("height", String(height));
-      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    }
+    return updateWorldExtent(860, 640);
   }
 
   function refreshModuleEdges() {
@@ -1272,6 +1131,7 @@
       kind === "dispatch" ? `${Number(node.candidateCount || 0)} candidates` : "",
       kind === "dispatch" && node.candidateSetComplete ? "complete" : "",
       kind === "dispatch" && !node.candidateSetComplete ? "partial" : "",
+      node.usageKind === "context_manager" ? "with" : node.usageKind === "async_context_manager" ? "async with" : "",
       node.capabilityKind || "",
       node.flowBoundary ? "module boundary" : "",
     ].filter(Boolean);
@@ -1284,13 +1144,15 @@
     element.style.setProperty("--mc", node.color || "#60a5fa");
     element.style.setProperty("--mc-rgb", rgbFromHex(node.color || "#60a5fa"));
     const icon = kind === "entry" ? "▶" : kind === "dispatch" ? "⑂" : kind === "provider" ? "C" : kind === "interface" ? "I" : "ƒ";
+    const labelText = node.label || node.providerName || node.id;
+    const noteText = node.note || "";
     element.innerHTML = `<div class="flow-node-top">
         <span class="flow-node-icon">${icon}</span>
         <span class="flow-node-kind">${escapeHtml(kind.toUpperCase())}</span>
         <span class="flow-node-module">${escapeHtml(node.moduleName || node.moduleId || "")}</span>
       </div>
-      <div class="flow-node-label">${escapeHtml(node.label || node.providerName || node.id)}</div>
-      <div class="flow-node-note">${escapeHtml(node.note || node.signature || "主流程组合节点")}</div>
+      <div class="flow-node-label" title="${escapeHtml(labelText)}">${escapeHtml(labelText)}</div>
+      ${noteText ? `<div class="flow-node-note" title="${escapeHtml(noteText)}">${escapeHtml(noteText)}</div>` : ""}
       ${badges.length ? `<div class="flow-node-badges">${badges.map(item => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}`;
     world.appendChild(element);
     bindNodeHover(element, nodeId);
@@ -1312,8 +1174,7 @@
         item.x = x; item.y = y;
         setModulePagePosition(moduleId, nodeId, x, y);
       },
-      bounds: () => ({ w: 3000, h: 2200 }),
-      onMove: refreshModuleEdges,
+      onMove: () => { updateModuleWorldSize(moduleId); refreshModuleEdges(); },
       onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
@@ -1336,9 +1197,9 @@
     state.flowId = flow.id;
     flow.nodes.forEach(node => {
       state.nodes.set(node.id, { ...node, color: node.color || graph.color });
-      state.sizes.set(node.id, { w: Number(node.w || 244), h: Number(node.h || 108) });
+      state.sizes.set(node.id, { w: Number(node.w || 244), h: Number(node.h || 140) });
       const pos = getFlowPosition(moduleId, node.id, flow);
-      state.positions.set(node.id, { x: pos.x, y: pos.y, w: Number(node.w || 244), h: Number(node.h || 108) });
+      state.positions.set(node.id, { x: pos.x, y: pos.y, w: Number(node.w || 244), h: Number(node.h || 140) });
     });
     const canvas = flow.layout?.canvas || { width: 1200, height: 800 };
     const svg = makeSvg(Number(canvas.width || 1200), Number(canvas.height || 800), "world-edges");
@@ -1352,7 +1213,14 @@
       path.setAttribute("data-edge-id", edge.id);
       path.setAttribute("data-edge-kind", edge.kind || "call");
       const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-      title.textContent = `${edge.kind || "call"} · ${edge.confidence || "medium"}${edge.branchLabel ? ` · ${edge.branchLabel}` : ""}`;
+      const firstEvidence = (edge.evidence || [])[0] || {};
+      const callText = firstEvidence.callText || "";
+      const usagePrefix = firstEvidence.usageKind === "context_manager"
+        ? "with "
+        : firstEvidence.usageKind === "async_context_manager"
+          ? "async with "
+          : "";
+      title.textContent = `${usagePrefix}${callText || edge.kind || "call"} · ${edge.confidence || "medium"}${edge.branchLabel ? ` · ${edge.branchLabel}` : ""}`;
       path.appendChild(title);
       const from = state.positions.get(edge.from);
       const to = state.positions.get(edge.to);
@@ -1471,8 +1339,7 @@
         item.x = x; item.y = y;
         setModulePagePosition(moduleId, nodeId, x, y);
       },
-      bounds: () => ({ w: 2200, h: 1600 }),
-      onMove: refreshModuleEdges,
+      onMove: () => { updateModuleWorldSize(moduleId); refreshModuleEdges(); },
       onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
@@ -1524,8 +1391,7 @@
         item.x = x; item.y = y;
         setModulePagePosition(moduleId, nodeId, x, y);
       },
-      bounds: () => ({ w: 2200, h: 1600 }),
-      onMove: refreshModuleEdges,
+      onMove: () => { updateModuleWorldSize(moduleId); refreshModuleEdges(); },
       onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
@@ -1680,7 +1546,7 @@
   function applySearch() {
     const query = state.search.trim().toLowerCase();
     if (!query || state.pageKind === "method") {
-      world.querySelectorAll(".node-card, .mini-node").forEach(node => node.classList.remove("is-search-dim"));
+      world.querySelectorAll(".node-card").forEach(node => node.classList.remove("is-search-dim"));
       world.querySelectorAll(".macro-edge").forEach(edge => edge.classList.remove("is-search-dim"));
       return;
     }

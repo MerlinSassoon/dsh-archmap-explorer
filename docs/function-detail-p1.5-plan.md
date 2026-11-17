@@ -4,7 +4,7 @@
 > 日期：2026-11-16；最后核对：2026-11-17<br>
 > 目标：移除语句级 FunctionFlow 主产品路径，把方法详情、源码阅读和调用关系升级为架构浏览器核心。
 >
-> 后续状态：P2.0 项目页/模块页能力契约、P2.1 API 契约建模、P2.2 Provider Role 与模块组合、P2.3 架构规范、自身代码迁移与语义归属纠偏已完成；类焦点页不再计划；P3/P4 尚未开始。当前交接与实施顺序见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
+> 后续状态：P2.0 项目页/模块页能力契约、P2.1 API 契约建模、P2.2 Provider Role 与模块组合、P2.3 架构规范、自身代码迁移与语义归属纠偏已完成（旧 import shim 已删除）；类焦点页不再计划。P3/P4 已在独立分支完成但尚未合入当前清理分支。当前交接见 [`HANDOFF-P2.4-CLEANUP.md`](HANDOFF-P2.4-CLEANUP.md)。
 
 ## 1. 决策
 
@@ -179,7 +179,7 @@ Hash 路由保持旧兼容：
 - P3：继承/实现边、抽象方法契约、多态 candidates 与类层次。
 - P4：组合/聚合、instantiates、类级 impact/trace 与 DSM。
 
-P2–P4 均尚未开始；详细方案见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
+P3/P4 已在独立分支完成，尚未合入当前清理分支；历史阶段方案见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)，当前交接见 [`HANDOFF-P2.4-CLEANUP.md`](HANDOFF-P2.4-CLEANUP.md)。
 
 ## 8. 兼容性
 

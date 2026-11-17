@@ -10,6 +10,7 @@ from ..config.contract_config import (
     CAPABILITY_KINDS,
     EXPOSURE_SOURCES,
     EXPOSURE_VALUES,
+    PROTOCOL_CAPABILITY_KINDS,
     PROVIDER_ROLE_ORDER,
     PROVIDER_ROLE_SOURCES,
     PROVIDER_ROLES,
@@ -438,6 +439,19 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                         issues.append(_issue("error", "FLOW_INTERFACE_MODULE", f"flow {flow_id} interface {node.get('id')} module disagrees with its capability"))
                     if capability_payload.get("providerRole") in {"config", "model", "utility"}:
                         issues.append(_issue("error", "FLOW_INTERFACE_ROLE", f"flow {flow_id} interface {node.get('id')} references a non-behavioral capability"))
+            if node.get("kind") == "provider" and node.get("capabilityId"):
+                capability_id = str(node.get("capabilityId"))
+                capability = capability_by_id.get(capability_id)
+                if capability is None:
+                    issues.append(_issue("error", "FLOW_PROVIDER_CAPABILITY_NOT_CANONICAL", f"flow {flow_id} provider {node.get('id')} references a missing capability"))
+                else:
+                    capability_module_id, capability_payload = capability
+                    if capability_module_id != node.get("moduleId"):
+                        issues.append(_issue("error", "FLOW_PROVIDER_CAPABILITY_MODULE", f"flow {flow_id} provider {node.get('id')} module disagrees with its capability"))
+                    if capability_payload.get("providerId") != node.get("providerId"):
+                        issues.append(_issue("error", "FLOW_PROVIDER_CAPABILITY_OWNER", f"flow {flow_id} provider {node.get('id')} does not own its capability"))
+                    if capability_payload.get("kind") not in PROTOCOL_CAPABILITY_KINDS:
+                        issues.append(_issue("error", "FLOW_PROVIDER_CAPABILITY_KIND", f"flow {flow_id} provider {node.get('id')} capability must be a protocol capability"))
             if node.get("flowBoundary"):
                 if node.get("moduleId") == main_module_id:
                     issues.append(_issue("error", "FLOW_BOUNDARY_MAIN", f"flow {flow_id} main-module node {node.get('id')} cannot be a boundary"))
@@ -531,4 +545,7 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
             for candidate in candidates:
                 if candidate not in detail_by_id:
                     issues.append(_issue("error", "POLYMORPHIC_CANDIDATE_MISSING", f"polymorphic call site {site.get('id')} candidate missing: {candidate}"))
+        usage_kind = site.get("usageKind")
+        if usage_kind is not None and usage_kind not in {"call", "instantiate", "context_manager", "async_context_manager"}:
+            issues.append(_issue("error", "CALL_USAGE_KIND", f"call site {site.get('id')} has invalid usageKind: {usage_kind}"))
     return issues

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from archmap.graph import semantic_fingerprint
-from archmap.pipeline import build_architecture
-from archmap.validate import validate_bundle
+from archmap.managers.graph_manager import GraphManager
+from archmap.managers.pipeline_manager import PipelineManager
+from archmap.managers.validate_manager import ValidationManager
+
+build_architecture = PipelineManager().build_architecture
+validate_bundle = ValidationManager().validate
+semantic_fingerprint = GraphManager().semantic_fingerprint
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 
@@ -103,13 +107,10 @@ def test_call_sites_are_independent_from_removed_function_flows() -> None:
 
 
 def test_default_excludes_skip_root_level_build_directory(tmp_path: Path) -> None:
-    from archmap.config import load_config
-    from archmap.discover import discover_sources
-
     (tmp_path / "build" / "lib").mkdir(parents=True)
     (tmp_path / "build" / "lib" / "generated.py").write_text("def generated():\n    return 1\n", encoding="utf-8")
     (tmp_path / "app.py").write_text("def main():\n    return 1\n", encoding="utf-8")
-    config = load_config(tmp_path)
-    rel_paths = {source.rel_path for source in discover_sources(config)}
+    bundle = build_architecture(tmp_path)
+    rel_paths = {detail["file"] for detail in bundle["functionDetails"]}
     assert "app.py" in rel_paths
     assert "build/lib/generated.py" not in rel_paths

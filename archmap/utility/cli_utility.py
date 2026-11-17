@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .. import __version__
 from ..managers.pipeline_manager import PipelineManager
 from ..managers.render_manager import RenderManager
 from ..managers.validate_manager import ValidationManager
@@ -200,7 +201,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="archmap", description="ArchMap v3 module-first architecture analysis")
-    parser.add_argument("--version", action="version", version="archmap 1.2.0")
+    parser.add_argument("--version", action="version", version=f"archmap {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build", help="analyze a Python project and write architecture.json/html")

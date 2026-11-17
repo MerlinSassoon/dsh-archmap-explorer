@@ -503,10 +503,10 @@ P1.5           已完成
 P2.0           已完成：项目页/模块页能力契约、模块角色、providedApis
 P2.1           已完成：Provider + Capability API 契约、协议能力、apiProviders
 P2.2           已完成：Provider Role（config/model/manager/entry/...）与模块组合
-P2.3           已完成：架构规范落盘、自身代码迁移与 facade/owner 语义归属纠偏
+P2.3           已完成：架构规范落盘、自身代码迁移、facade/owner 语义归属纠偏与旧 shim 清理
 类焦点页       不再计划：类只作为 Provider，不展示类内方法图
-P3             未开始：继承/实现边、继承 API、多态 candidates、类型关系
-P4             未开始：角色感知关系、API/type/surface impact、user surface、DSM
+P3             独立分支已完成：继承/实现边、继承 API、多态 candidates、类型关系；未合入当前清理分支
+P4             独立分支已完成：角色感知关系、API/type/surface impact、user surface、DSM；未合入当前清理分支
 ```
 
 当前代码事实：
