@@ -1,11 +1,12 @@
-# ArchMap v3.5
+# ArchMap v3.6
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
 
 ```text
-项目页（模块能力卡片 + 提供接口 + 项目输入/输出）
-  └─ 模块页（模块输入/输出 + 提供接口 + 类节点 + 模块级自由函数）
-       └─ 方法详情页（源码 + 人类备注 + LLM 语义 + callers/callees）
+项目页（主模块 + 功能模块能力卡片）
+  └─ 主模块页（入口 → 编排函数 → 功能模块接口的主流程 DAG）
+       └─ 功能模块页（提供接口 + 类节点 + 模块级自由函数）
+            └─ 方法详情页（源码 + 人类备注 + LLM 语义 + callers/callees）
 ```
 
 ArchMap 负责“结构和关系”，源码负责“实现细节”，LLM 负责“高层语义”。
@@ -19,11 +20,13 @@ P2.0 项目页/模块页能力契约重构  已完成
 P2.1 API 契约建模与展示         已完成
 P2.2 Provider Role 与模块组合   已完成
 P2.3 ArchMap 自身分层重构       已完成
+P2.4 主模块/功能模块/主流程     已完成
 P3 继承/接口/多态/继承 API      未开始
 P4 类关系/API impact/user surface 未开始
 ```
 
 当前方法入口是 **Method Detail** 页面；语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
+P2.4 起，每个项目恰好有一个主模块；主模块展示函数级主流程，功能模块只暴露 Provider/Capability，不再拥有输入输出端口。
 文档权威性与历史归档说明见 [docs/README.md](docs/README.md)。
 
 ## 快速开始
@@ -65,7 +68,8 @@ python -m archmap serve .archmap/student_system
 ## 三层视图
 
 - **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。
-- **模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示模块输入/输出、类节点、模块级自由函数节点；类方法归属类节点，不直接平铺。config/model Provider 以类型卡片展示字段摘要。
+- **主模块页**：默认展示 entry → orchestrator/provider/interface 的主流程 DAG；可切换到能力视图查看类与自由函数。
+- **功能模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示类节点、模块级自由函数节点；不再有模块输入/输出端口。config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；内部方法只显示数量，不展开类内方法图。点击方法/函数接口进入方法详情页。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees；点击调用者可继续下钻。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
@@ -80,21 +84,26 @@ python -m archmap serve .archmap/student_system
   "language": "python",
   "include": ["src/**/*.py"],
   "exclude": ["**/__pycache__/**"],
-  "project": {
-    "inputs": ["用户请求"],
-    "outputs": ["处理结果"]
-  },
+  "mainModule": "orders",
   "entrypoints": ["app.main:main"],
   "modules": [
     {
       "id": "orders",
       "name": "订单与结算",
+      "kind": "main",
       "include": ["src/orders/**"],
-      "note": "订单主流程",
-      "inputs": ["用户下单请求"],
-      "outputs": ["订单结果"],
+      "note": "订单主流程组合根",
       "color": "#f59e0b",
       "role": "main"
+    },
+    {
+      "id": "payments",
+      "name": "支付能力",
+      "kind": "functional",
+      "include": ["src/payments/**"],
+      "note": "支付 Provider 与公开接口",
+      "color": "#60a5fa",
+      "role": "service"
     }
   ]
 }
@@ -292,7 +301,8 @@ archmap/
 
 - `primaryType`：`call` / `data` / `control`。
 - `relations`：同一对节点可同时具有调用和数据证据。
-- `role`：普通内部关系、项目/模块输入输出边界。
+- `role`：普通内部关系；不再生成模块输入输出边界边。
+- 主流程边使用 `call` / `call_path` / `composition`，其中 composition 只能是低置信度虚线。
 - `evidence`：具体函数、文件和行号。
 - `confidence`：解析置信度。
 
@@ -318,11 +328,13 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`48 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：`58 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 
 - 三层 bundle 契约和交叉引用。
+- 唯一主模块、0..N 功能模块与无 I/O 端口不变量。
+- 主流程 DAG、分支、dispatch 候选和 composition 虚线语义。
 - 类节点、方法归属、抽象类边界。
 - FunctionDetail、源码切片、sourceHash。
 - CallSite 提取、callers/callees、模块级聚合边。
@@ -347,9 +359,10 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 
 - [docs/README.md](docs/README.md)：文档索引与当前/历史文档边界。
 - [docs/archmap-architecture-spec.md](docs/archmap-architecture-spec.md)：物理代码单元、八角色语义、依赖方向与迁移规范。
-- [docs/archmap-v3-design.md](docs/archmap-v3-design.md)：v3.5 数据契约。
+- [docs/archmap-v3-design.md](docs/archmap-v3-design.md)：v3.6 数据契约。
 - [docs/archmap-api-contract-model.md](docs/archmap-api-contract-model.md)：Provider + Capability API 契约模型。
 - [docs/function-detail-p1.5-plan.md](docs/function-detail-p1.5-plan.md)：P1.5 实现记录。
+- [docs/p2.4-main-module-flow.md](docs/p2.4-main-module-flow.md)：主模块、功能模块、主流程 DAG 与 dispatch 契约。
 - [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：P2.2–P4 最新交接文档。
 
 ## 已知边界
@@ -362,6 +375,6 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 类焦点页和类内方法图不在当前产品计划中。
 - 用户交互面（user surface）尚未建模；主模块仍按普通模块展示 developer API。P2.2 已提供 Provider Role 与模块组合，但 user surface 仍属于 P4。
 - 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
-- P3 继承/实现关系、继承 API、多态 candidates，以及 P4 的角色感知关系、API/type/surface impact、user surface 传播仍未实现；P2.3 已完成，下一步进入 P3。
+- P3 继承/实现关系、继承 API、多态 candidates，以及 P4 的角色感知关系、API/type/surface impact、user surface 传播仍未实现；P2.4 已完成，下一步进入 P3。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
 - 旧 `docs/archmap-2.0-design.md` 和旧 `docs/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

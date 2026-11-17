@@ -43,27 +43,30 @@ def test_methods_are_owned_by_class_nodes_not_flattened() -> None:
     )
 
 
-def test_abstract_class_is_a_contract_not_a_module_boundary() -> None:
+def test_abstract_class_is_a_contract_not_a_flow_node() -> None:
     bundle = build_architecture(ROOT)
     graph = _graph(bundle)
     abstract = next(node for node in graph["nodes"] if node.get("name") == "Worker")
     assert abstract["classKind"] == "abstract"
     assert abstract["isAbstract"] is True
     assert abstract["entryMethodIds"] == []
-    boundary_edges = [
-        edge for edge in graph["edges"] if edge["role"].startswith("module_")
-    ]
-    assert all(edge["from"] != abstract["id"] and edge["to"] != abstract["id"] for edge in boundary_edges)
+    assert not any(edge["role"].startswith("module_") for edge in graph["edges"])
+    flow_function_ids = {
+        node["functionId"]
+        for flow in bundle["projectGraph"]["mainFlows"]
+        for node in flow["nodes"]
+        if node.get("functionId")
+    }
+    assert "fn:app.worker.Worker.run" not in flow_function_ids
 
 
-def test_module_boundary_edges_only_target_components() -> None:
+def test_module_graph_contains_providers_not_boundary_nodes() -> None:
     bundle = build_architecture(ROOT)
     graph = _graph(bundle)
-    component_ids = {
-        node["id"]
-        for node in graph["nodes"]
-        if node["kind"] in {"class", "function", "input", "output"}
-    }
+    assert "inputs" not in graph
+    assert "outputs" not in graph
+    assert {node["kind"] for node in graph["nodes"]} <= {"class", "function"}
+    component_ids = {node["id"] for node in graph["nodes"]}
     method_ids = {
         method["id"]
         for node in graph["nodes"]
@@ -76,16 +79,13 @@ def test_module_boundary_edges_only_target_components() -> None:
         assert edge["to"] in component_ids
 
 
-def test_class_boundary_has_via_method_evidence() -> None:
+def test_single_module_project_still_has_one_main_module() -> None:
     bundle = build_architecture(ROOT)
-    graph = _graph(bundle)
-    echo = next(node for node in graph["nodes"] if node.get("name") == "EchoWorker")
-    input_edge = next(
-        edge for edge in graph["edges"]
-        if edge["role"] == "module_input" and edge["to"] == echo["id"]
-    )
-    assert input_edge["viaMethodIds"] == ["fn:app.worker.EchoWorker.run"]
-    assert echo["entryMethodIds"] == ["fn:app.worker.EchoWorker.run"]
+    modules = bundle["projectGraph"]["modules"]
+    assert len(modules) == 1
+    assert modules[0]["moduleKind"] == "main"
+    assert bundle["projectGraph"]["mainModuleId"] == modules[0]["id"]
+    assert not [module for module in modules if module["moduleKind"] == "functional"]
 
 
 def test_function_detail_carries_method_ownership_and_source() -> None:

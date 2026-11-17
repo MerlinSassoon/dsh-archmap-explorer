@@ -99,6 +99,23 @@ def test_render_contains_api_contract_capabilities() -> None:
     assert not any("__enter__" in display or "__exit__" in display or "__init__" in display for display in displays)
 
 
+def test_render_contains_main_flow_and_no_boundary_nodes() -> None:
+    bundle = build_architecture(ROOT)
+    html = render_html(bundle)
+    assert "main-flow-node" in html
+    assert "renderMainFlowPage" in html
+    assert "kind-composition" in html
+    assert "flow-switcher" in html
+    assert "boundary-node" not in html
+    assert "module-ports" not in html
+    match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
+    assert match is not None
+    embedded = json.loads(match.group(1))
+    assert embedded["projectGraph"]["mainModuleId"] == "entry"
+    assert embedded["projectGraph"]["mainFlows"]
+    assert "boundaryNodes" not in embedded["projectGraph"]
+
+
 def test_render_contains_provider_roles_and_type_cards() -> None:
     bundle = build_architecture(ROLE_ROOT)
     html = render_html(bundle)

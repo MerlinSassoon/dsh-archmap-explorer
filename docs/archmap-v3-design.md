@@ -1,6 +1,6 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档冻结 v3.5 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md) 和 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 为准。
+> 本文档冻结 v3.6 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md) 和 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 为准。
 >
 > **当前状态（2026-11-17）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3 已完成；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中；结构关系和用户交互面是后续契约。
 
@@ -10,17 +10,31 @@
 
 项目页是模块能力概览，不是依赖网络：
 
-- 模块是项目页一等节点，包含名称、人工备注、输入、输出、角色和提供接口。
-- 模块角色为 `main` / `service` / `adapter` / `test` / `other`；显式配置优先，否则含入口函数的模块为 `main`。
+- 模块是项目页一等节点，包含名称、人工备注、`moduleKind` 和提供接口。
+- 每个项目恰好一个 `moduleKind=main` 的主模块；功能模块数量为 0..N。
+- 模块不再拥有输入/输出端口，`boundaryNodes` 与 module_input/module_output 边已移除。
 - 模块卡片同时展示 Provider Role 数量；模块间依赖证据仍不默认绘制。
 - `providedApis` 来自 Provider + Capability 契约投影，包含公开方法、抽象契约方法和协议能力。
 - 项目边界节点保留在数据中，但默认不以画布节点渲染。
 - 项目页默认不绘制 `projectGraph.edges`；模块间调用/数据证据保留，供可选“关系”模式与后续查询使用。
 - 默认几何由 Python 以能力卡片网格生成（`layout.mode = "module-cards"`），前端只负责渲染与用户拖拽覆盖。
+- `projectGraph.mainFlows` 保存按 entrypoint 生成的主流程 DAG；`primaryFlowId` 指向默认流程。
+
+### MainFlow
+
+主流程是函数级、Capability 级的只读投影：
+
+- 节点类型：`entry` / `orchestrator` / `provider` / `interface` / `dispatch`。
+- 边类型：`call` / `call_path` / `composition`。
+- composition 必须 `confidence=low` 并以虚线渲染，绝不伪装成 call。
+- 主模块自由函数可作为 orchestrator 节点；功能模块公开能力作为 interface/provider 节点。
+- 主流程分析使用独立 flowRole，不修改 Provider Role、visibility 或 API 分类。
+- dispatch 节点保存表达方式、候选数量、候选来源、是否完整和 unresolved 原因。
+- 普通分支共享 branchGroup；循环不展开。
 
 ### ModuleGraph
 
-模块页展示模块提供接口、模块输入/输出、类节点和模块级自由函数节点：
+功能模块页展示提供接口、Provider、类节点和模块级自由函数节点；主模块页展示主流程并可切换能力视图：
 
 - 顶部提供接口条来自 `moduleGraphs[].providedApis`，接口 chips 可下钻到 Method Detail。
 - `moduleGraphs[].apiProviders` 按 Provider 分组展示模块公开能力，并携带 `providerRole` / `roleSource` / `roleConfidence`。
@@ -30,7 +44,7 @@
 - 类卡片只展示构造签名与提供接口；类内方法图和类焦点页不在产品计划中。
 - 类方法归属 `class` 节点，不直接平铺为模块页函数节点；方法级关系保存在 `methodEdges` 和全局 `callSites` 中。
 - 方法节点属于类组件的子级语义；类本身不拥有执行流。
-- 模块输入/输出边界只连接类节点或显式自由函数入口，并通过 `viaMethodIds` 保留方法级证据；抽象类/接口不接模块边界。
+- 模块不再包含输入/输出边界；抽象类/接口只作为契约 Provider，不进入主流程执行节点。
 - 函数节点只展示函数名和人工备注，不展示步骤数、调用数等生成统计。
 - 双击自由函数或点击类方法进入 Method Detail 页面。
 - 类内部方法只显示数量，不展开方法图；公开能力点击进入 Method Detail。
@@ -154,7 +168,7 @@ P1.5 起，默认产品不再生成语句级 FunctionFlow：
 
 - `call`：由已解析的跨函数调用聚合。
 - `data`：调用步骤携带参数/返回值等数据证据时附加。
-- `control`：主要用于项目/模块输入输出边界，不用于伪造跨模块控制流。
+- 主流程 `call` / `call_path` 表示真实静态调用或其压缩路径；`composition` 表示动态分发/组合推断，必须低置信度虚线。
 - `primaryType` 只决定默认视觉样式，`relations` 保留全部证据。
 - 没有证据的关系不生成边。
 
@@ -233,7 +247,7 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ```json
 {
-  "schemaVersion": "3.5",
+  "schemaVersion": "3.6",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],

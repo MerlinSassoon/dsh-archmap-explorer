@@ -1,6 +1,6 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1 / P2.2 / P2.3 已实现（bundle schema 3.5）<br>
+> 状态：P2.1 / P2.2 / P2.3 / P2.4 已实现（bundle schema 3.6）<br>
 > 日期：2026-11-17<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 
@@ -141,6 +141,8 @@ config.providerRoles 显式覆盖
 - 模块级自由函数与类都进入 `moduleComposition`，类方法不单独作为 Provider。
 
 `FunctionInfo` 属于 `model`；`ProjectConfig` / `ModuleConfig` 属于 `config`；`CallResolver` / `PythonFrontend` / `MenuSystem` / `Database` 属于 `manager`。
+
+P2.4 增加独立的主流程 `flowRole`。主流程可以把主模块自由函数投影为 orchestrator、把功能模块公开能力投影为 interface/provider，但不得反向修改 Provider Role、API Exposure 或 providerVisibility。动态分发候选使用 `dispatch` 节点和 `composition` 边；composition 必须低置信度虚线。
 
 ## 3. 暴露级别判定
 

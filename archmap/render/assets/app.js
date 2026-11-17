@@ -54,6 +54,8 @@
     sizes: new Map(),
     moduleId: null,
     functionId: null,
+    flowId: null,
+    mainView: "flow",
   };
 
   let override = loadOverrides();
@@ -351,10 +353,12 @@
   }
 
   function legendItem(kind, text) {
-    if (kind === "input") return `<span class="legend-item"><span class="legend-swatch"></span>${escapeHtml(text)}</span>`;
-    if (kind === "output") return `<span class="legend-item"><span class="legend-swatch out"></span>${escapeHtml(text)}</span>`;
     if (kind === "card") return `<span class="legend-item"><span class="legend-swatch"></span>${escapeHtml(text)}</span>`;
     if (kind === "dashed") return `<span class="legend-item"><span class="legend-line dashed"></span>${escapeHtml(text)}</span>`;
+    if (kind === "entry") return `<span class="legend-item"><span class="legend-swatch entry"></span>${escapeHtml(text)}</span>`;
+    if (kind === "function") return `<span class="legend-item"><span class="legend-swatch function"></span>${escapeHtml(text)}</span>`;
+    if (kind === "interface") return `<span class="legend-item"><span class="legend-swatch interface"></span>${escapeHtml(text)}</span>`;
+    if (kind === "dispatch") return `<span class="legend-item"><span class="legend-swatch dispatch"></span>${escapeHtml(text)}</span>`;
     return `<span class="legend-item"><span class="legend-line"></span>${escapeHtml(text)}</span>`;
   }
 
@@ -584,15 +588,15 @@
 
   function renderDefaultDetail() {
     if (state.route.kind === "project") {
-      const inputs = projectGraph.boundaryNodes.filter(node => node.kind === "input").map(node => node.label);
-      const outputs = projectGraph.boundaryNodes.filter(node => node.kind === "output").map(node => node.label);
-      const mainCount = projectGraph.modules.filter(node => node.role === "main").length;
-      detailScroll.innerHTML = `<div class="eyebrow">Project capability map</div>
+      const mainModule = projectGraph.modules.find(node => node.moduleKind === "main");
+      const functionalCount = projectGraph.modules.filter(node => node.moduleKind === "functional").length;
+      const flow = currentMainFlow();
+      detailScroll.innerHTML = `<div class="eyebrow">Project composition map</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(DATA.project.name)}</h2>
-        <div class="detail-note">项目页展示模块能力与对外接口，不绘制模块依赖线。依赖证据仍保留在 bundle 中，可通过“关系”模式或后续影响分析查看。</div>
-        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>主模块 <b>${mainCount}</b></span><span>项目输入 <b>${escapeHtml(inputs.join(" / ") || "—")}</b></span><span>项目输出 <b>${escapeHtml(outputs.join(" / ") || "—")}</b></span></div>
+        <div class="detail-note">项目页展示主模块与功能模块能力。主模块承载程序主流程；功能模块只暴露能力，不再拥有僵硬的输入输出端口。</div>
+        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>主模块 <b>${escapeHtml(mainModule?.name || "—")}</b></span><span>功能模块 <b>${functionalCount}</b></span><span>主流程节点 <b>${flow?.nodeCount || 0}</b></span></div>
         ${annotationBlock(DATA.project.name)}
-        <div class="empty-hint">单击模块查看职责与提供接口；双击模块或点击 ↗ 进入独立模块页面。</div>`;
+        <div class="empty-hint">双击主模块查看主流程；双击功能模块查看 Provider 与提供接口。</div>`;
       return;
     }
     if (state.route.kind === "module") {
@@ -600,15 +604,17 @@
       if (!module) return;
       const apis = module.providedApis || [];
       const providers = module.apiProviders || [];
+      const flow = currentMainFlow();
+      const isMain = module.moduleKind === "main";
       detailScroll.innerHTML = `<div class="detail-head" style="--mc:${module.color}"><div class="detail-color"></div><div>
-          <div class="eyebrow">Module capability</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
+          <div class="eyebrow">${isMain ? "Main flow" : "Module capability"}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
           <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
-        <div class="port-detail"><span>输入 <b>${escapeHtml(module.inputs.map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml(module.outputs.map(item => item.label).join(" / "))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+        <div class="port-detail"><span>类型 <b>${isMain ? "主模块" : "功能模块"}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>流程节点 <b>${isMain ? (flow?.nodeCount || 0) : "—"}</b></span></div>
         <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(module)}</div>
         <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
         ${annotationBlock(module.moduleId)}
-        <div class="empty-hint">双击自由函数进入方法详情；类节点右栏展示其提供接口。</div>`;
+        <div class="empty-hint">${isMain ? "主流程节点可点击查看语义，双击进入方法详情。" : "双击自由函数进入方法详情；类节点右栏展示其提供接口。"}</div>`;
       bindApiNavigation(detailScroll);
       return;
     }
@@ -627,12 +633,27 @@
   function renderSelectionDetail(uid) {
     const macroNode = state.nodes.get(uid);
     if (macroNode) {
-      if (macroNode.kind === "input" || macroNode.kind === "output") {
-        detailScroll.innerHTML = `<div class="eyebrow">Boundary node</div>
-          <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.label)}</h2>
-          <div class="detail-note">${escapeHtml(macroNode.note || "")}</div>
-          <div class="port-detail"><span>类型 <b>${macroNode.kind === "input" ? "输入" : "输出"}</b></span></div>
-          ${annotationBlock(uid)}`;
+      if (macroNode.flowRole) {
+        const isDispatch = macroNode.kind === "dispatch";
+        const module = projectModuleById.get(macroNode.moduleId);
+        const functionId = macroNode.functionId;
+        const detail = functionId ? functionDetailById.get(functionId) : null;
+        detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || module?.color || "#60a5fa"}"><div class="detail-color"></div><div>
+            <div class="eyebrow">Main flow · ${escapeHtml(String(macroNode.flowRole || macroNode.kind).toUpperCase())}</div>
+            <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.label || macroNode.providerName || macroNode.id)}</h2>
+            <div class="detail-module">${escapeHtml(module?.name || macroNode.moduleName || macroNode.moduleId)}${macroNode.providerName ? ` · ${escapeHtml(macroNode.providerName)}` : ""}</div></div></div>
+          <div class="detail-note">${escapeHtml(macroNode.note || "主流程组合节点")}</div>
+          <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId)}</b></span>${macroNode.signature ? `<span>签名 <b>${escapeHtml(macroNode.signature)}</b></span>` : ""}</div>
+          ${isDispatch ? `<div class="llm-stale">动态分发边界：候选连线使用低置信度 composition 语义，${macroNode.candidateSetComplete ? "候选集已声明完整" : "候选集未声明完整"}。</div>
+            <div class="source-line">表达式：${escapeHtml(macroNode.expression || macroNode.label || "")} · 候选：${Number(macroNode.candidateCount || 0)} · 来源：${escapeHtml(macroNode.candidateSource || "unknown")}</div>` : ""}
+          ${detail ? `<div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>` : ""}
+          ${annotationBlock(functionId || uid, detail?.sourceHash)}
+          <div class="detail-actions">${functionId ? `<button class="detail-action" type="button" data-open-flow-method="${escapeHtml(functionId)}">打开方法详情</button>` : ""}${module ? `<button class="detail-action" type="button" data-open-flow-module="${escapeHtml(module.id)}">打开模块页面</button>` : ""}</div>`;
+        detailScroll.querySelector("[data-open-flow-method]")?.addEventListener("click", () => {
+          const target = functionDetailById.get(functionId);
+          if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
+        });
+        detailScroll.querySelector("[data-open-flow-module]")?.addEventListener("click", () => navigate({ kind: "module", moduleId: module.id }));
         return;
       }
       if (macroNode.kind === "module") {
@@ -643,7 +664,7 @@
             <div class="eyebrow">Module capability · ${escapeHtml(moduleRoleLabel(macroNode.role))}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">module://${escapeHtml(uid)}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
-          <div class="port-detail"><span>输入 <b>${escapeHtml((macroNode.inputs || []).map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml((macroNode.outputs || []).map(item => item.label).join(" / "))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+          <div class="port-detail"><span>类型 <b>${escapeHtml(macroNode.moduleKind === "main" ? "主模块" : "功能模块")}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
           <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(graph)}</div>
           <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>
@@ -670,7 +691,7 @@
           <div class="source-line">角色来源：${escapeHtml(macroNode.roleSource || "structure")} · ${escapeHtml(macroNode.roleConfidence || "medium")}</div>
           ${isTypeCard ? "" : `<div class="source-line">用法：${escapeHtml(constructorSignature)}</div>`}
           <div class="source-line">${escapeHtml(macroNode.file || "")}:${macroNode.line || "—"}</div>
-          ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不接入模块输入输出。</div>` : ""}
+          ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不进入主流程执行节点。</div>` : ""}
           ${isTypeCard ? `<div class="class-method-section"><div class="class-method-heading">Type fields · ${Number(typeSummary?.fieldCount || 0)}</div>${typeFieldList(typeSummary)}</div>` : `<div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>`}
           <div class="class-method-section"><div class="class-method-heading">内部实现</div><div class="class-method-empty">${internalCount} 个内部方法，不在契约视图展示。</div></div>`;
         bindApiNavigation(detailScroll);
@@ -697,6 +718,13 @@
     renderDefaultDetail();
   }
 
+  function currentMainFlow() {
+    const flows = projectGraph.mainFlows || [];
+    if (!flows.length) return null;
+    const wanted = state.flowId || projectGraph.primaryFlowId;
+    return flows.find(flow => flow.id === wanted) || flows[0];
+  }
+
   function renderModuleContracts(moduleId) {
     if (!moduleContracts) return;
     const graph = moduleGraphById.get(moduleId);
@@ -706,8 +734,16 @@
       moduleContracts.classList.remove("is-visible");
       return;
     }
+    const flows = projectGraph.mainFlows || [];
+    const flowSwitcher = graph.moduleKind === "main"
+      ? `<div class="flow-switcher"><span>MAIN MODULE</span>
+          <button type="button" data-main-view="flow" class="${state.mainView === "flow" ? "is-active" : ""}">主流程</button>
+          <button type="button" data-main-view="capabilities" class="${state.mainView === "capabilities" ? "is-active" : ""}">能力视图</button>
+          ${flows.map(flow => `<button type="button" data-flow-id="${escapeHtml(flow.id)}" class="${state.mainView === "flow" && flow.id === currentMainFlow()?.id ? "is-active" : ""}">${escapeHtml(flow.name || flow.entrypointId)}</button>`).join("")}
+        </div>`
+      : "";
     moduleContracts.style.setProperty("--mc-rgb", rgbFromHex(graph.color || "#60a5fa"));
-    moduleContracts.innerHTML = `<div class="contracts-main">
+    moduleContracts.innerHTML = `${flowSwitcher}<div class="contracts-main">
         <div class="contracts-label">PROVIDED API</div>
         <div class="contracts-track">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
         <div class="contracts-count">${apis.length} apis</div>
@@ -715,6 +751,21 @@
       <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>`;
     moduleContracts.classList.add("is-visible");
     bindApiNavigation(moduleContracts);
+    moduleContracts.querySelectorAll("[data-main-view]").forEach(button => {
+      button.addEventListener("click", event => {
+        event.stopPropagation();
+        state.mainView = button.dataset.mainView === "capabilities" ? "capabilities" : "flow";
+        renderModulePage(moduleId);
+      });
+    });
+    moduleContracts.querySelectorAll("[data-flow-id]").forEach(button => {
+      button.addEventListener("click", event => {
+        event.stopPropagation();
+        state.flowId = button.dataset.flowId;
+        state.mainView = "flow";
+        renderModulePage(moduleId);
+      });
+    });
   }
 
   function updateChrome(kind) {
@@ -724,19 +775,24 @@
     relationModeBtn.setAttribute("aria-pressed", String(state.showProjectRelations));
     relationModeBtn.textContent = state.showProjectRelations ? "隐藏关系" : "关系";
     if (kind === "project") {
-      canvasKicker.textContent = "Project capability map";
+      canvasKicker.textContent = "Project composition map";
       canvasTitle.textContent = DATA.project.name;
-      canvasSub.textContent = "模块能力卡片 · 提供接口 · 双击进入模块页面";
+      canvasSub.textContent = "主模块 + 功能模块能力卡片 · 双击进入模块页面";
       breadcrumb.innerHTML = `<b>${escapeHtml(DATA.project.name)}</b>`;
       legend.innerHTML = state.showProjectRelations
-        ? legendItem("line", "模块调用/数据关系") + legendItem("input", "项目输入") + legendItem("output", "项目输出")
-        : legendItem("card", "模块能力卡片") + legendItem("input", "项目输入") + legendItem("output", "项目输出");
+        ? legendItem("line", "模块调用/数据关系") + legendItem("card", "模块能力卡片")
+        : legendItem("card", "模块能力卡片") + legendItem("entry", "主模块");
     } else if (kind === "module") {
-      canvasKicker.textContent = "Module capability";
+      const isMain = module?.moduleKind === "main";
+      canvasKicker.textContent = isMain ? "Main flow" : "Module capability";
       canvasTitle.textContent = module?.name || state.route.moduleId;
-      canvasSub.textContent = "顶部为模块提供接口 · 画布为类/自由函数与内部调用 · 双击进入详情";
+      canvasSub.textContent = isMain
+        ? "入口 → 主模块编排 → 功能模块接口 · 实线 call · 虚线 composition"
+        : "提供接口 · 类/自由函数 · 内部调用 · 双击进入详情";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>${escapeHtml(module?.name || state.route.moduleId)}</b>`;
-      legend.innerHTML = legendItem("line", "模块内部调用关系") + legendItem("input", "模块输入") + legendItem("output", "模块输出");
+      legend.innerHTML = isMain
+        ? legendItem("entry", "入口") + legendItem("function", "主模块编排") + legendItem("interface", "功能接口") + legendItem("dashed", "composition / low")
+        : legendItem("line", "模块内部调用关系");
     } else {
       const ownerClass = detail?.ownerClassId
         ? (moduleGraphById.get(detail.moduleId)?.nodes || []).find(node => node.id === detail.ownerClassId)
@@ -840,9 +896,9 @@
       ? [projectGraph.modules[0].id]
       : projectGraph.modules.map(item => item.id);
     state.nodes = new Map();
-    // P2.0: the project page is a module capability board.  Project boundary
-    // nodes and dependency paths are not rendered by default; their data stays
-    // in the bundle for optional relation views and later impact queries.
+    // The project page is a module capability board.  Main-flow and dependency
+    // evidence stay in the bundle; the main module page renders the curated
+    // composition flow.
     projectGraph.modules.forEach(module => {
       if (visibleModuleIds.includes(module.id)) {
         state.nodes.set(module.id, { ...module, kind: "module" });
@@ -891,34 +947,6 @@
     });
   }
 
-  function renderProjectBoundary(nodeId, node) {
-    const position = state.positions.get(nodeId);
-    const element = document.createElement("article");
-    element.className = `node-card boundary-node ${node.kind === "output" ? "output" : "input"}`;
-    element.dataset.uid = nodeId;
-    element.style.left = `${position.x}px`;
-    element.style.top = `${position.y}px`;
-    element.style.width = `${position.w}px`;
-    element.style.height = `${position.h}px`;
-    element.innerHTML = `<div class="boundary-kicker">${node.kind === "input" ? "USER INPUT / PROJECT INPUT" : "USER OUTPUT / PROJECT OUTPUT"}</div>
-      <div class="boundary-name">${escapeHtml(node.label)}</div>
-      <div class="boundary-note">${escapeHtml(node.note || "")}</div>`;
-    world.appendChild(element);
-    bindNodeHover(element, nodeId);
-    element.addEventListener("click", () => selectUid(nodeId));
-    attachDrag(element, element, {
-      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
-      setPosition: (x, y) => {
-        const pos = state.positions.get(nodeId);
-        pos.x = x; pos.y = y;
-        setProjectPosition(nodeId, x, y);
-      },
-      bounds: () => ({ w: 2600, h: 1800 }),
-      onMove: refreshProjectEdges,
-      onEnd: () => { persistOverride(); updateProjectWorldSize(); },
-    });
-  }
-
   function renderProjectModule(nodeId, module) {
     const position = state.positions.get(nodeId);
     const expanded = projectNodeExpanded(nodeId);
@@ -959,8 +987,8 @@
           <span>${classCount} class${classCount === 1 ? "" : "es"}</span>
           <span>${providerCount} provider${providerCount === 1 ? "" : "s"}</span>
           <span class="${apiCount ? "has-apis" : ""}">${apiCount} api${apiCount === 1 ? "" : "s"}</span>
+          ${module.moduleKind === "main" ? `<span class="has-apis">main flow${module.mainFlowId ? "" : " · empty"}</span>` : ""}
         </div>
-        <div class="module-ports">${(module.inputs || []).map(port => `<span class="port-pill in"><i></i>IN <b>${escapeHtml(port.label)}</b></span>`).join("")}${(module.outputs || []).map(port => `<span class="port-pill out"><i></i>OUT <b>${escapeHtml(port.label)}</b></span>`).join("")}</div>
       </header>`;
     if (expanded) {
       const mini = document.createElement("div");
@@ -1178,6 +1206,126 @@
     });
   }
 
+  function flowEdgeClass(edge) {
+    const kind = edge.kind || "call";
+    return `macro-edge graph-edge flow-edge kind-${escapeHtml(kind)}${edge.confidence === "low" ? " is-low" : ""}`;
+  }
+
+  function getFlowPosition(moduleId, nodeId, flow) {
+    const custom = override.modules?.[moduleId]?.nodes?.[nodeId];
+    const base = flow?.layout?.nodes?.[nodeId] || { x: 80, y: 100 };
+    return { x: Number(custom?.x ?? base.x ?? 0), y: Number(custom?.y ?? base.y ?? 0) };
+  }
+
+  function renderMainFlowNode(moduleId, nodeId, node) {
+    const pos = state.positions.get(nodeId);
+    const element = document.createElement("article");
+    const kind = node.kind || "orchestrator";
+    const badges = [
+      kind === "dispatch" ? `${Number(node.candidateCount || 0)} candidates` : "",
+      kind === "dispatch" && node.candidateSetComplete ? "complete" : "",
+      kind === "dispatch" && !node.candidateSetComplete ? "partial" : "",
+      node.capabilityKind || "",
+    ].filter(Boolean);
+    element.className = `node-card main-flow-node flow-${escapeHtml(kind)}${kind === "dispatch" ? " is-dispatch" : ""}`;
+    element.dataset.uid = nodeId;
+    element.style.left = `${pos.x}px`;
+    element.style.top = `${pos.y}px`;
+    element.style.width = `${pos.w}px`;
+    element.style.height = `${pos.h}px`;
+    element.style.setProperty("--mc", node.color || "#60a5fa");
+    element.style.setProperty("--mc-rgb", rgbFromHex(node.color || "#60a5fa"));
+    const icon = kind === "entry" ? "▶" : kind === "dispatch" ? "⑂" : kind === "provider" ? "C" : kind === "interface" ? "I" : "ƒ";
+    element.innerHTML = `<div class="flow-node-top">
+        <span class="flow-node-icon">${icon}</span>
+        <span class="flow-node-kind">${escapeHtml(kind.toUpperCase())}</span>
+        <span class="flow-node-module">${escapeHtml(node.moduleName || node.moduleId || "")}</span>
+      </div>
+      <div class="flow-node-label">${escapeHtml(node.label || node.providerName || node.id)}</div>
+      <div class="flow-node-note">${escapeHtml(node.note || node.signature || "主流程组合节点")}</div>
+      ${badges.length ? `<div class="flow-node-badges">${badges.map(item => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}`;
+    world.appendChild(element);
+    bindNodeHover(element, nodeId);
+    element.addEventListener("click", event => {
+      event.stopPropagation();
+      selectUid(nodeId);
+    });
+    element.addEventListener("dblclick", event => {
+      event.stopPropagation();
+      if (node.functionId && functionDetailById.has(node.functionId)) {
+        const detail = functionDetailById.get(node.functionId);
+        navigate({ kind: "function", moduleId: detail.moduleId, functionId: detail.id });
+      }
+    });
+    attachDrag(element, element, {
+      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
+      setPosition: (x, y) => {
+        const item = state.positions.get(nodeId);
+        item.x = x; item.y = y;
+        setModulePagePosition(moduleId, nodeId, x, y);
+      },
+      bounds: () => ({ w: 3000, h: 2200 }),
+      onMove: refreshModuleEdges,
+      onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
+    });
+  }
+
+  function renderMainFlowPage(moduleId, graph) {
+    const flow = currentMainFlow();
+    world.innerHTML = "";
+    world.classList.remove("page-enter");
+    state.nodes = new Map();
+    state.sizes = new Map();
+    state.positions = new Map();
+    if (!flow) {
+      world.style.width = "760px";
+      world.style.height = "420px";
+      world.innerHTML = `<div class="main-flow-empty"><div class="eyebrow">Main flow</div><h2>暂无可解析入口</h2><p>主模块已建立，但当前项目没有可用的 entrypoint 或主流程入口。</p></div>`;
+      updateModuleWorldSize(moduleId);
+      requestAnimationFrame(() => { applyTransform(); fitView(); renderDefaultDetail(); });
+      return;
+    }
+    state.flowId = flow.id;
+    flow.nodes.forEach(node => {
+      state.nodes.set(node.id, { ...node, color: node.color || graph.color });
+      state.sizes.set(node.id, { w: Number(node.w || 244), h: Number(node.h || 108) });
+      const pos = getFlowPosition(moduleId, node.id, flow);
+      state.positions.set(node.id, { x: pos.x, y: pos.y, w: Number(node.w || 244), h: Number(node.h || 108) });
+    });
+    const canvas = flow.layout?.canvas || { width: 1200, height: 800 };
+    const svg = makeSvg(Number(canvas.width || 1200), Number(canvas.height || 800), "world-edges");
+    world.appendChild(svg);
+    state.pageEdges = flow.edges || [];
+    state.pageEdges.forEach(edge => {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("class", flowEdgeClass(edge));
+      path.setAttribute("data-from", edge.from);
+      path.setAttribute("data-to", edge.to);
+      path.setAttribute("data-edge-id", edge.id);
+      path.setAttribute("data-edge-kind", edge.kind || "call");
+      const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+      title.textContent = `${edge.kind || "call"} · ${edge.confidence || "medium"}${edge.branchLabel ? ` · ${edge.branchLabel}` : ""}`;
+      path.appendChild(title);
+      const from = state.positions.get(edge.from);
+      const to = state.positions.get(edge.to);
+      if (from && to) path.setAttribute("d", curvePath(from, to));
+      svg.appendChild(path);
+    });
+    state.nodes.forEach((node, nodeId) => renderMainFlowNode(moduleId, nodeId, node));
+    updateModuleWorldSize(moduleId);
+    refreshModuleEdges();
+    world.classList.add("page-enter");
+    requestAnimationFrame(() => {
+      applyTransform();
+      fitView();
+      renderDefaultDetail();
+      const pendingUid = state.pendingSelectUid;
+      state.pendingSelectUid = null;
+      if (pendingUid && state.nodes.has(pendingUid)) selectUid(pendingUid);
+      if (state.search) applySearch();
+    });
+  }
+
   function renderModulePage(moduleId) {
     const graph = moduleGraphById.get(moduleId);
     if (!graph) {
@@ -1192,6 +1340,10 @@
     setGraphChromeVisible(true);
     updateChrome("module");
     renderModuleContracts(moduleId);
+    if (graph.moduleKind === "main" && state.mainView !== "capabilities") {
+      renderMainFlowPage(moduleId, graph);
+      return;
+    }
     world.innerHTML = "";
     world.classList.remove("page-enter");
     state.nodes = new Map();
@@ -1203,8 +1355,6 @@
         state.nodes.set(node.id, { ...node, kind: "class", color: graph.color });
       } else if (node.kind === "function") {
         state.nodes.set(node.id, { ...node, kind: "function", color: graph.color });
-      } else {
-        state.nodes.set(node.id, { ...node, kind: node.kind === "input" ? "input" : "output" });
       }
     });
     state.sizes = new Map();
@@ -1232,7 +1382,6 @@
     state.nodes.forEach((node, nodeId) => {
       if (node.kind === "function") renderModuleFunctionNode(moduleId, nodeId, node);
       else if (node.kind === "class") renderModuleClassNode(moduleId, nodeId, node);
-      else renderModuleBoundary(moduleId, nodeId, node);
     });
     updateModuleWorldSize(moduleId);
     refreshModuleEdges();
@@ -1245,34 +1394,6 @@
       state.pendingSelectUid = null;
       if (pendingUid && state.nodes.has(pendingUid)) selectUid(pendingUid);
       if (state.search) applySearch();
-    });
-  }
-
-  function renderModuleBoundary(moduleId, nodeId, node) {
-    const pos = state.positions.get(nodeId);
-    const element = document.createElement("article");
-    element.className = `node-card boundary-node ${node.kind === "output" ? "output" : "input"}`;
-    element.dataset.uid = nodeId;
-    element.style.left = `${pos.x}px`;
-    element.style.top = `${pos.y}px`;
-    element.style.width = `${pos.w}px`;
-    element.style.height = `${pos.h}px`;
-    element.innerHTML = `<div class="boundary-kicker">${node.kind === "input" ? "MODULE INPUT" : "MODULE OUTPUT"}</div>
-      <div class="boundary-name">${node.kind === "input" ? "模块输入" : "模块输出"}</div>
-      <div class="boundary-note">${escapeHtml(node.label)}</div>`;
-    world.appendChild(element);
-    bindNodeHover(element, nodeId);
-    element.addEventListener("click", () => selectUid(nodeId));
-    attachDrag(element, element, {
-      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
-      setPosition: (x, y) => {
-        const item = state.positions.get(nodeId);
-        item.x = x; item.y = y;
-        setModulePagePosition(moduleId, nodeId, x, y);
-      },
-      bounds: () => ({ w: 2200, h: 1600 }),
-      onMove: refreshModuleEdges,
-      onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
 
@@ -1506,7 +1627,7 @@
         if (node.kind !== "module") return;
         const graph = moduleGraphById.get(uid);
         const haystack = [
-          node.name, node.note, ...(node.inputs || []).map(item => item.label), ...(node.outputs || []).map(item => item.label),
+          node.name, node.note,
           ...(graph?.nodes || []).flatMap(item => {
             if (item.kind === "class") return [item.name, item.note, ...(item.methods || []).flatMap(method => [method.name, method.note])];
             if (item.kind === "function") return [item.name, item.note];
@@ -1516,9 +1637,14 @@
         ].join(" ").toLowerCase();
         world.querySelector(`.module-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
       });
-      world.querySelectorAll(".boundary-node").forEach(node => node.classList.remove("is-search-dim"));
     } else if (state.pageKind === "module") {
       state.nodes.forEach((node, uid) => {
+        if (node.flowRole) {
+          const haystack = [node.label, node.note, node.providerName, node.moduleName, node.capabilityKind, node.expression]
+            .filter(Boolean).join(" ").toLowerCase();
+          world.querySelector(`.main-flow-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
+          return;
+        }
         if (node.kind !== "function" && node.kind !== "class") return;
         const haystack = node.kind === "class"
           ? [node.name, node.note, ...(node.providedApis || []).flatMap(api => [api.display, api.kind, api.signature])].join(" ").toLowerCase()

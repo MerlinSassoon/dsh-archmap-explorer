@@ -19,6 +19,7 @@ from archmap.render import render_html
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
 ROLE_ROOT = Path(__file__).parent / "fixtures" / "roles_demo"
+DISPATCH_ROOT = Path(__file__).parent / "fixtures" / "dispatch_demo"
 
 
 def _free_port() -> int:
@@ -104,9 +105,13 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.mini-node').length") > 0
         execute("location.hash='#/module/entry'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
-        assert execute("return document.querySelectorAll('.function-node').length") == 1
+        assert execute("return document.querySelectorAll('.main-flow-node').length") > 0
+        assert execute("return document.querySelectorAll('.boundary-node').length") == 0
         assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
         assert execute("return document.querySelectorAll('.contracts-track .module-api-chip').length") > 0
+        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
+        time.sleep(.3)
+        assert execute("return document.querySelectorAll('.function-node').length") == 1
         execute("location.hash='#/module/entry/function/fn%3Aapp.main.main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.method-page').length") == 1
@@ -125,6 +130,8 @@ def test_browser_smoke() -> None:
         time.sleep(.6)
         execute("location.hash='#/module/worker'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
+        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
+        time.sleep(.3)
         assert execute("return document.querySelectorAll('.class-node').length") == 2
         assert execute("return document.querySelectorAll('.class-node.is-abstract').length") == 1
         assert execute("return document.querySelectorAll('.function-node').length") == 1
@@ -147,6 +154,8 @@ def test_browser_smoke() -> None:
         time.sleep(.6)
         execute("location.hash='#/module/roles'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
+        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
+        time.sleep(.3)
         assert execute("return document.querySelectorAll('.module-contracts .role-count-chip').length") >= 6
         assert execute("return document.querySelectorAll('.class-node.is-type-card').length") == 3
         assert execute("return document.querySelectorAll('.type-field-chip').length") > 0
@@ -154,6 +163,21 @@ def test_browser_smoke() -> None:
         execute("Array.from(document.querySelectorAll('.class-node')).find(el => el.dataset.uid.endsWith('AppConfig')).click(); return true")
         time.sleep(.2)
         assert execute("return document.querySelectorAll('.type-field-row').length") == 3
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
+        # P2.4: dispatch candidates are visible as dashed low-confidence
+        # composition edges, never as ordinary call edges.
+        dispatch_bundle = build_architecture(DISPATCH_ROOT)
+        dispatch_html = browser_dir / "dispatch-flow.html"
+        dispatch_html.write_text(render_html(dispatch_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": dispatch_html.resolve().as_uri()})
+        time.sleep(.6)
+        execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.4)
+        assert execute("return document.querySelectorAll('.flow-dispatch').length") == 1
+        assert execute("return document.querySelectorAll('.graph-edge.kind-composition').length") == 2
+        assert execute("return document.querySelectorAll('.graph-edge.kind-composition.is-low').length") == 2
+        assert execute("return document.querySelectorAll('.boundary-node').length") == 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
     finally:
         if session:

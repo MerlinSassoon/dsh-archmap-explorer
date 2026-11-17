@@ -11,8 +11,6 @@ from typing import Any, Iterable
 
 from ..config.contract_config import PROVIDER_ROLE_ORDER
 from ..config.graph_config import (
-    BOUNDARY_H,
-    BOUNDARY_W,
     CLASS_H,
     CLASS_W,
     FUNCTION_H,
@@ -39,6 +37,7 @@ from ..model.call_model import CallSite
 from ..model.contract_model import ApiCapability, ContractModel, ProviderRoleInfo
 from ..model.graph_model import CallRecord
 from .analysis_utility import ENTRY_METHOD_NAMES
+from .main_flow_utility import build_main_flows
 
 
 def _json_hash(payload: Any) -> str:
@@ -48,10 +47,6 @@ def _json_hash(payload: Any) -> str:
 
 def _edge_id(prefix: str, index: int) -> str:
     return f"e:{prefix}:{index}"
-
-
-def _boundary_id(scope: str, kind: str, index: int) -> str:
-    return f"{scope}:{kind}:{index}"
 
 
 def _function_lookup(analysis: AnalysisResult) -> dict[str, FunctionInfo]:
@@ -207,14 +202,6 @@ def _macro_edge(
     }
 
 
-def _module_input_labels(module: ModuleConfig) -> list[str]:
-    return module.inputs or ["模块输入"]
-
-
-def _module_output_labels(module: ModuleConfig) -> list[str]:
-    return module.outputs or ["模块输出"]
-
-
 def _curve_d(src: dict[str, Any], dst: dict[str, Any]) -> str:
     sx = src["x"] + src["w"] if dst["x"] >= src["x"] else src["x"]
     sy = src["y"] + src["h"] / 2
@@ -298,7 +285,6 @@ def _layout_macro(
     nodes: dict[str, dict[str, Any]],
     edges: list[dict[str, Any]],
     *,
-    boundary_ids: set[str],
     scope: str,
 ) -> dict[str, Any]:
     node_ids = sorted(nodes)
@@ -315,7 +301,7 @@ def _layout_macro(
     positions: dict[str, dict[str, Any]] = {}
     for rank in sorted(rank_groups):
         group = rank_groups[rank]
-        group.sort(key=lambda item: (0 if item in boundary_ids else 1, item))
+        group.sort()
         total_height = (len(group) - 1) * MACRO_Y_GAP
         start_y = 160 - total_height / 2
         for index, node_id in enumerate(group):
@@ -328,17 +314,6 @@ def _layout_macro(
                 "w": node.get("w", MODULE_W),
                 "h": node.get("h", MODULE_H),
             }
-
-    # Keep boundary nodes visually outside the module flow.
-    for node_id in boundary_ids:
-        node = nodes.get(node_id)
-        if not node:
-            continue
-        if node.get("kind") == "input":
-            positions[node_id]["x"] = MACRO_PAD
-        elif node.get("kind") == "output":
-            max_x = max((pos["x"] + pos["w"] for pos in positions.values()), default=300)
-            positions[node_id]["x"] = round(max_x + MACRO_X_GAP / 2, 2)
 
     min_x = min((pos["x"] for pos in positions.values()), default=0)
     min_y = min((pos["y"] for pos in positions.values()), default=0)
@@ -648,34 +623,24 @@ def build_bundle(
     if not ordered_module_ids:
         ordered_module_ids = ["main"]
 
-    project_nodes: dict[str, dict[str, Any]] = {}
+    main_module_id = config.main_module_id
+    if main_module_id not in ordered_module_ids:
+        main_module_id = next(
+            (module_id for module_id in ordered_module_ids if module_id in entry_module_ids),
+            "",
+        )
+    if not main_module_id:
+        main_module_id = next(
+            (
+                module_id
+                for module_id in ordered_module_ids
+                if module_configs.get(module_id) is not None
+                and module_configs[module_id].role == "main"
+            ),
+            ordered_module_ids[0],
+        )
+
     project_module_nodes: list[dict[str, Any]] = []
-    project_inputs: list[dict[str, Any]] = []
-    project_outputs: list[dict[str, Any]] = []
-
-    for index, label in enumerate(config.inputs or ["用户输入"]):
-        node_id = _boundary_id("project", "input", index)
-        project_nodes[node_id] = {
-            "id": node_id,
-            "kind": "input",
-            "label": label,
-            "note": "项目外部输入",
-            "w": BOUNDARY_W,
-            "h": BOUNDARY_H,
-        }
-        project_inputs.append({"id": node_id, "label": label})
-    for index, label in enumerate(config.outputs or ["用户输出"]):
-        node_id = _boundary_id("project", "output", index)
-        project_nodes[node_id] = {
-            "id": node_id,
-            "kind": "output",
-            "label": label,
-            "note": "项目外部输出",
-            "w": BOUNDARY_W,
-            "h": BOUNDARY_H,
-        }
-        project_outputs.append({"id": node_id, "label": label})
-
     module_graphs: list[dict[str, Any]] = []
     for index, module_id in enumerate(ordered_module_ids):
         configured = module_configs.get(module_id)
@@ -692,8 +657,6 @@ def build_bundle(
         ]
         module_name = configured.name if configured else module_id
         module_note = configured.note if configured else ""
-        input_labels = _module_input_labels(configured) if configured else ["模块输入"]
-        output_labels = _module_output_labels(configured) if configured else ["模块输出"]
         color = _module_color(index, configured)
         module_capabilities = list(capabilities_by_module.get(module_id, []))
         export_ids = config.module_exports.get(module_id)
@@ -705,7 +668,8 @@ def build_bundle(
             ]
         module_capability_ids = {capability.id for capability in module_capabilities}
         role = _module_role(configured, module_id, entry_module_ids)
-        is_main = role == "main"
+        module_kind = "main" if module_id == main_module_id else "functional"
+        is_main = module_kind == "main"
         module_composition, provider_role_counts = _module_composition(
             module_id, class_ids, free_function_ids, role_infos
         )
@@ -719,6 +683,7 @@ def build_bundle(
             "note": module_note,
             "color": color,
             "role": role,
+            "moduleKind": module_kind,
             "functions": function_ids,
             "freeFunctions": free_function_ids,
             "classes": class_ids,
@@ -727,8 +692,6 @@ def build_bundle(
             "providerRoleCounts": provider_role_counts,
             "publicModuleComposition": public_composition,
             "publicProviderRoleCounts": public_provider_role_counts,
-            "inputs": [{"id": _boundary_id(f"module:{module_id}", "input", i), "label": label} for i, label in enumerate(input_labels)],
-            "outputs": [{"id": _boundary_id(f"module:{module_id}", "output", i), "label": label} for i, label in enumerate(output_labels)],
             "sourceFiles": sorted({
                 *(fn_by_id[fn_id].file for fn_id in function_ids if fn_id in fn_by_id),
                 *(cls.file for cls in module_classes if cls.file),
@@ -738,36 +701,13 @@ def build_bundle(
             "expandedW": MODULE_MAIN_EXPANDED_W if is_main else MODULE_EXPANDED_W,
             "expandedH": MODULE_MAIN_EXPANDED_H if is_main else MODULE_EXPANDED_H,
         }
-        project_nodes[module_id] = module_node
         project_module_nodes.append(module_node)
 
         # Module-level graph.  Classes and free functions are the visible
         # component nodes; methods remain owned by the class node and are
-        # projected into the method-level graph below.
+        # projected into the method-level graph below.  A functional module is
+        # a capability provider, not a pipeline stage with synthetic I/O ports.
         module_nodes: dict[str, dict[str, Any]] = {}
-        boundaries: set[str] = set()
-        for port in module_node["inputs"]:
-            node_id = port["id"]
-            boundaries.add(node_id)
-            module_nodes[node_id] = {
-                "id": node_id,
-                "kind": "input",
-                "label": port["label"],
-                "note": f"{module_name} 的输入",
-                "w": BOUNDARY_W,
-                "h": BOUNDARY_H,
-            }
-        for port in module_node["outputs"]:
-            node_id = port["id"]
-            boundaries.add(node_id)
-            module_nodes[node_id] = {
-                "id": node_id,
-                "kind": "output",
-                "label": port["label"],
-                "note": f"{module_name} 的输出",
-                "w": BOUNDARY_W,
-                "h": BOUNDARY_H,
-            }
 
         class_method_meta: dict[str, list[FunctionInfo]] = {}
         for cls in module_classes:
@@ -950,116 +890,7 @@ def build_bundle(
                 )
             )
 
-        input_boundary = module_node["inputs"][0]["id"]
-        output_boundary = module_node["outputs"][0]["id"]
-
-        # Class boundaries are explicit component boundaries.  A class gets at
-        # most one module input and one module output edge; abstract classes and
-        # interface/protocol classes are contracts and never become runtime
-        # entry points.
-        for cls in module_classes:
-            if cls.is_abstract or cls.class_kind in {"abstract", "interface"}:
-                continue
-            cls_id = _class_id(cls)
-            methods = class_method_meta.get(cls_id, [])
-            entry_methods = _class_entry_methods(methods, entry_id_set)
-            class_capabilities = [
-                capability
-                for capability in capabilities_by_provider.get(cls_id, [])
-                if capability.id in module_capability_ids and capability.exposure == "public"
-            ]
-            if not entry_methods and not class_capabilities:
-                continue
-            via_capability_ids: list[str] = []
-            for capability in class_capabilities:
-                if capability.function_id:
-                    via_capability_ids.append(capability.function_id)
-                via_capability_ids.extend(capability.evidence_function_ids)
-            via_capability_ids = sorted(set(via_capability_ids))
-            via_input: list[str] = []
-            for method_id in [method.id for method in entry_methods] + via_capability_ids:
-                if method_id not in via_input:
-                    via_input.append(method_id)
-            via_output = via_capability_ids or via_input
-            input_edge = _macro_edge(
-                _edge_id(f"module:{module_id}", len(module_edges) + 1),
-                input_boundary,
-                cls_id,
-                primary_type="control",
-                relations=["control"],
-                role="module_input",
-                confidence="medium" if entry_methods and len(entry_methods) < len(class_capabilities) else "low",
-            )
-            input_edge["viaMethodIds"] = via_input
-            module_edges.append(input_edge)
-            output_edge = _macro_edge(
-                _edge_id(f"module:{module_id}", len(module_edges) + 1),
-                cls_id,
-                output_boundary,
-                primary_type="control",
-                relations=["control"],
-                role="module_output",
-                confidence="low",
-            )
-            output_edge["viaMethodIds"] = via_output
-            module_edges.append(output_edge)
-
-        # Free functions keep the old lexical boundary heuristic, but methods
-        # are excluded from it.  This is deliberately narrower than the old
-        # "every method without an incoming edge" logic.
-        free_incoming: set[str] = set()
-        for record in internal_records:
-            if record.to_function in free_function_ids:
-                free_incoming.add(record.to_function)
-        # A module that also contains classes should not expose every public
-        # helper function as a boundary.  Only configured/main/route entries
-        # qualify; the old lexical fallback applies only to class-free modules.
-        free_entry_ids = [
-            fn_id for fn_id in free_function_ids
-            if entry_reasons.get(fn_id) in {"configured", "main", "route"}
-        ]
-        if not free_entry_ids and not module_classes:
-            free_entry_ids = [
-                fn_id for fn_id in free_function_ids
-                if fn_id not in free_incoming and fn_by_id[fn_id].visibility == "public"
-            ]
-        for fn_id in free_entry_ids:
-            module_edges.append(
-                _macro_edge(
-                    _edge_id(f"module:{module_id}", len(module_edges) + 1),
-                    input_boundary,
-                    fn_id,
-                    primary_type="control",
-                    relations=["control"],
-                    role="module_input",
-                    evidence=[],
-                    confidence="low",
-                )
-            )
-        free_outgoing = {
-            record.from_function
-            for record in internal_records
-            if record.from_function in free_function_ids
-        }
-        free_terminal = [
-            fn_id for fn_id in free_function_ids
-            if fn_id in free_entry_ids and fn_id not in free_outgoing
-        ]
-        for fn_id in free_terminal:
-            module_edges.append(
-                _macro_edge(
-                    _edge_id(f"module:{module_id}", len(module_edges) + 1),
-                    fn_id,
-                    output_boundary,
-                    primary_type="control",
-                    relations=["control"],
-                    role="module_output",
-                    evidence=[],
-                    confidence="low",
-                )
-            )
-
-        module_layout = _layout_macro(module_nodes, module_edges, boundary_ids=boundaries, scope=f"module:{module_id}")
+        module_layout = _layout_macro(module_nodes, module_edges, scope=f"module:{module_id}")
         module_graphs.append(
             {
                 "kind": "archmap.module-graph",
@@ -1067,8 +898,7 @@ def build_bundle(
                 "name": module_name,
                 "note": module_note,
                 "color": color,
-                "inputs": module_node["inputs"],
-                "outputs": module_node["outputs"],
+                "moduleKind": module_kind,
                 "role": role,
                 "providedApis": [capability.as_dict() for capability in module_capabilities],
                 "providedApiCount": len(module_capabilities),
@@ -1117,65 +947,38 @@ def build_bundle(
         )
 
     project_edges.sort(key=lambda edge: (edge["from"], edge["to"], edge["id"]))
-    entry_modules = {fn_by_id[fn_id].module_id for fn_id in entry_ids if fn_id in fn_by_id}
-    modules_with_incoming = {edge["to"] for edge in project_edges}
-    modules_with_outgoing = {edge["from"] for edge in project_edges}
-    input_seed = sorted(module_id for module_id in ordered_module_ids if module_id in entry_modules)
-    if not input_seed:
-        input_seed = sorted(module_id for module_id in ordered_module_ids if module_id not in modules_with_incoming)
-    if not input_seed and ordered_module_ids:
-        input_seed = [ordered_module_ids[0]]
-    if project_inputs:
-        input_id = project_inputs[0]["id"]
-        for module_id in input_seed:
-            project_edges.append(
-                _macro_edge(
-                    _edge_id("project", len(project_edges) + 1),
-                    input_id,
-                    module_id,
-                    primary_type="control",
-                    relations=["control"],
-                    role="project_input",
-                    confidence="low",
-                )
-            )
-    output_seed = sorted(module_id for module_id in ordered_module_ids if module_id not in modules_with_outgoing)
-    if not output_seed and ordered_module_ids:
-        output_seed = [ordered_module_ids[-1]]
-    if project_outputs:
-        output_id = project_outputs[0]["id"]
-        for module_id in output_seed:
-            project_edges.append(
-                _macro_edge(
-                    _edge_id("project", len(project_edges) + 1),
-                    module_id,
-                    output_id,
-                    primary_type="control",
-                    relations=["control"],
-                    role="project_output",
-                    confidence="low",
-                )
-            )
+    main_flows, primary_flow_id, flow_diagnostics = build_main_flows(
+        analysis,
+        call_site_list,
+        entrypoints,
+        module_graphs,
+        config.dispatch_hints,
+    )
+    if primary_flow_id:
+        for module_node in project_module_nodes:
+            if module_node.get("moduleKind") == "main":
+                module_node["mainFlowId"] = primary_flow_id
+                break
 
-    # The project page is a capability-card overview, not a dependency
-    # network.  Cards get their own deterministic grid; dependency evidence
-    # remains in projectGraph.edges for optional relation views and queries.
+    # The project page is a capability-card overview.  Dependency evidence is
+    # retained for relation/impact views; the main module page carries the
+    # curated function-level composition flow.
     project_layout = _layout_module_cards(project_module_nodes)
     project_graph = {
         "kind": "archmap.project-graph",
         "project": {
             "name": config.name,
             "language": config.language,
-            "inputs": [item["label"] for item in project_inputs],
-            "outputs": [item["label"] for item in project_outputs],
         },
-        "boundaryNodes": [project_nodes[item["id"]] for item in project_inputs + project_outputs],
+        "mainModuleId": main_module_id,
+        "primaryFlowId": primary_flow_id,
+        "mainFlows": main_flows,
         "modules": project_module_nodes,
         "edges": project_edges,
         "layout": project_layout,
     }
 
-    diagnostics = list(analysis.diagnostics)
+    diagnostics = [*analysis.diagnostics, *flow_diagnostics]
     stats = {
         "modules": len(project_module_nodes),
         "classes": len(analysis.classes),
@@ -1186,6 +989,7 @@ def build_bundle(
         "macroEdges": len(project_edges) + sum(len(graph["edges"]) for graph in module_graphs),
         "providedApis": sum(len(graph["providedApis"]) for graph in module_graphs),
         "apiProviders": sum(len(graph.get("apiProviders", [])) for graph in module_graphs),
+        "mainFlows": len(main_flows),
         "providerRoles": {
             role: sum(
                 1
@@ -1208,7 +1012,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "3.5",
+        "schemaVersion": "3.6",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,
@@ -1241,23 +1045,66 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
         },
         "entrypoints": sorted(bundle["entrypoints"], key=lambda item: item["functionId"]),
         "projectGraph": {
+            "mainModuleId": bundle["projectGraph"].get("mainModuleId"),
+            "primaryFlowId": bundle["projectGraph"].get("primaryFlowId"),
             "modules": [
                 {
                     "id": module["id"],
                     "name": module["name"],
                     "note": module["note"],
                     "role": module.get("role"),
+                    "moduleKind": module.get("moduleKind"),
                     "providerRoleCounts": module.get("providerRoleCounts", {}),
                     "moduleComposition": module.get("moduleComposition", {}),
                     "providedApiCount": module.get("providedApiCount", 0),
                     "functions": sorted(module["functions"]),
                     "freeFunctions": sorted(module.get("freeFunctions", [])),
                     "classes": sorted(module.get("classes", [])),
-                    "inputs": module["inputs"],
-                    "outputs": module["outputs"],
                 }
                 for module in sorted(bundle["projectGraph"]["modules"], key=lambda item: item["id"])
             ],
+            "mainFlows": sorted(
+                [
+                    {
+                        "id": flow.get("id"),
+                        "entrypointId": flow.get("entrypointId"),
+                        "nodes": sorted(
+                            [
+                                {
+                                    "id": node.get("id"),
+                                    "kind": node.get("kind"),
+                                    "flowRole": node.get("flowRole"),
+                                    "functionId": node.get("functionId"),
+                                    "providerId": node.get("providerId"),
+                                    "capabilityId": node.get("capabilityId"),
+                                    "moduleId": node.get("moduleId"),
+                                    "label": node.get("label"),
+                                    "candidateSetComplete": node.get("candidateSetComplete"),
+                                }
+                                for node in flow.get("nodes", [])
+                            ],
+                            key=lambda item: item["id"] or "",
+                        ),
+                        "edges": sorted(
+                            [
+                                {
+                                    "from": edge.get("from"),
+                                    "to": edge.get("to"),
+                                    "kind": edge.get("kind"),
+                                    "confidence": edge.get("confidence"),
+                                    "branchGroup": edge.get("branchGroup"),
+                                    "evidence": edge.get("evidence", []),
+                                    "viaFunctionIds": edge.get("viaFunctionIds", []),
+                                }
+                                for edge in flow.get("edges", [])
+                            ],
+                            key=lambda item: (item["from"], item["to"], item["kind"]),
+                        ),
+                    }
+                    for flow in bundle["projectGraph"].get("mainFlows", [])
+                ],
+                key=lambda item: item["id"] or "",
+            ),
             "edges": sorted(
                 [
                     {
@@ -1279,6 +1126,7 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "moduleId": graph["moduleId"],
                     "note": graph["note"],
                     "role": graph.get("role"),
+                    "moduleKind": graph.get("moduleKind"),
                     "moduleComposition": graph.get("moduleComposition", {}),
                     "providerRoleCounts": graph.get("providerRoleCounts", {}),
                     "providers": sorted(

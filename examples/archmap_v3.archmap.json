@@ -23,22 +23,14 @@
     "archmap/frontends/python/capabilities.py",
     "archmap/frontends/python/roles.py"
   ],
-  "project": {
-    "inputs": [
-      "Python 项目路径与 archmap 配置"
-    ],
-    "outputs": [
-      "architecture.json",
-      "architecture.html"
-    ]
-  },
   "entrypoints": [
     "archmap.entry.cli_entry:main"
   ],
   "modules": [
     {
-      "id": "entry-pipeline",
-      "name": "入口与流水线",
+      "id": "main-pipeline",
+      "name": "主模块与流水线",
+      "kind": "main",
       "include": [
         "archmap/__init__.py",
         "archmap/__main__.py",
@@ -49,37 +41,27 @@
         "archmap/utility/cli_utility.py",
         "archmap/utility/pipeline_utility.py"
       ],
-      "note": "CLI 入口、应用级流水线编排与 CLI 内部命令处理。",
-      "inputs": [
-        "命令行参数与项目配置"
-      ],
-      "outputs": [
-        "分析任务与构建产物"
-      ],
+      "note": "程序入口、应用级流水线编排、主流程组合根与 CLI 命令处理。",
       "color": "#f59e0b",
       "role": "main"
     },
     {
-      "id": "config-model",
-      "name": "配置与模型",
+      "id": "core-contracts",
+      "name": "核心契约",
+      "kind": "functional",
       "include": [
         "archmap/config/*.py",
         "archmap/model/*.py",
         "archmap/utility/config_utility.py"
       ],
-      "note": "静态配置、常量、运行期数据模型、契约模型与配置加载工具。",
-      "inputs": [
-        "JSON 配置与扫描参数"
-      ],
-      "outputs": [
-        "ProjectConfig、AnalysisResult、CallSite 与 API 契约模型"
-      ],
+      "note": "静态配置、领域模型、契约 IR、前端协议与配置加载工具。",
       "color": "#22d3ee",
       "role": "service"
     },
     {
       "id": "python-frontend",
       "name": "Python 前端",
+      "kind": "functional",
       "include": [
         "archmap/frontends/*.py",
         "archmap/frontends/**/*.py",
@@ -92,50 +74,64 @@
         "archmap/utility/discovery_utility.py"
       ],
       "note": "PythonFrontend 统一门面及其发现、分析、调用、详情、角色与契约内部工具。",
-      "inputs": [
-        "Python 源码与扫描配置"
-      ],
-      "outputs": [
-        "模块、函数、调用目标、函数详情与 canonical 契约"
-      ],
       "color": "#60a5fa",
       "role": "service"
     },
     {
       "id": "graph-projection",
       "name": "架构投影",
+      "kind": "functional",
       "include": [
         "archmap/managers/graph_manager.py",
-        "archmap/utility/graph_utility.py"
+        "archmap/utility/graph_utility.py",
+        "archmap/utility/main_flow_utility.py"
       ],
-      "note": "GraphManager 门面及其三层投影、布局与指纹内部工具。",
-      "inputs": [
-        "函数详情、调用记录与逻辑模块配置"
-      ],
-      "outputs": [
-        "archmap.bundle 与三层架构投影"
-      ],
+      "note": "GraphManager 门面及三层投影、主流程 DAG、布局与指纹内部工具。",
       "color": "#a78bfa",
       "role": "service"
     },
     {
-      "id": "validate-render",
-      "name": "校验与渲染",
+      "id": "validation",
+      "name": "契约校验",
+      "kind": "functional",
       "include": [
         "archmap/managers/validate_manager.py",
-        "archmap/managers/render_manager.py",
-        "archmap/utility/validate_utility.py",
-        "archmap/utility/render_utility.py"
+        "archmap/utility/validate_utility.py"
       ],
-      "note": "ValidationManager / RenderManager 门面及校验、自包含 HTML 渲染内部工具。",
-      "inputs": [
-        "bundle、layout 与可选 LLM 注解"
-      ],
-      "outputs": [
-        "校验报告与单文件 architecture.html"
-      ],
+      "note": "ValidationManager 门面与 bundle 契约、不变量和交叉引用校验。",
       "color": "#f472b6",
       "role": "service"
+    },
+    {
+      "id": "rendering",
+      "name": "自包含渲染",
+      "kind": "functional",
+      "include": [
+        "archmap/managers/render_manager.py",
+        "archmap/utility/render_utility.py"
+      ],
+      "note": "RenderManager 门面与自包含 HTML 渲染、前端资源和交互视图。",
+      "color": "#8bdc64",
+      "role": "service"
     }
-  ]
+  ],
+  "mainModule": "main-pipeline",
+  "mainFlow": {
+    "dispatches": [
+      {
+        "function": "archmap.entry.cli_entry:main",
+        "expression": "args.func",
+        "occurrence": 1,
+        "candidates": [
+          "archmap.utility.cli_utility:cmd_build",
+          "archmap.utility.cli_utility:cmd_check",
+          "archmap.utility.cli_utility:cmd_method",
+          "archmap.utility.cli_utility:cmd_serve",
+          "archmap.utility.cli_utility:cmd_diff"
+        ],
+        "complete": true,
+        "reason": "argparse_dispatch"
+      }
+    ]
+  }
 }

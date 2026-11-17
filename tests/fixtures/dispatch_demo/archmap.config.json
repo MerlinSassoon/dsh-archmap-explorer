@@ -1,0 +1,19 @@
+{
+  "projectName": "dispatch_demo",
+  "language": "python",
+  "include": ["app/*.py"],
+  "exclude": ["**/__pycache__/**"],
+  "mainModule": "main",
+  "entrypoints": ["app.main:main"],
+  "modules": [
+    {
+      "id": "main",
+      "name": "主流程",
+      "kind": "main",
+      "include": ["app/main.py"],
+      "note": "动态分发表测试",
+      "color": "#f59e0b",
+      "role": "main"
+    }
+  ]
+}

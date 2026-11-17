@@ -12,7 +12,7 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 def test_build_bundle_contract() -> None:
     bundle = build_architecture(ROOT)
     assert bundle["kind"] == "archmap.bundle"
-    assert bundle["schemaVersion"] == "3.5"
+    assert bundle["schemaVersion"] == "3.6"
     assert bundle["project"]["name"] == "student_demo"
     assert len(bundle["projectGraph"]["modules"]) == 3
     assert len(bundle["functionDetails"]) == 5
@@ -78,16 +78,18 @@ def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
     repo_root = Path(__file__).parent.parent
     config_path = repo_root / "examples" / "archmap_v3.archmap.json"
     bundle = build_architecture(repo_root, config_path)
-    assert len(bundle["projectGraph"]["modules"]) == 5
+    assert len(bundle["projectGraph"]["modules"]) == 6
     internal_edges = [
         edge for edge in bundle["projectGraph"]["edges"] if edge["role"] == "internal"
     ]
     assert internal_edges
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
-    assert {"entry-pipeline", "config-model", "python-frontend", "graph-projection", "validate-render"} <= module_ids
-    roles = {module["id"]: module["role"] for module in bundle["projectGraph"]["modules"]}
-    assert roles["entry-pipeline"] == "main"
-    assert roles["python-frontend"] == "service"
+    assert {"main-pipeline", "core-contracts", "python-frontend", "graph-projection", "validation", "rendering"} <= module_ids
+    kinds = {module["id"]: module["moduleKind"] for module in bundle["projectGraph"]["modules"]}
+    assert kinds["main-pipeline"] == "main"
+    assert kinds["python-frontend"] == "functional"
+    assert bundle["projectGraph"]["mainModuleId"] == "main-pipeline"
+    assert bundle["projectGraph"]["mainFlows"]
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
 
 

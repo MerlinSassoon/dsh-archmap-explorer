@@ -45,7 +45,22 @@ class CallResolver:
         module_name = self._resolve_module_name(current, ref)
         if not module_name:
             return None
-        return self.module_by_name.get(module_name)
+        target = self.module_by_name.get(module_name)
+        if target is not None:
+            return target
+        # Python packages often use imports relative to the package root
+        # (``from service import ...`` inside ``app.main``).  Resolve against
+        # the current package ancestry before falling back to a unique suffix.
+        current_parts = current.name.split(".")
+        package_parts = current_parts if self._is_package(current) else current_parts[:-1]
+        for depth in range(len(package_parts), 0, -1):
+            candidate = ".".join([*package_parts[:depth], *module_name.split(".")])
+            target = self.module_by_name.get(candidate)
+            if target is not None:
+                return target
+        suffix = "." + module_name
+        matches = [module for name, module in self.module_by_name.items() if name.endswith(suffix)]
+        return matches[0] if len(matches) == 1 else None
 
     def _find_class_method(self, module: ModuleInfo, class_name: str, name: str) -> FunctionInfo | None:
         cls = module.classes.get(class_name)
@@ -127,6 +142,17 @@ class CallResolver:
 
         if isinstance(func, ast.Attribute):
             name = func.attr
+            if isinstance(func.value, ast.Call):
+                ctor = func.value.func
+                ctor_name = ""
+                if isinstance(ctor, ast.Name):
+                    ctor_name = ctor.id
+                elif isinstance(ctor, ast.Attribute):
+                    ctor_name = ctor.attr
+                if ctor_name:
+                    method = self._find_class_method(current_module, ctor_name, name)
+                    if method:
+                        candidates.append(method)
             if isinstance(func.value, ast.Name):
                 base = func.value.id
                 ref = current_module.imports.get(base)

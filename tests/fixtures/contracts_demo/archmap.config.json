@@ -1,13 +1,15 @@
 {
   "projectName": "contracts_demo",
   "language": "python",
-  "include": ["app/*.py"],
-  "exclude": ["**/__pycache__/**"],
-  "project": {
-    "inputs": ["请求"],
-    "outputs": ["结果"]
-  },
-  "entrypoints": ["app.contracts:main"],
+  "include": [
+    "app/*.py"
+  ],
+  "exclude": [
+    "**/__pycache__/**"
+  ],
+  "entrypoints": [
+    "app.contracts:main"
+  ],
   "contract": {
     "apiExposure": {
       "app.contracts._config_public": "public"
@@ -17,12 +19,14 @@
     {
       "id": "core",
       "name": "核心契约",
-      "include": ["app/contracts.py"],
+      "include": [
+        "app/contracts.py"
+      ],
       "note": "API 契约测试",
-      "inputs": ["请求"],
-      "outputs": ["结果"],
       "color": "#60a5fa",
-      "role": "main"
+      "role": "main",
+      "kind": "main"
     }
-  ]
+  ],
+  "mainModule": "core"
 }

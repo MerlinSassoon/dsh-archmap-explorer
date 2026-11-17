@@ -1,8 +1,8 @@
 # ArchMap P2–P4 交接文档
 
-> 日期：2026-11-16；最后核对：2026-11-17<br>
-> 适用版本：ArchMap 1.5.0 / bundle schema 3.5<br>
-> 当前阶段：P0、P1、P1.5、P2.0、P2.1、P2.2、P2.3 已完成；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中。
+> 日期：2026-11-16；最后核对：2026-11-18<br>
+> 适用版本：ArchMap 1.6.0 / bundle schema 3.6<br>
+> 当前阶段：P0、P1、P1.5、P2.0、P2.1、P2.2、P2.3、P2.4 已完成；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中。
 >
 > 本文用于新会话接手项目，包含项目现状、代码地图、数据契约、后续规划、设计来源和风险。文档归档边界见 [`docs/README.md`](README.md)；旧 FunctionFlow 文档不再代表当前契约。
 
@@ -82,6 +82,7 @@ utility  纯函数 / 助手
 - P2.1：API 契约建模与展示
 - P2.2：Provider Role、模块组合、类型卡片与角色过滤
 - P2.3：架构规范落盘、config/model/utility/managers/entry 迁移、facade manager 所有权纠偏、providerVisibility / ownerProviderId 与 utility 隐藏
+- P2.4：唯一主模块、删除模块 I/O、功能模块 0..N、主流程 DAG、dispatch 候选与 composition 低置信度虚线
 
 ### 3.2 当前已实现能力
 
@@ -112,7 +113,7 @@ utility  纯函数 / 助手
   - 可选“关系”模式查看保留的模块调用证据；
 - 模块页：
   - 顶部提供接口条；
-  - 模块输入/输出；
+  - 已移除的模块输入/输出端口；
   - 类节点；
   - 模块级自由函数；
   - 类方法不再平铺。
@@ -284,7 +285,7 @@ Bundle 顶层：
 
 ```json
 {
-  "schemaVersion": "3.5",
+  "schemaVersion": "3.6",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],
@@ -527,7 +528,7 @@ P3/P4 需要增加结构关系类型：`inherits`、`implements`、`composes`、
 4. HTML 必须自包含：无 CDN、外部字体、外部图片、网络请求。
 5. 不恢复语句级 FunctionFlow 作为主视图。
 6. 类不是执行流节点；类本身没有 ENTRY/EXIT。
-7. 抽象类/接口不接模块输入输出。
+7. 抽象类/接口不进入主流程执行节点。
 8. 源码是方法实现的最终事实来源；LLM 注解是侧车，不写回源码。
 9. 布局覆盖只影响项目页/模块页，不影响语义指纹。
 10. 类焦点页和类内方法图不在产品计划中；类只作为 Provider 展示构造签名与提供接口。
@@ -920,11 +921,46 @@ archmap/
 - Graph/Validate/Render/Pipeline 阶段函数归为对应 facade manager 的 utility；
 - utility 默认 internal，不进入默认项目页/模块页；事实层继续保留 FunctionDetail / CallSite；
 - `analyze_project`、`collect_call_sites`、`build_bundle`、`validate_bundle`、`render_html` 等不再作为公开独立卡片；
-- schemaVersion 升级为 3.5，包版本升级为 1.5.0；
+- schemaVersion 升级为 3.6，包版本升级为 1.6.0；
 - 校验器新增 public composition、visibility、ownerProviderId、utility API 泄漏检查；
 - 全量测试和浏览器测试通过。
 
 ---
+
+## 9.7 P2.4：主模块、功能模块与主流程（已完成）
+
+### 目标
+
+- 修正“所有模块都有输入输出”的旧语义。
+- 每个项目恰好一个主模块，功能模块 0..N。
+- 主模块页展示函数级主流程，功能模块只暴露能力。
+- 支持动态分发的 dispatch 节点和显式候选契约。
+
+### 数据契约
+
+- `projectGraph.mainModuleId` / `primaryFlowId` / `mainFlows`。
+- `moduleGraph.moduleKind = main | functional`。
+- 节点：entry / orchestrator / provider / interface / dispatch。
+- 边：call / call_path / composition。
+- composition 必须 `confidence=low`、虚线；dispatch 节点记录 `candidateSetComplete` / `candidateSource` / `unresolvedReason`。
+- 模块 I/O 字段、boundaryNodes、module_input/module_output 边全部移除。
+
+### 候选发现
+
+优先级：`mainFlow.dispatches` 配置 > 源码 `# archmap:dispatch` 注释 > argparse/静态注册表 > P3 多态 > unresolved。自动发现默认不宣称完整。
+
+### 验收
+
+```text
+pytest:                 58 passed, 1 skipped
+browser smoke:          1 passed
+schemaVersion:          3.6
+modules:                6
+main flow:              23 nodes / 24 edges
+dispatch:               args.func / 5 declared candidates / complete
+```
+
+详细文档见 [`p2.4-main-module-flow.md`](p2.4-main-module-flow.md)。
 
 ## 10. P3：继承、接口、多态与继承 API
 
@@ -1189,7 +1225,7 @@ entry    -> surface    produces user interaction
 16. P2.1 明确延期序列协议：`__len__` / `__getitem__` / `__contains__` / 切片 / ArkTS index signature；后续不得遗忘。
 17. 用户交互面（user surface）尚未建模；主模块默认仍按普通模块展示 developer API。
 19. Provider Role 自动判定仍是启发式，模糊类型应使用 `contract.providerRoles` 显式覆盖。
-20. 角色化、可见性、owner 归属和物理文件规范已影响模块 API、指纹和 UI；后续 P3/P4 必须保持 bundle schema 3.5 与默认视图行为稳定。
+20. 角色化、可见性、owner 归属和物理文件规范已影响模块 API、指纹和 UI；后续 P3/P4 必须保持 bundle schema 3.6 与默认视图行为稳定。
 
 ---
 

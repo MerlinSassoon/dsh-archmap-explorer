@@ -3,7 +3,6 @@
 from .utility.graph_utility import build_bundle, collect_calls, find_entrypoints, semantic_fingerprint
 from .utility.graph_utility import (
     _aggregate_relations,
-    _boundary_id,
     _class_id,
     _edge_id,
     _json_hash,
@@ -14,8 +13,6 @@ from .utility.graph_utility import (
     _method_summary,
     _module_color,
     _module_composition,
-    _module_input_labels,
-    _module_output_labels,
     _module_role,
     _provider_groups,
     _role_info_payload,
@@ -24,7 +21,6 @@ from .utility.graph_utility import (
 
 __all__ = [
     "_aggregate_relations",
-    "_boundary_id",
     "_class_id",
     "_edge_id",
     "_json_hash",
@@ -35,8 +31,6 @@ __all__ = [
     "_method_summary",
     "_module_color",
     "_module_composition",
-    "_module_input_labels",
-    "_module_output_labels",
     "_module_role",
     "_provider_groups",
     "_role_info_payload",

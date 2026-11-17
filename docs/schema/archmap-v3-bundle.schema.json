@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "3.5"
+      "const": "3.6"
     },
     "kind": {
       "const": "archmap.bundle"
@@ -202,11 +202,7 @@
         },
         "role": {
           "enum": [
-            "internal",
-            "project_input",
-            "project_output",
-            "module_input",
-            "module_output"
+            "internal"
           ]
         },
         "confidence": {
@@ -589,7 +585,9 @@
       "required": [
         "kind",
         "project",
-        "boundaryNodes",
+        "mainModuleId",
+        "primaryFlowId",
+        "mainFlows",
         "modules",
         "edges",
         "layout"
@@ -601,12 +599,6 @@
         "project": {
           "type": "object",
           "additionalProperties": true
-        },
-        "boundaryNodes": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/macroNode"
-          }
         },
         "modules": {
           "type": "array",
@@ -622,6 +614,21 @@
         },
         "layout": {
           "$ref": "#/$defs/layout"
+        },
+        "mainModuleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "primaryFlowId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mainFlows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mainFlow"
+          }
         }
       }
     },
@@ -634,8 +641,7 @@
         "name",
         "note",
         "color",
-        "inputs",
-        "outputs",
+        "moduleKind",
         "nodes",
         "edges",
         "layout",
@@ -659,18 +665,6 @@
         },
         "color": {
           "type": "string"
-        },
-        "inputs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/port"
-          }
-        },
-        "outputs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/port"
-          }
         },
         "nodes": {
           "type": "array",
@@ -737,6 +731,12 @@
         },
         "publicProviderRoleCounts": {
           "$ref": "#/$defs/providerRoleCounts"
+        },
+        "moduleKind": {
+          "enum": [
+            "main",
+            "functional"
+          ]
         }
       }
     },
@@ -1089,6 +1089,10 @@
         },
         "providerRoles": {
           "$ref": "#/$defs/providerRoleCounts"
+        },
+        "mainFlows": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -1294,6 +1298,228 @@
         "string",
         "null"
       ]
+    },
+    "flowNode": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "flowRole",
+        "moduleId",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "entry",
+            "orchestrator",
+            "provider",
+            "interface",
+            "dispatch"
+          ]
+        },
+        "flowRole": {
+          "enum": [
+            "entry",
+            "function",
+            "provider",
+            "interface",
+            "dispatch"
+          ]
+        },
+        "functionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "providerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capabilityId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "candidateCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidateSetComplete": {
+          "type": "boolean"
+        },
+        "candidateSource": {
+          "type": "string"
+        },
+        "unresolvedReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expression": {
+          "type": "string"
+        },
+        "callSiteId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isEntry": {
+          "type": "boolean"
+        }
+      }
+    },
+    "flowEdge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "from",
+        "to",
+        "kind",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "from": {
+          "$ref": "#/$defs/identifier"
+        },
+        "to": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "call",
+            "call_path",
+            "composition"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "candidateSource": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "branchGroup": {
+          "type": "string"
+        },
+        "branchLabel": {
+          "type": "string"
+        },
+        "viaFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dashed": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "mainFlow": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "id",
+        "moduleId",
+        "entrypointId",
+        "nodes",
+        "edges",
+        "layout"
+      ],
+      "properties": {
+        "kind": {
+          "const": "archmap.main-flow"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "entrypointId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "entrypointReason": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edgeCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flowNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flowEdge"
+          }
+        },
+        "layout": {
+          "$ref": "#/$defs/layout"
+        }
+      }
     }
   }
 }
