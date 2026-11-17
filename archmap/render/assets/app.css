@@ -135,6 +135,13 @@
   .detail-api-kind { flex: 0 0 auto; color: #7f93ac; font-family: var(--mono); font-size: 7px; }
   .detail-api-name { flex: 1 1 auto; font-family: var(--mono); font-size: 8.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .detail-api-entry { flex: 0 0 auto; color: #8bdc64; font-family: var(--mono); font-size: 6.5px; }
+  .detail-api-badge { flex: 0 0 auto; color: #8fa2ba; border: 1px solid var(--line-soft); border-radius: 3px; padding: 1px 4px; font-family: var(--mono); font-size: 6.5px; }
+  .api-provider { margin-top: 9px; }
+  .api-provider + .api-provider { border-top: 1px solid var(--line-soft); padding-top: 9px; }
+  .api-provider-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: #c7d6e9; }
+  .api-provider-kind { color: #7f93ac; font-family: var(--mono); font-size: 6.5px; letter-spacing: .08em; text-transform: uppercase; }
+  .api-provider-head b { font-family: var(--mono); font-size: 9px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .api-provider-head em { margin-left: auto; color: #8bdc64; font-family: var(--mono); font-size: 6.5px; font-style: normal; }
 
   .world-edges { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
   .graph-edge {
@@ -199,6 +206,7 @@
   .module-api-chip:hover { border-color: rgba(var(--mc-rgb), .70); background: rgba(var(--mc-rgb), .17); color: #f0f6ff; }
   .module-api-chip.is-entry { border-color: rgba(139,220,100,.42); color: #d7f4c9; background: rgba(139,220,100,.08); }
   .module-api-chip.is-abstract { border-style: dashed; }
+  .module-api-chip.is-protocol { border-color: rgba(167,139,250,.46); color: #ded1ff; background: rgba(167,139,250,.10); }
   .module-api-chip.more { flex: 0 0 auto; color: #8d9bae; border-color: var(--line-soft); background: rgba(255,255,255,.025); }
   .module-api-empty { color: #748398; font-size: 7.5px; font-family: var(--mono); }
   .module-metrics { display: flex; align-items: center; gap: 9px; margin-top: 8px; color: #748398; font-family: var(--mono); font-size: 7px; }
@@ -287,6 +295,7 @@
   .class-node-count { margin-left: auto; color: #9aa8ba; font-family: var(--mono); font-size: 7.5px; }
   .class-node-name { margin-top: 8px; color: #f1f5fb; font-family: var(--mono); font-size: 14px; font-weight: 680; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .class-node-note { margin-top: 5px; color: #8d9bae; font-size: 8.5px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .class-usage { margin-top: 5px; color: #9fc6f5; font-family: var(--mono); font-size: 7.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .class-method-chips { display: flex; gap: 4px; margin-top: 9px; overflow: hidden; }
   .class-method-chip { flex: 0 0 auto; border: 1px solid rgba(var(--mc-rgb), .24); border-radius: 4px; padding: 2px 5px; color: #bad1ec; background: rgba(var(--mc-rgb), .08); font-family: var(--mono); font-size: 7px; }
   .class-method-chip.more { color: #8d9bae; border-color: var(--line-soft); background: rgba(255,255,255,.025); }

@@ -21,13 +21,13 @@ class Database:
         self.tables_dict = {}
 
         self.menu_items = [
-            ("1.录入学生信息    ", self.add_content),
-            ("2.查找学生信息    ", self.query_key_value),
-            ("3.删除学生信息    ", self.delete_sno),
-            ("4.修改学生信息    ", self.modify_sno),
-            ("5.排序            ", self.sort_all),
-            ("6.统计学生总人数  ", self.count_all),
-            ("7.显示所有学生信息", self.query_all),
+            ("1.录入学生信息    ", self._add_content),
+            ("2.查找学生信息    ", self._query_key_value),
+            ("3.删除学生信息    ", self._delete_sno),
+            ("4.修改学生信息    ", self._modify_sno),
+            ("5.排序            ", self._sort_all),
+            ("6.统计学生总人数  ", self._count_all),
+            ("7.显示所有学生信息", self._query_all),
         ]
 
     def __enter__(self):
@@ -59,7 +59,7 @@ class Database:
 
 
     @staticmethod
-    def decode_message(received: bytes) -> tuple:
+    def _decode_message(received: bytes) -> tuple:
         """
         解码接收到的 JSON 字节数据，还原为 (model, parameters)
 
@@ -72,7 +72,7 @@ class Database:
 
         Example:
             received = client_socket.recv(4096)
-            model, params = decode_message(received)
+            model, params = _decode_message(received)
             print(f"model: {model}, params: {params}")
         """
         # 解码字节为字符串，再解析 JSON
@@ -83,12 +83,12 @@ class Database:
 
     def actions(self, client_input):
         """公开API：接收操作指令，根据指令操作数据库"""
-        model, args, kwargs = self.decode_message(client_input)
+        model, args, kwargs = self._decode_message(client_input)
         _, action = self.menu_items[model]
         result = action(*args, **kwargs)
         return json.dumps(result, default=str).encode('utf-8')
 
-    def get_columns(self, table_name):
+    def _get_columns(self, table_name):
         columns = self.tables_dict.get(table_name, False)
         if not columns:
             sql = """
@@ -103,7 +103,7 @@ class Database:
         return columns
 
     @staticmethod
-    def error_detection(func):
+    def _error_detection(func):
         def wrapper(*args, **kwargs) -> tuple:
             try:
                 table_name = kwargs.get('table_name')
@@ -121,8 +121,8 @@ class Database:
 
         return wrapper
 
-    @error_detection
-    def add_content(self, content, table_name) -> tuple:
+    @_error_detection
+    def _add_content(self, content, table_name) -> tuple:
         """内部API，面向上层应用：添加信息"""
         placeholders = ", ".join(["%s"] * len(content))
         sql = f"INSERT INTO {table_name} VALUES ({placeholders})"
@@ -130,10 +130,10 @@ class Database:
         self.connection.commit()
         return True,
 
-    @error_detection
-    def query_key_value(self, key, value, table_name) -> tuple:
+    @_error_detection
+    def _query_key_value(self, key, value, table_name) -> tuple:
         """内部API，面向上层应用：查询信息"""
-        columns = self.get_columns(table_name)
+        columns = self._get_columns(table_name)
         if key not in columns:
             raise ValueError(f"无效的字段名: {key}")
 
@@ -143,8 +143,8 @@ class Database:
         tables = self.cursor.fetchall()
         return True, tables
 
-    @error_detection
-    def delete_sno(self, sno, table_name) -> tuple:
+    @_error_detection
+    def _delete_sno(self, sno, table_name) -> tuple:
         """内部API，面向上层应用：删除信息"""
         placeholders = '%s'
         sql = f"DELETE FROM {table_name} WHERE sno = {placeholders}"
@@ -152,10 +152,10 @@ class Database:
         self.connection.commit()
         return True,
 
-    @error_detection
-    def modify_sno(self, sno, key, value, table_name) -> tuple:
+    @_error_detection
+    def _modify_sno(self, sno, key, value, table_name) -> tuple:
         """内部API，面向上层应用：更新信息"""
-        columns = self.get_columns(table_name)
+        columns = self._get_columns(table_name)
         if key not in columns:
             raise ValueError(f"无效的字段名: {key}")
 
@@ -164,8 +164,8 @@ class Database:
         self.connection.commit()
         return True,
 
-    @error_detection
-    def sort_all(self, desc, table_name) -> tuple:
+    @_error_detection
+    def _sort_all(self, desc, table_name) -> tuple:
         """内部API，面向上层应用：信息排序"""
         # 验证输入是否合法
         order = ""
@@ -181,16 +181,16 @@ class Database:
         tables = self.cursor.fetchall()
         return True, tables
 
-    @error_detection
-    def count_all(self, table_name) -> tuple:
+    @_error_detection
+    def _count_all(self, table_name) -> tuple:
         """内部API，面向上层应用：信息计数"""
         sql = f"SELECT COUNT(*) FROM {table_name}"
         self.cursor.execute(sql)
         tables = self.cursor.fetchall()
         return True, tables
 
-    @error_detection
-    def query_all(self, table_name) -> tuple:
+    @_error_detection
+    def _query_all(self, table_name) -> tuple:
         """内部API，面向上层应用：查询整表"""
         sql = f"SELECT * FROM {table_name}"
         self.cursor.execute(sql)

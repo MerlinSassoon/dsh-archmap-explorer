@@ -200,7 +200,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="archmap", description="ArchMap v3 module-first architecture analysis")
-    parser.add_argument("--version", action="version", version="archmap 1.1.0")
+    parser.add_argument("--version", action="version", version="archmap 1.2.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build", help="analyze a Python project and write architecture.json/html")

@@ -46,6 +46,7 @@
     search: "",
     singleModule: false,
     showProjectRelations: false,
+    pendingSelectUid: null,
     suppressClickUntil: 0,
     pageKind: "project",
     pageEdges: [],
@@ -369,9 +370,26 @@
 
   function apiDisplayName(api) {
     if (!api) return "";
-    return api.ownerKind === "class"
-      ? `${api.ownerName || ""}.${api.name || ""}`.replace(/^\./, "")
-      : (api.name || api.qualifiedName || "");
+    return api.display || api.signature || api.name || "";
+  }
+
+  function apiExposureBadge(api) {
+    if (!api) return "";
+    if (api.isEntry) return "entry";
+    if (api.exposureSource === "protocol") return "protocol";
+    if (api.exposureSource === "naming") return "inferred";
+    return api.exposure || "public";
+  }
+
+  function apiButtonAttrs(api) {
+    return [
+      `data-api-id="${escapeHtml(api.id)}"`,
+      `data-api-kind="${escapeHtml(api.kind)}"`,
+      `data-provider-id="${escapeHtml(api.providerId || "")}"`,
+      `data-provider-kind="${escapeHtml(api.providerKind || "")}"`,
+      `data-module-id="${escapeHtml(api.moduleId || "")}"`,
+      api.functionId ? `data-function-id="${escapeHtml(api.functionId)}"` : "",
+    ].filter(Boolean).join(" ");
   }
 
   function apiChips(apis, limit, options = {}) {
@@ -380,9 +398,9 @@
       return `<div class="module-api-empty">暂无公开接口</div>`;
     }
     const chips = items.map(api => {
-      const label = apiDisplayName(api) + (api.kind === "abstract_method" ? "()" : "()");
-      const classes = ["module-api-chip", api.isEntry ? "is-entry" : "", api.isAbstract ? "is-abstract" : ""].filter(Boolean).join(" ");
-      return `<button class="${classes}" type="button" data-open-api="${escapeHtml(api.functionId)}" title="${escapeHtml(api.signature || label)}">${escapeHtml(label)}</button>`;
+      const label = apiDisplayName(api);
+      const classes = ["module-api-chip", api.isEntry ? "is-entry" : "", api.kind.includes("context") || api.kind === "callable" || api.kind === "iterable" ? "is-protocol" : ""].filter(Boolean).join(" ");
+      return `<button class="${classes}" type="button" ${apiButtonAttrs(api)} title="${escapeHtml(api.signature || label)}">${escapeHtml(label)}</button>`;
     }).join("");
     const more = (apis || []).length > items.length && options.showMore !== false
       ? `<span class="module-api-chip more">+${apis.length - items.length}</span>`
@@ -392,19 +410,48 @@
 
   function apiDetailList(apis) {
     if (!apis || !apis.length) return `<div class="class-method-empty">暂无公开接口</div>`;
-    return apis.map(api => `<button class="detail-api-row" type="button" data-open-api="${escapeHtml(api.functionId)}">
-        <span class="detail-api-kind">${escapeHtml(api.kind === "abstract_method" ? "abstract" : api.kind)}</span>
-        <span class="detail-api-name">${escapeHtml(apiDisplayName(api))}()</span>
-        ${api.isEntry ? `<span class="detail-api-entry">entry</span>` : ""}
+    return apis.map(api => `<button class="detail-api-row" type="button" ${apiButtonAttrs(api)}>
+        <span class="detail-api-kind">${escapeHtml(api.kind)}</span>
+        <span class="detail-api-name">${escapeHtml(apiDisplayName(api))}</span>
+        <span class="detail-api-badge">${escapeHtml(apiExposureBadge(api))}</span>
       </button>`).join("");
   }
 
+  function apiProviderList(providers) {
+    if (!providers || !providers.length) {
+      return `<div class="class-method-empty">暂无公开接口</div>`;
+    }
+    return providers.map(provider => `<div class="api-provider">
+        <div class="api-provider-head">
+          <span class="api-provider-kind">${escapeHtml(provider.providerKind || "provider")}</span>
+          <b>${escapeHtml(provider.providerName || provider.providerId)}</b>
+          <em>${provider.apiCount || (provider.apis || []).length}</em>
+        </div>
+        ${apiDetailList(provider.apis || [])}
+      </div>`).join("");
+  }
+
   function bindApiNavigation(root) {
-    root.querySelectorAll("[data-open-api]").forEach(button => {
+    root.querySelectorAll("[data-provider-id]").forEach(button => {
       button.addEventListener("click", event => {
         event.stopPropagation();
-        const target = functionDetailById.get(button.dataset.openApi);
-        if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
+        const functionId = button.dataset.functionId;
+        const kind = button.dataset.apiKind;
+        if (functionId && (kind === "method" || kind === "function")) {
+          const target = functionDetailById.get(functionId);
+          if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
+          return;
+        }
+        const providerId = button.dataset.providerId;
+        if (!providerId) return;
+        if (state.pageKind === "module" && state.nodes.has(providerId)) {
+          selectUid(providerId);
+          return;
+        }
+        const moduleId = button.dataset.moduleId;
+        if (!moduleId) return;
+        state.pendingSelectUid = providerId;
+        navigate({ kind: "module", moduleId });
       });
     });
   }
@@ -447,14 +494,15 @@
       const module = moduleGraphById.get(state.route.moduleId);
       if (!module) return;
       const apis = module.providedApis || [];
+      const providers = module.apiProviders || [];
       detailScroll.innerHTML = `<div class="detail-head" style="--mc:${module.color}"><div class="detail-color"></div><div>
           <div class="eyebrow">Module capability</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
           <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
-        <div class="port-detail"><span>输入 <b>${escapeHtml(module.inputs.map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml(module.outputs.map(item => item.label).join(" / "))}</b></span><span>提供接口 <b>${apis.length}</b></span></div>
-        <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiDetailList(apis)}</div>
+        <div class="port-detail"><span>输入 <b>${escapeHtml(module.inputs.map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml(module.outputs.map(item => item.label).join(" / "))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+        <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
         ${annotationBlock(module.moduleId)}
-        <div class="empty-hint">双击自由函数进入方法详情；类方法从类详情面板进入。</div>`;
+        <div class="empty-hint">双击自由函数进入方法详情；类节点右栏展示其提供接口。</div>`;
       bindApiNavigation(detailScroll);
       return;
     }
@@ -484,12 +532,13 @@
       if (macroNode.kind === "module") {
         const graph = moduleGraphById.get(uid);
         const apis = graph?.providedApis || [];
+        const providers = graph?.apiProviders || [];
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color}"><div class="detail-color"></div><div>
             <div class="eyebrow">Module capability · ${escapeHtml(moduleRoleLabel(macroNode.role))}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">module://${escapeHtml(uid)}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
-          <div class="port-detail"><span>输入 <b>${escapeHtml((macroNode.inputs || []).map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml((macroNode.outputs || []).map(item => item.label).join(" / "))}</b></span><span>提供接口 <b>${apis.length}</b></span></div>
-          <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiDetailList(apis)}</div>
+          <div class="port-detail"><span>输入 <b>${escapeHtml((macroNode.inputs || []).map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml((macroNode.outputs || []).map(item => item.label).join(" / "))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+          <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>
           ${annotationBlock(uid)}
           <div class="detail-actions"><button class="detail-action" type="button" data-open-module-detail="${escapeHtml(uid)}">打开模块页面</button></div>`;
@@ -498,34 +547,23 @@
         return;
       }
       if (macroNode.kind === "class") {
-        const methods = Array.isArray(macroNode.methods) ? macroNode.methods : [];
-        const publicMethods = methods.filter(method =>
-          method.visibility === "public" || method.visibility === "lifecycle"
-        );
-        const internalMethods = methods.filter(method =>
-          method.visibility === "internal" || method.visibility === "dunder" || method.methodKind === "constructor"
-        );
-        const renderMethod = method => `<button class="class-method-row" type="button" data-open-method-detail="${escapeHtml(method.functionDetailId)}">
-            <span class="class-method-kind">${escapeHtml(method.methodKind || "method")}</span>
-            <span class="class-method-name">${escapeHtml(method.name)}()</span>
-            <span class="class-method-open">详情 ↗</span>
-          </button>`;
+        const apis = macroNode.providedApis || [];
+        const usage = macroNode.usage || {};
+        const constructorSignature = usage.constructor?.signature || `${macroNode.name}()`;
+        const protocols = usage.protocols || [];
+        const internalCount = Number(macroNode.internalMethodCount || 0);
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#60a5fa"}"><div class="detail-color"></div><div>
-            <div class="eyebrow">Class component${macroNode.isAbstract ? " · contract" : ""}</div>
+            <div class="eyebrow">Class provider${macroNode.isAbstract ? " · contract" : ""}</div>
             <h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">${escapeHtml(macroNode.qualifiedName || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无类备注")}</div>
-          <div class="port-detail"><span>类型 <b>${escapeHtml(macroNode.classKind || "class")}</b></span><span>方法 <b>${methods.length}</b></span></div>
+          <div class="port-detail"><span>类型 <b>${escapeHtml(macroNode.classKind || "class")}</b></span><span>接口 <b>${apis.length}</b></span>${protocols.length ? `<span>协议 <b>${escapeHtml(protocols.join(" / "))}</b></span>` : ""}</div>
+          <div class="source-line">用法：${escapeHtml(constructorSignature)}</div>
           <div class="source-line">${escapeHtml(macroNode.file || "")}:${macroNode.line || "—"}</div>
           ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不接入模块输入输出。</div>` : ""}
-          <div class="class-method-section"><div class="class-method-heading">公开 API</div>${publicMethods.length ? publicMethods.map(renderMethod).join("") : `<div class="class-method-empty">无公开方法</div>`}</div>
-          ${internalMethods.length ? `<div class="class-method-section"><div class="class-method-heading">内部 / 生命周期</div>${internalMethods.map(renderMethod).join("")}</div>` : ""}`;
-        detailScroll.querySelectorAll("[data-open-method-detail]").forEach(button => {
-          button.addEventListener("click", () => {
-            const target = functionDetailById.get(button.dataset.openMethodDetail);
-            if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
-          });
-        });
+          <div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>
+          <div class="class-method-section"><div class="class-method-heading">内部实现</div><div class="class-method-empty">${internalCount} 个内部方法，不在契约视图展示。</div></div>`;
+        bindApiNavigation(detailScroll);
         return;
       }
       if (macroNode.kind === "function") {
@@ -534,6 +572,7 @@
             <div class="eyebrow">Function node</div><h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">${escapeHtml(macroNode.qualifiedName || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无函数备注")}</div>
+          <div class="port-detail"><span>暴露 <b>${escapeHtml(detail?.apiExposure || macroNode.apiExposure || "public")}</b></span><span>来源 <b>${escapeHtml(detail?.apiExposureSource || macroNode.apiExposureSource || "naming")}</b></span></div>
           <div class="source-line">${escapeHtml(macroNode.file)}:${macroNode.line}</div>
           ${annotationBlock(macroNode.functionDetailId, detail?.sourceHash)}
           <div class="detail-actions"><button class="detail-action" type="button" data-open-method-detail="${escapeHtml(macroNode.functionDetailId)}">打开方法详情</button></div>`;
@@ -556,6 +595,7 @@
       moduleContracts.classList.remove("is-visible");
       return;
     }
+    moduleContracts.style.setProperty("--mc-rgb", rgbFromHex(graph.color || "#60a5fa"));
     moduleContracts.innerHTML = `<div class="contracts-label">PROVIDED API</div>
       <div class="contracts-track">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
       <div class="contracts-count">${apis.length} apis</div>`;
@@ -774,7 +814,7 @@
     const role = module.role || graph?.role || "service";
     const isMain = role === "main";
     const classCount = Number(graph?.classCount ?? (module.classes || []).length);
-    const methodCount = Number(graph?.methodCount ?? (module.methods || []).length);
+    const providerCount = Number((graph?.apiProviders || []).length);
     const apiCount = Number(module.providedApiCount ?? apis.length);
     const element = document.createElement("article");
     element.className = `node-card module-node${expanded ? " is-expanded" : ""}${isMain ? " is-main" : ""}`;
@@ -801,7 +841,7 @@
         </div>
         <div class="module-metrics">
           <span>${classCount} class${classCount === 1 ? "" : "es"}</span>
-          <span>${methodCount} method${methodCount === 1 ? "" : "s"}</span>
+          <span>${providerCount} provider${providerCount === 1 ? "" : "s"}</span>
           <span class="${apiCount ? "has-apis" : ""}">${apiCount} api${apiCount === 1 ? "" : "s"}</span>
         </div>
         <div class="module-ports">${(module.inputs || []).map(port => `<span class="port-pill in"><i></i>IN <b>${escapeHtml(port.label)}</b></span>`).join("")}${(module.outputs || []).map(port => `<span class="port-pill out"><i></i>OUT <b>${escapeHtml(port.label)}</b></span>`).join("")}</div>
@@ -990,7 +1030,7 @@
   }
 
   function moduleNodeSize(node) {
-    if (node.kind === "class") return { w: node.w || 280, h: node.h || 150 };
+    if (node.kind === "class") return { w: node.w || 280, h: node.h || 170 };
     if (node.kind === "function") return { w: node.w || 210, h: node.h || 98 };
     return { w: node.w || 190, h: node.h || 96 };
   }
@@ -1081,6 +1121,9 @@
       applyTransform();
       fitView();
       renderDefaultDetail();
+      const pendingUid = state.pendingSelectUid;
+      state.pendingSelectUid = null;
+      if (pendingUid && state.nodes.has(pendingUid)) selectUid(pendingUid);
       if (state.search) applySearch();
     });
   }
@@ -1154,12 +1197,10 @@
       exception: "EXCEPTION", utility: "UTILITY", model: "MODEL",
     }[node.classKind] || "CLASS";
     const methods = Array.isArray(node.methods) ? node.methods : [];
-    const publicMethods = methods.filter(method =>
-      method.visibility === "public" || method.visibility === "lifecycle"
-    ).slice(0, 3);
-    const chips = publicMethods.length
-      ? `<div class="class-method-chips">${publicMethods.map(method => `<span class="class-method-chip">${escapeHtml(method.name)}()</span>`).join("")}${methods.length > publicMethods.length ? `<span class="class-method-chip more">+${methods.length - publicMethods.length}</span>` : ""}</div>`
-      : `<div class="class-method-chips"><span class="class-method-chip more">${methods.length} methods</span></div>`;
+    const apis = Array.isArray(node.providedApis) ? node.providedApis : [];
+    const usage = node.usage || {};
+    const constructorSignature = usage.constructor?.signature || `${node.name}()`;
+    const chips = `<div class="class-method-chips">${apiChips(apis, 2)}</div>`;
     const element = document.createElement("article");
     element.className = `node-card class-node${node.isAbstract ? " is-abstract" : ""}`;
     element.dataset.uid = nodeId;
@@ -1172,13 +1213,15 @@
     element.innerHTML = `<div class="class-node-top">
         <span class="class-node-icon">C</span>
         <span class="class-node-kind">${kindLabel}</span>
-        <span class="class-node-count">${methods.length} methods</span>
+        <span class="class-node-count">${apis.length} apis</span>
       </div>
       <div class="class-node-name">${escapeHtml(node.name)}</div>
+      <div class="class-usage">${escapeHtml(constructorSignature)}</div>
       <div class="class-node-note">${escapeHtml(node.note || "暂无类备注")}</div>
       ${chips}`;
     world.appendChild(element);
     bindNodeHover(element, nodeId);
+    bindApiNavigation(element);
     element.addEventListener("click", () => selectUid(nodeId));
     attachDrag(element, element, {
       getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
@@ -1256,6 +1299,8 @@
     const badges = [
       detail.methodKind || "function",
       detail.visibility || "public",
+      `api:${detail.apiExposure || "public"}`,
+      detail.apiExposureSource ? `source:${detail.apiExposureSource}` : "",
       detail.isAsync ? "async" : "",
       detail.isAbstract ? "abstract" : "",
     ].filter(Boolean);
@@ -1299,7 +1344,7 @@
     detailScroll.innerHTML = `<div class="eyebrow">Semantic contract</div>
       <h2 class="detail-name" style="font-family:var(--mono);font-size:15px">${escapeHtml(detail.qualifiedName)}</h2>
       <div class="detail-note">${escapeHtml(detail.note || "暂无函数备注")}</div>
-      <div class="port-detail"><span>返回 <b>${escapeHtml(detail.returns || "—")}</b></span><span>异常 <b>${escapeHtml((detail.raises || []).join(" / ") || "—")}</b></span></div>
+      <div class="port-detail"><span>API <b>${escapeHtml(detail.apiExposure || "public")}</b></span><span>来源 <b>${escapeHtml(detail.apiExposureSource || "naming")}</b></span><span>返回 <b>${escapeHtml(detail.returns || "—")}</b></span><span>异常 <b>${escapeHtml((detail.raises || []).join(" / ") || "—")}</b></span></div>
       ${ownerLine}
       <div class="source-line">${escapeHtml(detail.file)}:${detail.line}</div>
       ${annotationBlock(detail.id, detail.sourceHash)}`;
@@ -1342,7 +1387,7 @@
             if (item.kind === "function") return [item.name, item.note];
             return [];
           }),
-          ...(graph?.providedApis || []).flatMap(api => [api.name, api.ownerName, api.signature, api.note]),
+          ...(graph?.providedApis || []).flatMap(api => [api.display, api.providerName, api.signature, api.note]),
         ].join(" ").toLowerCase();
         world.querySelector(`.module-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
       });
@@ -1351,8 +1396,8 @@
       state.nodes.forEach((node, uid) => {
         if (node.kind !== "function" && node.kind !== "class") return;
         const haystack = node.kind === "class"
-          ? [node.name, node.note, ...(node.methods || []).flatMap(method => [method.name, method.note])].join(" ").toLowerCase()
-          : [node.name, node.note].join(" ").toLowerCase();
+          ? [node.name, node.note, ...(node.providedApis || []).flatMap(api => [api.display, api.kind, api.signature])].join(" ").toLowerCase()
+          : [node.name, node.note, node.apiExposure].join(" ").toLowerCase();
         const selector = node.kind === "class" ? ".class-node" : ".function-node";
         world.querySelector(`${selector}[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
       });

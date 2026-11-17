@@ -26,14 +26,14 @@ class MenuSystem:
     def __init__(self, sockets):
         """学生信息管理系统前端展示UI初始化"""
         self.menu_items = [
-            ("1.录入学生信息    ", self.add_student),
-            ("2.查找学生信息    ", self.query_student),
-            ("3.删除学生信息    ", self.delete_student),
-            ("4.修改学生信息    ", self.modify_student),
-            ("5.排序            ", self.sort_students),
-            ("6.统计学生总人数  ", self.count_students),
-            ("7.显示所有学生信息", self.show_all_students),
-            ("0.退出系统        ", self.exit_system)
+            ("1.录入学生信息    ", self._add_student),
+            ("2.查找学生信息    ", self._query_student),
+            ("3.删除学生信息    ", self._delete_student),
+            ("4.修改学生信息    ", self._modify_student),
+            ("5.排序            ", self._sort_students),
+            ("6.统计学生总人数  ", self._count_students),
+            ("7.显示所有学生信息", self._show_all_students),
+            ("0.退出系统        ", self._exit_system)
         ]
         self.sockets = sockets
 
@@ -44,7 +44,7 @@ class MenuSystem:
 
         self.listener = None
 
-    def print_menu(self, highlight_index):
+    def _print_menu(self, highlight_index):
         """内部API：打印学生信息管理系统菜单"""
         length = 76
         sys.stdout.write("\033[20A")
@@ -68,7 +68,7 @@ class MenuSystem:
         sys.stdout.write("+" + "-" * (length - 2) + "+" + "\n")
         sys.stdout.flush()
 
-    def build_table(self, tables):
+    def _build_table(self, tables):
         """内部API：打印学生信息表格"""
         # 定义表头和宽度
         if len(tables) == 0:
@@ -102,7 +102,7 @@ class MenuSystem:
         return len(tables) + 4
 
     @staticmethod
-    def encode_message(model: int, *args ,**kwargs) -> bytes:
+    def _encode_message(model: int, *args ,**kwargs) -> bytes:
         """
         将 model 和 parameters 编码为 JSON 格式的字节数据，用于 socket 发送
 
@@ -114,7 +114,7 @@ class MenuSystem:
             bytes: 编码后的字节数据，可直接用于 sockets.send()
 
         Example:
-            data = encode_message(1, ("login", "user123", "pass123"))
+            data = _encode_message(1, ("login", "user123", "pass123"))
             client_socket.send(data)
         """
         message = {
@@ -126,7 +126,7 @@ class MenuSystem:
         return json.dumps(message).encode('utf-8')
 
     @staticmethod
-    def key_one_time(func):
+    def _key_one_time(func):
         def wrapper(*args, **kwargs):
             key = args[1]
             if key not in MenuSystem.key_one_time_set:
@@ -134,38 +134,38 @@ class MenuSystem:
 
         return wrapper
 
-    @key_one_time
-    def on_press(self, key, is_press):
+    @_key_one_time
+    def _on_press(self, key, is_press):
         try:
             MenuSystem.key_one_time_set.add(key)
             if key == keyboard.Key.up:
                 self.current_selection = (self.current_selection - 1) % len(self.menu_items)
-                self.print_menu(self.current_selection)
+                self._print_menu(self.current_selection)
             elif key == keyboard.Key.down:
                 self.current_selection = (self.current_selection + 1) % len(self.menu_items)
-                self.print_menu(self.current_selection)
+                self._print_menu(self.current_selection)
             elif key == keyboard.Key.enter:
                 _, action = self.menu_items[self.current_selection]
                 action()
-                # self.print_menu(self.current_selection)
+                # self._print_menu(self.current_selection)
             elif hasattr(key, 'char') and key.char and key.char.isdigit():
                 num = int(key.char)
                 if 0 <= num < len(self.menu_items):
                     self.current_selection = num
                     _, action = self.menu_items[num]
                     action()
-                    self.print_menu(self.current_selection)
+                    self._print_menu(self.current_selection)
         except Exception as e:
             pass
 
-    def on_release(self, key):
+    def _on_release(self, key):
         try:
             MenuSystem.key_one_time_set.remove(key)
         except Exception as e:
             pass
 
     @staticmethod
-    def linespace(func):
+    def _linespace(func):
         def wrapper(*args, **kwargs):
             space = func(*args, **kwargs)
             '''print(space)
@@ -180,7 +180,7 @@ class MenuSystem:
         return wrapper
 
     @staticmethod
-    def cyclic_operation(func):
+    def _cyclic_operation(func):
         def wrapper(*args, **kwargs):
             space = 0
             while True:
@@ -192,9 +192,9 @@ class MenuSystem:
 
         return wrapper
 
-    @linespace
-    @cyclic_operation
-    def add_student(self):
+    @_linespace
+    @_cyclic_operation
+    def _add_student(self):
         """内部API：录入学生信息"""
         contents = []
         for column in self.columns:
@@ -205,7 +205,7 @@ class MenuSystem:
         contents = tuple(contents)
 
         with Spinner("正在录入学生信息"):
-            self.sockets.send(self.encode_message(0, contents, table_name=self.table))
+            self.sockets.send(self._encode_message(0, contents, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -215,16 +215,16 @@ class MenuSystem:
         else:
             return f"成功{len(contents)}"
 
-    @linespace
-    @cyclic_operation
-    def query_student(self):
+    @_linespace
+    @_cyclic_operation
+    def _query_student(self):
         """内部API：查询学生信息"""
         columns = "/".join(self.columns)
         key = input(f"请输入信息查询列名({columns})：")
         value = input("请输入信息查询值：")
 
         with Spinner("正在查询学生信息"):
-            self.sockets.send(self.encode_message(1, key, value, table_name=self.table))
+            self.sockets.send(self._encode_message(1, key, value, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -232,7 +232,7 @@ class MenuSystem:
             print(result[1])
             result = f"失败{3}"
         else:
-            space = self.build_table(result[1])
+            space = self._build_table(result[1])
             if not space:
                 sys.stdout.write("查询为空\n")
                 result = f"成功{3}"
@@ -240,13 +240,13 @@ class MenuSystem:
                 result = f"成功{2 + space}"
         return result
 
-    @linespace
-    @cyclic_operation
-    def delete_student(self):
+    @_linespace
+    @_cyclic_operation
+    def _delete_student(self):
         """内部API：删除学生信息"""
         sno = input("请输入待删学生信息sno：")
         with Spinner("正在删除学生信息"):
-            self.sockets.send(self.encode_message(2, sno, table_name=self.table))
+            self.sockets.send(self._encode_message(2, sno, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -256,9 +256,9 @@ class MenuSystem:
         else:
             return f"成功{1}"
 
-    @linespace
-    @cyclic_operation
-    def modify_student(self):
+    @_linespace
+    @_cyclic_operation
+    def _modify_student(self):
         """内部API：修改学生信息"""
         columns = "/".join(self.columns)
         sno = input("请输入修改学生sno：")
@@ -266,7 +266,7 @@ class MenuSystem:
         value = input("请输入信息修改值：")
 
         with Spinner("正在修改学生信息"):
-            self.sockets.send(self.encode_message(3, sno, key, value, table_name=self.table))
+            self.sockets.send(self._encode_message(3, sno, key, value, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -276,14 +276,14 @@ class MenuSystem:
         else:
             return f"成功{3}"
 
-    @linespace
-    @cyclic_operation
-    def sort_students(self):
+    @_linespace
+    @_cyclic_operation
+    def _sort_students(self):
         """内部API：学生信息排序"""
         desc = input("请输入按tc进行排序(正序/倒序)：")
 
         with Spinner("正在进行排序"):
-            self.sockets.send(self.encode_message(4, desc, table_name=self.table))
+            self.sockets.send(self._encode_message(4, desc, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -291,16 +291,16 @@ class MenuSystem:
             print(result[1])
             result = f"失败{2}"
         else:
-            space = self.build_table(result[1])
+            space = self._build_table(result[1])
             result = f"成功{1 + space}"
         return result
 
-    @linespace
-    @cyclic_operation
-    def count_students(self):
+    @_linespace
+    @_cyclic_operation
+    def _count_students(self):
         """内部API：学生信息统计"""
         with Spinner("正在显示统计学生总人数"):
-            self.sockets.send(self.encode_message(5, table_name=self.table))
+            self.sockets.send(self._encode_message(5, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -312,12 +312,12 @@ class MenuSystem:
             result = f"成功{1}"
         return result
 
-    @linespace
-    @cyclic_operation
-    def show_all_students(self):
+    @_linespace
+    @_cyclic_operation
+    def _show_all_students(self):
         """内部API：查询学生信息整表"""
         with Spinner("正在显示全部学生信息"):
-            self.sockets.send(self.encode_message(6, table_name=self.table))
+            self.sockets.send(self._encode_message(6, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -325,7 +325,7 @@ class MenuSystem:
             print(result[1])
             result = f"失败{1}"
         else:
-            space = self.build_table(result[1])
+            space = self._build_table(result[1])
             if not space:
                 sys.stdout.write("查询为空\n")
                 result = f"成功{1}"
@@ -333,7 +333,7 @@ class MenuSystem:
                 result = f"成功{space}"
         return result
 
-    def exit_system(self):
+    def _exit_system(self):
         """内部API：退出学生信息管理系统"""
         print("感谢使用，再见！")
         self.running = False
@@ -343,6 +343,6 @@ class MenuSystem:
 
     def run(self):
         """公开API，面向用户：启动学生信息管理系统的交互式菜单主循环"""
-        self.print_menu(self.current_selection)
-        with keyboard.Listener(on_press=self.on_press, on_release=self.on_release, suppress=True) as self.listener:
+        self._print_menu(self.current_selection)
+        with keyboard.Listener(on_press=self._on_press, on_release=self._on_release, suppress=True) as self.listener:
             self.listener.join()
