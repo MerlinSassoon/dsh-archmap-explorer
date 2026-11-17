@@ -503,7 +503,7 @@ ArkTS 接入时需要：
 | [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、八角色语义、依赖方向、主模块/主流程边界与可见性规范 |
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
 | [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | 唯一主模块、功能模块、主流程 DAG、dispatch 候选与 composition 契约 |
-| [`docs/约定编程skill.md`](docs/约定编程skill.md) | 约定编程 Skill：架构边界、Provider Role、数据契约、功能备注、测试和提交检查清单 |
+| [`docs/约定编程skill.md`](docs/约定编程skill.md) | 项目无关的约定编程 Skill：分层架构、契约、功能备注、测试与提交检查清单 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 当前 bundle JSON Schema 3.8 |
 
 ### 历史归档
