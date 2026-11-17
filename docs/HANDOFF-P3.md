@@ -4,7 +4,7 @@
 > 版本：ArchMap 1.7.0 / bundle schema 3.7<br>
 > 开发分支：`p3-inheritance-polymorphism`<br>
 > 基线分支：`p2.4-main-flow`（提交 `008d3c6`）<br>
-> 状态：P3 核心能力已完成；P4 未开始。
+> 状态：P3 核心能力已完成。P4 已在此分支之上直接开发，当前契约见 [`HANDOFF-P4.md`](HANDOFF-P4.md)。
 
 ---
 

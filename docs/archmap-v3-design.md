@@ -1,8 +1,8 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档冻结 v3.7 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md)、[`HANDOFF-P3.md`](HANDOFF-P3.md) 为准。
+> 本文档冻结 v3.8 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md)、[`HANDOFF-P4.md`](HANDOFF-P4.md) 为准。
 >
-> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3 已完成；P4 尚未开始。类焦点页与类内方法图不在产品计划中；用户交互面、组合/聚合关系和 impact/trace 是后续契约。
+> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
 
 ## 1. 三层投影
 
@@ -144,7 +144,18 @@ P3 把 Python 基类表达式解析为 canonical 类型关系，并进入 Projec
 - 多态 candidates 进入主流程时使用 `candidateSource=polymorphic` 的 dispatch 节点和 `composition(low)` 虚线。
 - 本地候选集默认不标记完整，因为项目外实现不可知。
 
-### User Surface（P4 规划）
+### 结构关系扩展（P4 已实现）
+
+`typeRelations` 在 `inherits/implements` 之外新增：
+
+- `instantiates`：AST 构造调用；
+- `uses`：参数、返回值和字段类型注解；
+- `aggregates`：构造注入或字段持有；
+- `composes`：构造函数内实例化并赋给实例字段。
+
+每条关系带 `source`、`fromProviderId`/`toProviderId`、Provider Role、可见性、confidence 与 `evidenceFunctionIds`。无法解析的项目内类不生成结构边。
+
+### User Surface（P4 已实现）
 
 需要区分：
 
@@ -153,12 +164,39 @@ developer API   模块之间调用的代码契约
 user surface    最终用户能感知或操作的交互面
 ```
 
-主模块默认不展示 developer API，而展示 `entry` + `userSurfaces`。例如：
+独立投影：
 
-- `MenuSystem.run()`：menu 模块 manager API，同时是 TUI 键盘菜单交互面；
-- `init_connection(port=12345)`：entry-network 函数 API，同时是 CLI 输入提示交互面。
+```json
+{
+  "kind": "cli_input",
+  "display": "CLI 输入 · run_cli()",
+  "moduleId": "main",
+  "evidenceFunctionIds": ["fn:app.main.run_cli"],
+  "entrypointIds": ["fn:app.main.main"],
+  "confidence": "high",
+  "source": "io_primitive"
+}
+```
 
-用户交互面必须由调用图、IO 原语、entrypoint 路径和显式配置共同确定，带 confidence，不硬编码具体项目函数。
+识别线索：
+
+- `input()` / `print()` / `sys.stdout.write` → CLI；
+- keyboard listener / event handler → keyboard event；
+- socket / HTTP server → network；
+- `open` / 文件读写 → file IO；
+- ArkTS `@Entry` / `@Component` / `TextInput` / `Button` → UI；
+- 沿 entrypoint 调用路径传播，带 confidence；
+- 支持 `userSurface.overrides` 配置覆盖，不硬编码具体项目函数名。
+
+主模块展示 `entry` + `userSurfaces`，功能模块仍以 developer API 为主。
+
+### Impact / Trace / DSM（P4 已实现）
+
+- Impact：比较两个 bundle 的函数、API、结构关系与 surface 变化，沿 caller/结构关系反向传播；
+- Trace：沿静态调用、多态 candidates 和结构关系做有界出向/入向查询；
+- DSM：按 module 或 provider 聚合依赖权重和关系类型；
+- 三者都是只读查询结果，不写入默认 bundle；
+- 必须支持 `maxDepth` / `maxNodes` / `truncated`，不静默截断。
 
 ### FunctionDetail / CallSite
 
@@ -275,7 +313,7 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ```json
 {
-  "schemaVersion": "3.7",
+  "schemaVersion": "3.8",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],

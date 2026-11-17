@@ -1,4 +1,4 @@
-# ArchMap v3.7
+# ArchMap v3.8
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
 
@@ -22,13 +22,14 @@ P2.2 Provider Role 与模块组合   已完成
 P2.3 ArchMap 自身分层重构       已完成
 P2.4 主模块/功能模块/主流程     已完成
 P3 继承/接口/多态/继承 API      已完成
-P4 类关系/API impact/user surface 未开始
+P4 结构关系/User Surface/Impact/Trace/DSM 已完成
 ```
 
 当前方法入口是 **Method Detail** 页面；语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
 P2.4 起，每个项目恰好有一个主模块；主模块展示函数级主流程，功能模块只暴露 Provider/Capability，不再拥有输入输出端口。
 P3 增加解析后的 `inherits` / `implements` 类型关系、继承 API、override 来源和抽象/Protocol 调用的多态 candidates；多态候选在主流程中仍使用低置信度虚线 composition。
-文档权威性与历史归档说明见 [docs/README.md](docs/README.md)，P3 交接见 [docs/HANDOFF-P3.md](docs/HANDOFF-P3.md)。
+P4 增加 `instantiates` / `uses` / `aggregates` / `composes` 结构关系、User Surface 投影、impact/trace 查询与 DSM，同时保持主流程边界、类 Provider 展示和自包含 HTML 约束。
+文档权威性与历史归档说明见 [docs/README.md](docs/README.md)，P4 交接见 [docs/HANDOFF-P4.md](docs/HANDOFF-P4.md)。
 
 ## 快速开始
 
@@ -238,6 +239,31 @@ P3 把类名基类字符串解析为项目内 canonical 类型关系：
 
 P3 仍不新增类焦点页，不把类放进主流程，也不让主流程穿透功能模块内部实现。
 
+## P4：结构关系、User Surface、Impact/Trace 与 DSM
+
+P4 在 P3 canonical 类型关系之上继续增加：
+
+- `instantiates`：构造调用证据；
+- `uses`：参数、返回值和字段类型注解证据；
+- `aggregates`：构造注入或字段持有关系；
+- `composes`：构造函数内实例化并赋给实例字段的所有权关系；
+- 每条结构关系携带 `source`、Provider Role、可见性和 `evidenceFunctionIds`；
+- `userSurfaces` 从 entrypoint 调用路径与 IO/事件 primitive 识别，并支持配置覆盖；
+- `impact` 对两个 bundle 做反向影响传播；
+- `trace` 支持出向/入向、静态调用和多态候选；
+- `dsm` 输出 module/provider 级依赖结构矩阵。
+
+新增 CLI：
+
+```bash
+python3 -m archmap impact before.json after.json --json
+python3 -m archmap trace architecture.json --from fn:app.main.main
+python3 -m archmap surfaces architecture.json --module main --json
+python3 -m archmap dsm architecture.json --level module --json
+```
+
+Impact/Trace/DSM 是按需查询结果，不写入默认 architecture.json；bundle 只保存静态事实与 User Surface 投影。
+
 ## 代码架构规范
 
 P2.3 起，ArchMap 自身源码遵循“物理代码单元 + 逻辑 Provider Role”两层规范。
@@ -335,6 +361,12 @@ python -m archmap check <architecture.json>
 python -m archmap method <project> [--file FILE] [--function NAME] [--json]
 python -m archmap serve <directory> [--port 8765]
 python -m archmap diff <before.json> <after.json>
+
+# P4 查询
+python -m archmap impact <before.json> <after.json> [--json]
+python -m archmap trace <architecture.json> --from <function-id> [--direction inbound]
+python -m archmap surfaces <architecture.json> [--module ID] [--json]
+python -m archmap dsm <architecture.json> [--level module|provider] [--json]
 ```
 
 ## 测试
@@ -347,7 +379,7 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`70 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：`78 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 
@@ -356,6 +388,9 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 主流程 DAG、分支、dispatch 候选和 composition 虚线语义。
 - 继承/实现结构边、C3 MRO、有效抽象性、继承 API、override 和多态 candidates。
 - 类型关系 validator 不变量与 polymorphic dispatch 低置信度 composition。
+- `instantiates/uses/aggregates/composes` 结构关系与角色元数据。
+- User Surface 识别、entrypoint 传播和配置覆盖。
+- Impact / Trace / DSM 查询、CLI JSON 输出与截断边界。
 - 类节点、方法归属、抽象类边界。
 - FunctionDetail、源码切片、sourceHash。
 - CallSite 提取、callers/callees、模块级聚合边。
@@ -384,8 +419,9 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - [docs/archmap-api-contract-model.md](docs/archmap-api-contract-model.md)：Provider + Capability API 契约模型。
 - [docs/function-detail-p1.5-plan.md](docs/function-detail-p1.5-plan.md)：P1.5 实现记录。
 - [docs/p2.4-main-module-flow.md](docs/p2.4-main-module-flow.md)：主模块、功能模块、主流程 DAG 与 dispatch 契约。
-- [docs/HANDOFF-P3.md](docs/HANDOFF-P3.md)：P3 最新交接文档：继承、实现、继承 API 与多态。
-- [docs/BRANCHES.md](docs/BRANCHES.md)：P2.4 基线与 P3 分支的返回/恢复指引。
+- [docs/HANDOFF-P4.md](docs/HANDOFF-P4.md)：P4 最新交接文档：结构关系、User Surface、Impact/Trace 与 DSM。
+- [docs/HANDOFF-P3.md](docs/HANDOFF-P3.md)：P3 历史交接：继承、实现、继承 API 与多态。
+- [docs/BRANCHES.md](docs/BRANCHES.md)：P2.4/P3/P4 分支的返回/恢复指引。
 - [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：P2.2–P4 历史交接文档。
 
 ## 已知边界
@@ -396,9 +432,11 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 宏布局的局部重叠和边界启发式仍需要持续校验。
 - P2.1 只合成 context manager、async context manager、callable、iterable；序列协议延期。
 - 类焦点页和类内方法图不在当前产品计划中。
-- 用户交互面（user surface）尚未建模；主模块仍按普通模块展示 developer API。P2.2 已提供 Provider Role 与模块组合，但 user surface 仍属于 P4。
+- User Surface 已建模为独立投影，但当前是静态 primitive + entrypoint 可达性启发式，配置覆盖优先。
 - 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
-- P4 的角色感知关系、组合/聚合、API/type/provider/surface impact、trace 与 user surface 传播尚未实现；P3 已完成，下一步进入 P4。
+- P4 的结构关系仍以静态证据为边界；复杂泛型、字符串注解别名和运行时注入可能产生低置信度或遗漏。
+- User Surface 为启发式投影，不等同于完整 UX/运行时交互分析。
+- Impact/Trace 受 `maxDepth` / `maxNodes` 限制，必须关注 `truncated`。
 - 继承解析只覆盖项目内 canonical class；第三方、条件导入和结构性 Protocol 实现不伪造关系。
 - 多态 candidates 只覆盖项目内已解析后代，`candidateSetComplete=false`。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。

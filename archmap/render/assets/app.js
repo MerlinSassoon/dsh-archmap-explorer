@@ -479,7 +479,48 @@
   }
 
   function typeRelationLabel(kind) {
-    return kind === "implements" ? "implements" : "inherits";
+    return ({
+      inherits: "inherits",
+      implements: "implements",
+      instantiates: "instantiates",
+      uses: "uses",
+      aggregates: "aggregates",
+      composes: "composes",
+    }[kind] || kind || "relation");
+  }
+
+  function surfaceKindLabel(kind) {
+    return ({
+      cli_input: "CLI 输入",
+      cli_output: "CLI 输出",
+      file_io: "文件 IO",
+      network_endpoint: "网络监听",
+      network_client: "网络连接",
+      keyboard_event: "键盘事件",
+      http_endpoint: "HTTP",
+      tui_menu: "TUI 菜单",
+      ui_component: "UI 组件",
+    }[kind] || kind || "surface");
+  }
+
+  function userSurfaceChips(surfaces, limit = 8) {
+    const items = (surfaces || []).slice(0, limit);
+    if (!items.length) return `<span class="contracts-empty">暂无用户交互面</span>`;
+    return items.map(surface => `<span class="user-surface-chip kind-${escapeHtml(surface.kind)}" title="${escapeHtml(surface.display || surface.id)}">
+      <b>${escapeHtml(surfaceKindLabel(surface.kind))}</b><span>${escapeHtml(surface.moduleId || "")}</span>
+    </span>`).join("") + ((surfaces || []).length > limit ? `<span class="user-surface-chip more">+${surfaces.length - limit}</span>` : "");
+  }
+
+  function structuralRelationsBlock(node, graph) {
+    const relations = (graph?.typeRelations || []).filter(relation =>
+      relation.fromClassId === node.id || relation.toClassId === node.id
+    );
+    if (!relations.length) return `<div class="class-method-empty">暂无结构关系</div>`;
+    const short = id => String(id || "").split(".").pop();
+    return `<div class="structural-relations">${relations.map(relation => `<div class="structural-relation-row">
+      <span>${escapeHtml(short(relation.fromClassId))}</span><em>${escapeHtml(typeRelationLabel(relation.kind))}</em><span>${escapeHtml(short(relation.toClassId))}</span>
+      <i>${escapeHtml(relation.source || "")}</i>
+    </div>`).join("")}</div>`;
   }
 
   function classHierarchyBlock(node) {
@@ -657,6 +698,7 @@
         <div class="port-detail"><span>类型 <b>${isMain ? "主模块" : "功能模块"}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span><span>流程节点 <b>${isMain ? (flow?.nodeCount || 0) : "—"}</b></span></div>
         <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(module)}</div>
         <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
+        ${isMain ? `<div class="class-method-section"><div class="class-method-heading">User surfaces</div><div class="user-surface-track">${userSurfaceChips(projectGraph.userSurfaces || [])}</div></div>` : ""}
         ${annotationBlock(module.moduleId)}
         <div class="empty-hint">${isMain ? "主流程节点可点击查看语义，双击进入方法详情。" : "双击自由函数进入方法详情；类节点右栏展示其提供接口。"}</div>`;
       bindApiNavigation(detailScroll);
@@ -738,6 +780,7 @@
           <div class="port-detail"><span>声明接口 <b>${Number(macroNode.declaredApiCount || apis.filter(api => !api.inherited).length)}</b></span><span>继承接口 <b>${Number(macroNode.inheritedApiCount || apis.filter(api => api.inherited).length)}</b></span></div>
           ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不进入主流程执行节点。</div>` : ""}
           <div class="class-method-section"><div class="class-method-heading">Type hierarchy</div>${classHierarchyBlock(macroNode)}</div>
+          <div class="class-method-section"><div class="class-method-heading">Structural relations</div>${structuralRelationsBlock(macroNode, moduleGraphById.get(state.moduleId))}</div>
           ${isTypeCard ? `<div class="class-method-section"><div class="class-method-heading">Type fields · ${Number(typeSummary?.fieldCount || 0)}</div>${typeFieldList(typeSummary)}</div>` : `<div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>`}
           <div class="class-method-section"><div class="class-method-heading">内部实现</div><div class="class-method-empty">${internalCount} 个内部方法，不在契约视图展示。</div></div>`;
         bindApiNavigation(detailScroll);
@@ -795,7 +838,8 @@
         <div class="contracts-count">${apis.length} apis</div>
       </div>
       <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>
-      <div class="contracts-types"><div class="contracts-label">TYPE RELATIONS</div><div class="type-relation-track">${typeRelationChips(graph)}</div><div class="contracts-count">${(graph.typeRelations || []).length} relations</div></div>`;
+      <div class="contracts-types"><div class="contracts-label">TYPE RELATIONS</div><div class="type-relation-track">${typeRelationChips(graph)}</div><div class="contracts-count">${(graph.typeRelations || []).length} relations</div></div>
+      <div class="contracts-types"><div class="contracts-label">USER SURFACES</div><div class="user-surface-track">${userSurfaceChips(graph.userSurfaces || [])}</div><div class="contracts-count">${(graph.userSurfaces || []).length} surfaces</div></div>`;
     moduleContracts.classList.add("is-visible");
     bindApiNavigation(moduleContracts);
     moduleContracts.querySelectorAll("[data-main-view]").forEach(button => {
@@ -1273,6 +1317,7 @@
       kind === "dispatch" && node.candidateSetComplete ? "complete" : "",
       kind === "dispatch" && !node.candidateSetComplete ? "partial" : "",
       node.capabilityKind || "",
+      ...((functionDetailById.get(node.functionId)?.userSurfaceKinds || []).map(kind => `surface:${kind}`)),
       node.flowBoundary ? "module boundary" : "",
     ].filter(Boolean);
     element.className = `node-card main-flow-node flow-${escapeHtml(kind)}${kind === "dispatch" ? " is-dispatch" : ""}`;
@@ -1600,6 +1645,7 @@
       detail.isAsync ? "async" : "",
       detail.isAbstract ? "abstract" : "",
       detail.overrideOfFunctionId ? "override" : "",
+      ...(detail.userSurfaceKinds || []).map(kind => `surface:${kind}`),
       Number(detail.polymorphicCallerCount || 0) ? `poly-callers:${detail.polymorphicCallerCount}` : "",
     ].filter(Boolean);
 

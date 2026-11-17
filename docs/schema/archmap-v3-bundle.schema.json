@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "3.7"
+      "const": "3.8"
     },
     "kind": {
       "const": "archmap.bundle"
@@ -671,6 +671,12 @@
           "items": {
             "$ref": "#/$defs/typeRelation"
           }
+        },
+        "userSurfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/userSurface"
+          }
         }
       }
     },
@@ -785,6 +791,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/typeRelation"
+          }
+        },
+        "userSurfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/userSurface"
           }
         }
       }
@@ -1032,6 +1044,12 @@
         "polymorphicCalleeCount": {
           "type": "integer",
           "minimum": 0
+        },
+        "userSurfaceKinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -1193,6 +1211,14 @@
           "minimum": 0
         },
         "polymorphicCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "structuralRelations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "userSurfaces": {
           "type": "integer",
           "minimum": 0
         }
@@ -1649,7 +1675,11 @@
         "kind": {
           "enum": [
             "inherits",
-            "implements"
+            "implements",
+            "instantiates",
+            "uses",
+            "aggregates",
+            "composes"
           ]
         },
         "fromClassId": {
@@ -1677,6 +1707,129 @@
         "evidence": {
           "type": "object",
           "additionalProperties": true
+        },
+        "fromProviderId": {
+          "type": "string"
+        },
+        "toProviderId": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "fromProviderRole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toProviderRole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fromVisibility": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toVisibility": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidenceFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "userSurface": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "display",
+        "audiences",
+        "moduleId",
+        "evidenceFunctionIds",
+        "entrypointIds",
+        "confidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "cli_input",
+            "cli_output",
+            "file_io",
+            "network_endpoint",
+            "network_client",
+            "keyboard_event",
+            "http_endpoint",
+            "tui_menu",
+            "ui_component"
+          ]
+        },
+        "display": {
+          "type": "string"
+        },
+        "audiences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "providerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "providerRole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidenceFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "propagatedFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entrypointIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "source": {
+          "type": "string"
         }
       }
     }

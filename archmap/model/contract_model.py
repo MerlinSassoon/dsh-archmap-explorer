@@ -20,6 +20,14 @@ class ClassRelation:
     confidence: str = "high"
     evidence_file: str = ""
     evidence_line: int = 0
+    from_provider_id: str | None = None
+    to_provider_id: str | None = None
+    source: str = "base_class"
+    from_provider_role: str | None = None
+    to_provider_role: str | None = None
+    from_visibility: str | None = None
+    to_visibility: str | None = None
+    evidence_function_ids: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -28,9 +36,17 @@ class ClassRelation:
             "fromClassId": self.from_class_id,
             "toClassId": self.to_class_id,
             "toClassName": self.to_class_name,
+            "fromProviderId": self.from_provider_id or self.from_class_id,
+            "toProviderId": self.to_provider_id or self.to_class_id,
             "moduleId": self.module_id,
             "targetModuleId": self.target_module_id,
             "confidence": self.confidence,
+            "source": self.source,
+            "fromProviderRole": self.from_provider_role,
+            "toProviderRole": self.to_provider_role,
+            "fromVisibility": self.from_visibility,
+            "toVisibility": self.to_visibility,
+            "evidenceFunctionIds": list(self.evidence_function_ids),
             "evidence": {
                 "file": self.evidence_file,
                 "line": self.evidence_line,

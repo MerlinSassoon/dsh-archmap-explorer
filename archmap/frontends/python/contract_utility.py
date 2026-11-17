@@ -19,6 +19,7 @@ from ...utility.contract_utility import (
     _function_capability,
     _protocol_capabilities,
 )
+from .relation_utility import extract_structural_relations
 from .role_utility import build_provider_roles
 
 
@@ -130,6 +131,9 @@ def _class_relations(analysis: AnalysisResult) -> list[ClassRelation]:
                     confidence="high",
                     evidence_file=cls.file,
                     evidence_line=cls.line,
+                    from_provider_id=_class_id(cls),
+                    to_provider_id=base_id,
+                    source="base_class",
                 )
             )
     return relations
@@ -236,9 +240,20 @@ def build_capabilities(
             item.id,
         )
     )
+    class_relations = _class_relations(analysis)
+    class_relations.extend(
+        extract_structural_relations(analysis, call_sites, provider_roles)
+    )
+    for relation in class_relations:
+        from_info = provider_roles.get(relation.from_class_id)
+        to_info = provider_roles.get(relation.to_class_id)
+        relation.from_provider_role = from_info.role if from_info else None
+        relation.to_provider_role = to_info.role if to_info else None
+        relation.from_visibility = from_info.provider_visibility if from_info else None
+        relation.to_visibility = to_info.provider_visibility if to_info else None
     return ContractModel(
         capabilities=capabilities,
         class_usage=class_usage,
         provider_roles=provider_roles,
-        class_relations=_class_relations(analysis),
+        class_relations=class_relations,
     )

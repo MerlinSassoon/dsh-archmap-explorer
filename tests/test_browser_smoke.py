@@ -21,6 +21,7 @@ CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
 ROLE_ROOT = Path(__file__).parent / "fixtures" / "roles_demo"
 DISPATCH_ROOT = Path(__file__).parent / "fixtures" / "dispatch_demo"
 INHERITANCE_ROOT = Path(__file__).parent / "fixtures" / "inheritance_demo"
+P4_ROOT = Path(__file__).parent / "fixtures" / "p4_demo"
 
 
 def _free_port() -> int:
@@ -204,6 +205,32 @@ def test_browser_smoke() -> None:
         time.sleep(.2)
         assert execute("return document.querySelectorAll('.class-hierarchy .hierarchy-row').length") >= 2
         assert execute("return document.querySelectorAll('.detail-api-badge.is-inherited').length") >= 1
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
+        # P4: user surfaces and structural relations are visible without
+        # introducing a class-focus page or statement-level flow.
+        p4_bundle = build_architecture(P4_ROOT)
+        p4_html = browser_dir / "p4-surfaces.html"
+        p4_html.write_text(render_html(p4_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": p4_html.resolve().as_uri()})
+        time.sleep(.6)
+        execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.35)
+        assert execute("return document.querySelectorAll('.user-surface-chip').length") >= 2
+        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
+        time.sleep(.25)
+        execute("location.hash='#/module/service'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.35)
+        execute("document.querySelector('[data-main-view=\"capabilities\"]')?.click(); return true")
+        time.sleep(.25)
+        assert execute("return document.querySelectorAll('.type-relation-chip.kind-composes').length") >= 1
+        execute("document.querySelector('.class-node[data-uid=\"cls:app.manager.OrderManager\"]').click(); return true")
+        time.sleep(.2)
+        assert execute("return document.querySelectorAll('.structural-relation-row').length") >= 3
+        execute("location.hash='#/module/main/function/fn%3Aapp.main.run_cli'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.3)
+        assert execute("return document.querySelectorAll('.method-page').length") == 1
+        assert execute("return Array.from(document.querySelectorAll('.method-badge')).some(el => el.textContent.includes('surface:'))") is True
         assert execute("return window.__ARCHMAP_ERRORS__") == []
     finally:
         if session:

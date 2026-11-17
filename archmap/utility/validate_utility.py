@@ -95,8 +95,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "3.7":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 3.7"))
+    if str(bundle.get("schemaVersion")) != "3.8":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 3.8"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []
@@ -310,8 +310,12 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         from_id = relation.get("fromClassId")
         to_id = relation.get("toClassId")
         kind = relation.get("kind")
-        if kind not in {"inherits", "implements"}:
+        if kind not in {"inherits", "implements", "instantiates", "uses", "aggregates", "composes"}:
             issues.append(_issue("error", "TYPE_RELATION_KIND", f"type relation {relation_id} has invalid kind: {kind}"))
+        for role_field in ("fromProviderRole", "toProviderRole"):
+            value = relation.get(role_field)
+            if value is not None and value not in PROVIDER_ROLES:
+                issues.append(_issue("error", "TYPE_RELATION_ROLE", f"type relation {relation_id} has invalid {role_field}: {value}"))
         if from_id not in class_ids or to_id not in class_ids:
             issues.append(_issue("error", "TYPE_RELATION_ENDPOINT", f"type relation {relation_id} has missing class endpoint"))
             continue
@@ -357,6 +361,49 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                     issues.append(_issue("error", "CLASS_SUBCLASS_MISSING", f"class {node.get('id')} references missing subclass {subclass_id}"))
             if node.get("declaredApiCount", 0) + node.get("inheritedApiCount", 0) != node.get("providedApiCount", 0):
                 issues.append(_issue("error", "CLASS_API_COUNTS", f"class {node.get('id')} declared/inherited API counts do not sum to providedApiCount"))
+
+    surfaces = project_graph.get("userSurfaces", [])
+    if not isinstance(surfaces, list):
+        issues.append(_issue("error", "USER_SURFACES", "projectGraph.userSurfaces must be an array"))
+        surfaces = []
+    surface_ids: set[str] = set()
+    valid_surface_kinds = {
+        "cli_input", "cli_output", "file_io", "network_endpoint",
+        "network_client", "keyboard_event", "http_endpoint",
+        "tui_menu", "ui_component",
+    }
+    for surface in surfaces:
+        surface_id = str(surface.get("id") or "")
+        if not surface_id or surface_id in surface_ids:
+            issues.append(_issue("error", "USER_SURFACE_ID", "user surface has missing/duplicate id"))
+        surface_ids.add(surface_id)
+        if surface.get("kind") not in valid_surface_kinds:
+            issues.append(_issue("error", "USER_SURFACE_KIND", f"user surface {surface_id} has invalid kind: {surface.get('kind')}"))
+        if surface.get("confidence") not in {"high", "medium", "low"}:
+            issues.append(_issue("error", "USER_SURFACE_CONFIDENCE", f"user surface {surface_id} has invalid confidence"))
+        module_id = surface.get("moduleId")
+        if module_id not in module_ids:
+            issues.append(_issue("error", "USER_SURFACE_MODULE", f"user surface {surface_id} references missing module {module_id}"))
+        for function_id in surface.get("evidenceFunctionIds", []):
+            if function_id not in detail_by_id:
+                issues.append(_issue("error", "USER_SURFACE_EVIDENCE", f"user surface {surface_id} references missing evidence function {function_id}"))
+        for entrypoint_id in surface.get("entrypointIds", []):
+            if entrypoint_id not in detail_by_id:
+                issues.append(_issue("error", "USER_SURFACE_ENTRYPOINT", f"user surface {surface_id} references missing entrypoint {entrypoint_id}"))
+    module_surface_ids: set[str] = set()
+    for graph in module_graphs:
+        if not isinstance(graph.get("userSurfaces"), list):
+            issues.append(_issue("error", "MODULE_USER_SURFACES", f"module {graph.get('moduleId')} userSurfaces must be an array"))
+            continue
+        for surface in graph.get("userSurfaces", []):
+            surface_id = str(surface.get("id") or "")
+            module_surface_ids.add(surface_id)
+            if surface_id not in surface_ids:
+                issues.append(_issue("error", "MODULE_USER_SURFACE_MISSING", f"module {graph.get('moduleId')} has unknown user surface {surface_id}"))
+            if surface.get("moduleId") != graph.get("moduleId"):
+                issues.append(_issue("error", "MODULE_USER_SURFACE_MODULE", f"module {graph.get('moduleId')} surface has wrong moduleId"))
+    if surface_ids != module_surface_ids:
+        issues.append(_issue("error", "USER_SURFACE_PROJECT_MISMATCH", "module userSurfaces do not match projectGraph.userSurfaces"))
 
     for entry in bundle.get("entrypoints", []):
         if entry.get("functionId") not in detail_by_id:

@@ -1,6 +1,6 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1 / P2.2 / P2.3 / P2.4 / P3 已实现（bundle schema 3.7）<br>
+> 状态：P2.1 / P2.2 / P2.3 / P2.4 / P3 / P4 已实现（bundle schema 3.8）<br>
 > 日期：2026-11-17<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 
@@ -411,10 +411,11 @@ P3    类型契约、Manager 接口与继承 API（已完成）
       - 多态 candidates 与 polymorphic dispatch
       - 不新增类焦点页
 
-P4    关系、组合/聚合、API/type/provider/surface impact、trace、user surface 传播与 DSM
-      - 角色感知关系
-      - 查询层
-      - 可选 DSM
+P4    关系、组合/聚合、API/type/provider/surface impact、trace、user surface 传播与 DSM（已完成）
+      - 角色感知结构关系
+      - User Surface 投影
+      - Impact / Trace 查询
+      - Module/Provider DSM
 ```
 
 P2.2 是 P3/P4 的前置层，不应跳过。

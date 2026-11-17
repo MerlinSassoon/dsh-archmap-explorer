@@ -88,6 +88,50 @@ class CallResolver:
     def _find_constructor(self, cls: ClassInfo) -> FunctionInfo | None:
         return self._find_declared_method(cls, "__init__")
 
+    def _find_self_attribute_type(self, current_fn: FunctionInfo, attr_name: str) -> ClassInfo | None:
+        """Resolve the declared/injected type of ``self.<attr>``."""
+
+        if not current_fn.class_name:
+            return None
+        current_module = self.module_by_name.get(current_fn.module_name)
+        if current_module is None:
+            return None
+        owner = self._find_class(current_module, current_fn.class_name)
+        if owner is None:
+            return None
+        annotation = None
+        for stmt in owner.node.body:
+            if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == attr_name:
+                annotation = stmt.annotation
+                break
+        init = owner.methods.get("__init__")
+        if annotation is None and init is not None:
+            for node in ast.walk(init.node):
+                if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                    continue
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if not any(
+                    isinstance(target, ast.Attribute)
+                    and isinstance(target.value, ast.Name)
+                    and target.value.id == "self"
+                    and target.attr == attr_name
+                    for target in targets
+                ):
+                    continue
+                if isinstance(node, ast.AnnAssign):
+                    annotation = node.annotation
+                elif isinstance(node.value, ast.Name):
+                    for arg in list(init.node.args.args) + list(init.node.args.kwonlyargs):
+                        if arg.arg == node.value.id and arg.annotation is not None:
+                            annotation = arg.annotation
+                            break
+                elif isinstance(node.value, ast.Call):
+                    annotation = node.value.func
+                break
+        if annotation is None:
+            return None
+        return self._class_for_name(current_module, ast.unparse(annotation).split("[", 1)[0])
+
     def _descendant_implementations(self, cls: ClassInfo, name: str) -> list[FunctionInfo]:
         """Return concrete overrides below ``cls`` without sibling bleeding."""
 
@@ -316,6 +360,14 @@ class CallResolver:
                     if receiver_cls is not None:
                         return self._resolve_method_on_class(name, receiver_cls)
             elif isinstance(receiver_expr, ast.Attribute):
+                # self.attr.method(): resolve the attribute's declared/injected type.
+                if (
+                    isinstance(receiver_expr.value, ast.Name)
+                    and receiver_expr.value.id == "self"
+                ):
+                    receiver_cls = self._find_self_attribute_type(current_fn, receiver_expr.attr)
+                    if receiver_cls is not None:
+                        return self._resolve_method_on_class(name, receiver_cls)
                 # Module/class-qualified receiver such as pkg.Base.run().
                 receiver_name = ast.unparse(receiver_expr)
                 receiver_cls = self._find_class(current_module, receiver_name)

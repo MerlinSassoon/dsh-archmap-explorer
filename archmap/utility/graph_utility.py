@@ -38,6 +38,7 @@ from ..model.contract_model import ApiCapability, ContractModel, ProviderRoleInf
 from ..model.graph_model import CallRecord
 from .analysis_utility import ENTRY_METHOD_NAMES
 from .main_flow_utility import build_main_flows
+from ..frontends.python.surface_utility import build_user_surfaces
 
 
 def _json_hash(payload: Any) -> str:
@@ -993,6 +994,22 @@ def build_bundle(
                 module_node["mainFlowId"] = primary_flow_id
                 break
 
+    user_surfaces = build_user_surfaces(
+        analysis, call_site_list, entrypoints, role_infos
+    )
+    surfaces_by_module: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for surface in user_surfaces:
+        surfaces_by_module[str(surface.get("moduleId") or "")].append(surface)
+    for graph in module_graphs:
+        graph["userSurfaces"] = surfaces_by_module.get(str(graph.get("moduleId")), [])
+    surfaces_by_function: dict[str, list[str]] = defaultdict(list)
+    for surface in user_surfaces:
+        for function_id in surface.get("evidenceFunctionIds", []):
+            surfaces_by_function[str(function_id)].append(str(surface.get("kind") or ""))
+    for detail in function_details:
+        kinds = sorted(set(surfaces_by_function.get(str(detail.get("id")), [])))
+        detail["userSurfaceKinds"] = kinds
+
     # The project page is a capability-card overview.  Dependency evidence is
     # retained for relation/impact views; the main module page carries the
     # curated function-level composition flow.
@@ -1009,6 +1026,7 @@ def build_bundle(
         "modules": project_module_nodes,
         "edges": project_edges,
         "typeRelations": [relation.as_dict() for relation in contract_model.class_relations],
+        "userSurfaces": user_surfaces,
         "layout": project_layout,
     }
 
@@ -1025,7 +1043,12 @@ def build_bundle(
         "apiProviders": sum(len(graph.get("apiProviders", [])) for graph in module_graphs),
         "mainFlows": len(main_flows),
         "typeRelations": len(contract_model.class_relations),
+        "structuralRelations": sum(
+            1 for relation in contract_model.class_relations
+            if relation.kind in {"instantiates", "uses", "aggregates", "composes"}
+        ),
         "polymorphicCalls": sum(1 for site in call_site_list if site.polymorphic),
+        "userSurfaces": len(user_surfaces),
         "providerRoles": {
             role: sum(
                 1
@@ -1048,7 +1071,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "3.7",
+        "schemaVersion": "3.8",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,

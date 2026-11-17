@@ -98,6 +98,27 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         for key, value in raw_exports.items():
             module_exports[str(key)] = _as_list(value, [])
 
+    user_surface_overrides: list[dict[str, Any]] = []
+    user_surface = raw.get("userSurface") if isinstance(raw.get("userSurface"), dict) else {}
+    for item in user_surface.get("overrides") or []:
+        if not isinstance(item, dict):
+            continue
+        function = str(item.get("function") or "").strip()
+        kind = str(item.get("kind") or "").strip().lower()
+        if not function or not kind:
+            continue
+        audiences = _as_list(item.get("audiences") or item.get("audience"), ["end_user"])
+        user_surface_overrides.append(
+            {
+                "function": function,
+                "kind": kind,
+                "display": str(item.get("display") or ""),
+                "audiences": audiences,
+                "confidence": str(item.get("confidence") or "high").strip().lower(),
+                "source": "config",
+            }
+        )
+
     dispatch_hints: list[DispatchHint] = []
     main_flow = raw.get("mainFlow") if isinstance(raw.get("mainFlow"), dict) else {}
     for item in main_flow.get("dispatches") or []:
@@ -136,5 +157,6 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         api_exposure_overrides=exposure_overrides,
         provider_role_overrides=provider_roles,
         module_exports=module_exports,
+        user_surface_overrides=user_surface_overrides,
         raw=raw,
     )

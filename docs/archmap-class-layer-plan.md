@@ -410,7 +410,7 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 - 多态调用 candidates；
 - 类层次视图/筛选。
 
-### Phase 4 / P4：类关系增强（未开始）
+### Phase 4 / P4：类关系增强（P4 已完成，类焦点页仍不计划）
 
 - 从类型注解/构造赋值提取 `composes` / `aggregates`；
 - 区分 `uses` / `instantiates`；
@@ -506,7 +506,7 @@ P2.2           已完成：Provider Role（config/model/manager/entry/...）与�
 P2.3           已完成：架构规范落盘、自身代码迁移与 facade/owner 语义归属纠偏
 类焦点页       不再计划：类只作为 Provider，不展示类内方法图
 P3             未开始：继承/实现边、继承 API、多态 candidates、类型关系
-P4             未开始：角色感知关系、API/type/surface impact、user surface、DSM
+P4             已完成：角色感知关系、API/type/surface impact、user surface、DSM；类焦点页仍不计划
 ```
 
 当前代码事实：

@@ -82,4 +82,5 @@ class ProjectConfig:
     api_exposure_overrides: dict[str, str] = field(default_factory=dict)
     provider_role_overrides: dict[str, str] = field(default_factory=dict)
     module_exports: dict[str, list[str]] = field(default_factory=dict)
+    user_surface_overrides: list[dict[str, Any]] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
