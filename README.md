@@ -328,7 +328,7 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`58 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：`59 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 

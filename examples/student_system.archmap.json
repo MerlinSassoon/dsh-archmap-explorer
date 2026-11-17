@@ -2,73 +2,105 @@
   "projectName": "student_system",
   "language": "python",
   "include": [
-    "*.py"
+    "student_system/**/*.py"
   ],
   "exclude": [
-    "**/__pycache__/**"
+    "**/__pycache__/**",
+    ".archmap/**"
   ],
+  "mainModule": "main",
   "entrypoints": [
-    "main:server",
-    "main:client",
-    "main"
+    "student_system.main:main"
   ],
   "modules": [
     {
-      "id": "entry-network",
-      "name": "入口与网络",
+      "id": "main",
+      "name": "主模块",
+      "kind": "main",
       "include": [
-        "main.py",
-        "TcpConnect.py"
+        "student_system/__init__.py",
+        "student_system/__main__.py",
+        "student_system/main.py"
       ],
-      "note": "程序启动、角色选择、TCP 连接与客户端/服务端主循环。",
+      "note": "程序入口、角色选择与客户端/服务端顶层编排。",
       "color": "#f59e0b",
-      "role": "main",
-      "kind": "main"
+      "role": "main"
     },
     {
-      "id": "menu",
-      "name": "菜单与交互",
+      "id": "network",
+      "name": "网络适配",
+      "kind": "functional",
       "include": [
-        "menu_system.py"
+        "student_system/managers/network_manager.py"
       ],
-      "note": "终端菜单、键盘事件与学生信息管理功能编排。",
-      "color": "#60a5fa",
-      "role": "service",
-      "kind": "functional"
+      "note": "Socket 角色选择、服务端监听与客户端连接。",
+      "color": "#fb7185",
+      "role": "adapter"
     },
     {
       "id": "database",
       "name": "数据访问",
+      "kind": "functional",
       "include": [
-        "database.py"
+        "student_system/managers/database_manager.py"
       ],
-      "note": "MySQL 连接、协议解码以及学生数据增删改查。",
+      "note": "MySQL 连接、协议解码与学生数据增删改查。",
       "color": "#8bdc64",
-      "role": "service",
-      "kind": "functional"
+      "role": "adapter"
+    },
+    {
+      "id": "menu",
+      "name": "菜单与交互",
+      "kind": "functional",
+      "include": [
+        "student_system/managers/menu_manager.py",
+        "student_system/utility/display_utility.py"
+      ],
+      "note": "终端菜单、键盘事件、学生信息操作编排与表格显示。",
+      "color": "#60a5fa",
+      "role": "service"
     },
     {
       "id": "async",
       "name": "异步等待",
+      "kind": "functional",
       "include": [
-        "thread_waiting.py"
+        "student_system/managers/spinner_manager.py"
       ],
-      "note": "后台线程动画与等待反馈。",
+      "note": "后台线程动画与等待反馈组件。",
       "color": "#a78bfa",
-      "role": "service",
-      "kind": "functional"
+      "role": "service"
     },
     {
-      "id": "misc",
-      "name": "测试脚本",
+      "id": "contracts",
+      "name": "共享契约",
+      "kind": "functional",
       "include": [
-        "测试.py"
+        "student_system/config/*.py",
+        "student_system/model/*.py",
+        "student_system/utility/protocol_utility.py"
+      ],
+      "note": "数据库配置、学生记录模型、协议消息模型与 JSON 编解码工具。",
+      "color": "#22d3ee",
+      "role": "service"
+    },
+    {
+      "id": "test",
+      "name": "验证脚本",
+      "kind": "functional",
+      "include": [
+        "student_system/tests/*.py"
       ],
       "note": "独立的学生表格打印验证脚本。",
       "color": "#f472b6",
-      "role": "test",
-      "kind": "functional"
+      "role": "test"
     }
   ],
-  "mainModule": "entry-network"
+  "contract": {
+    "providerRoles": {
+      "student_system.managers.network_manager.NetworkAdapter": "adapter",
+      "student_system.managers.database_manager.Database": "adapter",
+      "student_system.managers.menu_manager.MenuSystem": "component"
+    }
+  }
 }

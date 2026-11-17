@@ -52,24 +52,24 @@ def test_main_flow_contains_entry_and_functional_interfaces() -> None:
 def test_student_system_main_flow_models_server_client_branches() -> None:
     config = REPO_ROOT / "examples" / "student_system.archmap.json"
     bundle = build_architecture(REPO_ROOT / "Projects" / "student_system", config)
-    flow = _flow(bundle, "fn:main.__main__")
+    flow = _flow(bundle, "fn:student_system.main.main")
     nodes = {node["id"]: node for node in flow["nodes"]}
     labels = {node["label"] for node in nodes.values()}
     kinds = {node["kind"] for node in nodes.values()}
     assert {"entry", "orchestrator", "provider", "interface"} <= kinds
-    assert {"__main__()", "init_connection()", "server()", "client()"} <= labels
+    assert {"main()", "NetworkAdapter.init_connection()", "server()", "client()"} <= labels
     assert {"Spinner", "Database", "MenuSystem"} <= labels
-    assert {"Database.actions(client_input)", "MenuSystem.run()"} <= labels
+    assert {"Database.actions(client_input: bytes)", "MenuSystem.run()"} <= labels
     server_edges = [
         edge for edge in flow["edges"]
-        if nodes[edge["from"]]["label"] == "__main__()" and nodes[edge["to"]]["label"] == "server()"
+        if nodes[edge["from"]]["label"] == "main()" and nodes[edge["to"]]["label"] == "server()"
     ]
     client_edges = [
         edge for edge in flow["edges"]
-        if nodes[edge["from"]]["label"] == "__main__()" and nodes[edge["to"]]["label"] == "client()"
+        if nodes[edge["from"]]["label"] == "main()" and nodes[edge["to"]]["label"] == "client()"
     ]
-    assert server_edges and server_edges[0]["branchLabel"] == "MODEL == 'SERVER'"
-    assert client_edges and client_edges[0]["branchLabel"] == "MODEL == 'CLIENT'"
+    assert server_edges and server_edges[0]["branchLabel"] == "model == 'SERVER'"
+    assert client_edges and client_edges[0]["branchLabel"] == "model == 'CLIENT'"
     for forbidden in {"while", "try", "input()", "print()", "sockets.recv"}:
         assert forbidden not in labels
     assert all(edge["kind"] != "composition" for edge in flow["edges"])
@@ -175,3 +175,39 @@ def test_inline_dispatch_comment_can_declare_complete_candidates(tmp_path: Path)
     candidate_edges = [edge for edge in flow["edges"] if edge["from"] == dispatch["id"]]
     assert len(candidate_edges) == 2
     assert all(edge["kind"] == "composition" and edge["confidence"] == "low" for edge in candidate_edges)
+
+
+def test_student_system_sample_is_normalized_to_four_code_units() -> None:
+    project = REPO_ROOT / "Projects" / "student_system"
+    assert (project / "student_system" / "main.py").exists()
+    assert (project / "student_system" / "config" / "database_config.py").exists()
+    assert (project / "student_system" / "model" / "student_model.py").exists()
+    assert (project / "student_system" / "managers" / "database_manager.py").exists()
+    assert (project / "student_system" / "utility" / "protocol_utility.py").exists()
+    assert not (project / "database.py").exists()
+    assert not (project / "menu_system.py").exists()
+    assert not (project / "TcpConnect.py").exists()
+
+    config = REPO_ROOT / "examples" / "student_system.archmap.json"
+    bundle = build_architecture(project, config)
+    modules = bundle["projectGraph"]["modules"]
+    assert len(modules) == 7
+    assert [module["id"] for module in modules if module["moduleKind"] == "main"] == ["main"]
+    assert {module["id"] for module in modules if module["moduleKind"] == "functional"} == {
+        "network",
+        "database",
+        "menu",
+        "async",
+        "contracts",
+        "test",
+    }
+    provider_roles = {
+        provider["providerName"]: provider["providerRole"]
+        for graph in bundle["moduleGraphs"]
+        for provider in graph["apiProviders"]
+    }
+    assert provider_roles["NetworkAdapter"] == "adapter"
+    assert provider_roles["Database"] == "adapter"
+    assert provider_roles["MenuSystem"] == "component"
+    assert provider_roles["Spinner"] == "component"
+    assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
