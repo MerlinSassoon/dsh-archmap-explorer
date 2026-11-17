@@ -1146,6 +1146,14 @@
             "dynamic",
             "unresolved"
           ]
+        },
+        "usageKind": {
+          "enum": [
+            "call",
+            "instantiate",
+            "context_manager",
+            "async_context_manager"
+          ]
         }
       }
     },
@@ -1476,6 +1484,21 @@
             "string",
             "null"
           ]
+        },
+        "capabilityKind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "protocols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "usageKind": {
+          "type": "string"
         },
         "moduleId": {
           "$ref": "#/$defs/identifier"

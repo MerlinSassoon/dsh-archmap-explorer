@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from archmap.pipeline import build_architecture
+from archmap.managers.pipeline_manager import PipelineManager
+
+build_architecture = PipelineManager().build_architecture
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 

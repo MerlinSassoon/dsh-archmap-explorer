@@ -55,6 +55,7 @@ class CallSite:
     argument_count: int = 0
     polymorphic: bool = False
     dispatch_kind: str = "static"
+    usage_kind: str = "call"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -77,4 +78,5 @@ class CallSite:
             "argumentCount": self.argument_count,
             "polymorphic": self.polymorphic,
             "dispatchKind": self.dispatch_kind,
+            "usageKind": self.usage_kind,
         }

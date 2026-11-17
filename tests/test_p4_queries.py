@@ -6,9 +6,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from archmap.pipeline import build_architecture
+from archmap.managers.pipeline_manager import PipelineManager
+from archmap.managers.validate_manager import ValidationManager
 from archmap.utility.query_utility import build_dsm, build_impact, build_trace
-from archmap.validate import validate_bundle
+
+build_architecture = PipelineManager().build_architecture
+validate_bundle = ValidationManager().validate
 
 ROOT = Path(__file__).parent / "fixtures" / "p4_demo"
 REPO_ROOT = Path(__file__).parent.parent

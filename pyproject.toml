@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.scripts]
-archmap = "archmap.cli:main"
+archmap = "archmap.entry.cli_entry:main"
 
 [tool.setuptools.packages.find]
 include = ["archmap*"]

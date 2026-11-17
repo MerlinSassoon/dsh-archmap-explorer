@@ -4,8 +4,11 @@ import json
 import re
 from pathlib import Path
 
-from archmap.pipeline import build_architecture
-from archmap.render import render_html
+from archmap.managers.pipeline_manager import PipelineManager
+from archmap.managers.render_manager import RenderManager
+
+build_architecture = PipelineManager().build_architecture
+render_html = RenderManager().render
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
@@ -68,7 +71,20 @@ def test_render_keeps_system_color_scheme_support() -> None:
     bundle = build_architecture(ROOT)
     html = render_html(bundle)
     assert "prefers-color-scheme: dark" in html
+    assert "color-scheme: light dark" in html
+    assert "--method-bg: #f8fafc" in html
+    assert "--method-bg: #090d13" in html
+    assert ".viewport.is-detail { cursor: default; background: var(--method-bg); }" in html
     assert "method-page" in html
+
+
+def test_render_removed_module_inline_expand_feature() -> None:
+    bundle = build_architecture(ROOT)
+    html = render_html(bundle)
+    assert "data-expand" not in html
+    assert "module-mini" not in html
+    assert "renderModuleMini" not in html
+    assert "data-open-module" in html
 
 
 def test_render_contains_class_component_contract() -> None:
@@ -108,6 +124,10 @@ def test_render_contains_main_flow_and_no_boundary_nodes() -> None:
     assert "flow-switcher" in html
     assert "boundary-node" not in html
     assert "module-ports" not in html
+    assert "flex-direction: column; overflow: hidden;" in html
+    assert "margin-top: auto; padding-top: 7px; overflow: hidden;" in html
+    assert "h: Number(node.h || 140)" in html
+    assert 'class="flow-node-label" title=' in html
     match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
     assert match is not None
     embedded = json.loads(match.group(1))
@@ -135,3 +155,15 @@ def test_render_contains_provider_roles_and_type_cards() -> None:
     app_config = next(node for node in graph["nodes"] if node["id"] == "cls:app.roles.AppConfig")
     assert app_config["providerRole"] == "config"
     assert app_config["typeSummary"]["fieldCount"] == 3
+
+
+def test_render_includes_context_manager_provider_semantics() -> None:
+    repo_root = Path(__file__).parent.parent
+    bundle = build_architecture(
+        repo_root / "Projects" / "student_system",
+        repo_root / "examples" / "student_system.archmap.json",
+    )
+    html = render_html(bundle)
+    assert "with Spinner(message: str='加载中')" in html
+    assert "context_manager" in html
+    assert "usageKind" in html
