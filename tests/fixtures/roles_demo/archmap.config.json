@@ -1,0 +1,28 @@
+{
+  "projectName": "roles_demo",
+  "language": "python",
+  "include": ["app/*.py"],
+  "exclude": ["**/__pycache__/**"],
+  "project": {
+    "inputs": ["请求"],
+    "outputs": ["结果"]
+  },
+  "entrypoints": ["app.roles:main"],
+  "contract": {
+    "providerRoles": {
+      "app.roles.ConfigOverrideThing": "model"
+    }
+  },
+  "modules": [
+    {
+      "id": "roles",
+      "name": "Provider Roles",
+      "include": ["app/roles.py"],
+      "note": "P2.2 角色投影与 API 过滤测试",
+      "inputs": ["请求"],
+      "outputs": ["结果"],
+      "color": "#22d3ee",
+      "role": "service"
+    }
+  ]
+}

@@ -18,6 +18,7 @@ from archmap.render import render_html
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
+ROLE_ROOT = Path(__file__).parent / "fixtures" / "roles_demo"
 
 
 def _free_port() -> int:
@@ -135,6 +136,24 @@ def test_browser_smoke() -> None:
         time.sleep(.3)
         assert execute("return document.querySelectorAll('.method-page').length") == 1
         assert execute("return document.querySelectorAll('.method-source-line').length") > 0
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
+        # P2.2: role composition is visible, config/model render as type cards,
+        # and type fields are shown instead of serialization APIs.
+        role_bundle = build_architecture(ROLE_ROOT)
+        role_html = browser_dir / "provider-roles.html"
+        role_html.write_text(render_html(role_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": role_html.resolve().as_uri()})
+        time.sleep(.6)
+        execute("location.hash='#/module/roles'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.4)
+        assert execute("return document.querySelectorAll('.module-contracts .role-count-chip').length") >= 6
+        assert execute("return document.querySelectorAll('.class-node.is-type-card').length") == 3
+        assert execute("return document.querySelectorAll('.type-field-chip').length") > 0
+        assert execute("return Array.from(document.querySelectorAll('.function-node')).some(el => el.dataset.uid.includes('_provider_role'))") is False
+        execute("Array.from(document.querySelectorAll('.class-node')).find(el => el.dataset.uid.endsWith('AppConfig')).click(); return true")
+        time.sleep(.2)
+        assert execute("return document.querySelectorAll('.type-field-row').length") == 3
         assert execute("return window.__ARCHMAP_ERRORS__") == []
     finally:
         if session:

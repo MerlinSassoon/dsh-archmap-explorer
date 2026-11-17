@@ -10,6 +10,7 @@ from archmap.render import render_html
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
 CONTRACT_ROOT = Path(__file__).parent / "fixtures" / "contracts_demo"
+ROLE_ROOT = Path(__file__).parent / "fixtures" / "roles_demo"
 
 
 def test_render_is_self_contained_and_embeds_real_data() -> None:
@@ -96,3 +97,24 @@ def test_render_contains_api_contract_capabilities() -> None:
     ]
     assert any(display.startswith("with Resource") for display in displays)
     assert not any("__enter__" in display or "__exit__" in display or "__init__" in display for display in displays)
+
+
+def test_render_contains_provider_roles_and_type_cards() -> None:
+    bundle = build_architecture(ROLE_ROOT)
+    html = render_html(bundle)
+    assert "providerRoleLabel" in html
+    assert "roleCompositionBlock" in html
+    assert "typeFieldChips" in html
+    assert "type-field-list" in html
+    assert "CLASS / MODEL" not in html
+    assert "CONFIG" in html
+    assert "MODEL" in html
+    assert "AppConfig" in html
+    match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
+    assert match is not None
+    embedded = json.loads(match.group(1))
+    graph = embedded["moduleGraphs"][0]
+    assert graph["moduleComposition"]["config"] == ["cls:app.roles.AppConfig"]
+    app_config = next(node for node in graph["nodes"] if node["id"] == "cls:app.roles.AppConfig")
+    assert app_config["providerRole"] == "config"
+    assert app_config["typeSummary"]["fieldCount"] == 3
