@@ -303,6 +303,7 @@ archmap/
 - `relations`：同一对节点可同时具有调用和数据证据。
 - `role`：普通内部关系；不再生成模块输入输出边界边。
 - 主流程边使用 `call` / `call_path` / `composition`，其中 composition 只能是低置信度虚线。
+- 主流程只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止，不穿透其内部 utility。
 - `evidence`：具体函数、文件和行号。
 - `confidence`：解析置信度。
 
@@ -328,7 +329,7 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`59 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：`61 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 

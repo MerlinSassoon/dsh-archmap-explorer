@@ -390,28 +390,6 @@ def _node_meta_for_target(
         }
     if target_id in api_meta:
         return dict(api_meta[target_id])
-    # Main-flow eligibility is intentionally independent of Provider Role and
-    # providerVisibility.  A public module-level function is a callable module
-    # interface even when ownership compression classifies its implementation
-    # as utility; the flow must not mutate that Provider Role classification.
-    if not fn.class_name and fn.api_exposure == "public":
-        return {
-            "kind": "interface",
-            "providerId": target_id,
-            "providerKind": "function",
-            "providerName": fn.name,
-            "providerRole": None,
-            "moduleId": fn.module_id,
-            "moduleName": module_name_by_id.get(fn.module_id, fn.module_id),
-            "color": color_by_module.get(fn.module_id, "#60a5fa"),
-            "label": f"{fn.name}()",
-            "signature": fn.signature,
-            "note": fn.note,
-            "capabilityId": f"flow-capability:{target_id}",
-            "capabilityKind": "function",
-            "w": FLOW_NODE_W,
-            "h": FLOW_NODE_H,
-        }
     return None
 
 
@@ -617,6 +595,12 @@ def build_main_flows(
                 "capabilityKind": resolved_meta.get("capabilityKind"),
                 "protocols": list(resolved_meta.get("protocols") or []),
                 "isEntry": function_id == entry_id,
+                "flowBoundary": bool(
+                    resolved_meta.get("moduleId")
+                    and resolved_meta.get("moduleId") != main_module_id
+                    and kind in {"interface", "provider"}
+                ),
+                "expandable": kind in {"entry", "orchestrator"},
                 "w": resolved_meta.get("w") or FLOW_NODE_W,
                 "h": resolved_meta.get("h") or FLOW_NODE_H,
             }
@@ -807,7 +791,7 @@ def build_main_flows(
                             reason=reason,
                             candidate_source=candidate_source,
                         )
-                        if candidate_id not in expanded:
+                        if candidate_node.get("expandable") and candidate_id not in expanded:
                             expanded.add(candidate_id)
                             queue.append((candidate_id, candidate_node["id"], [], []))
                     continue
@@ -848,10 +832,17 @@ def build_main_flows(
                         branch_label=branch.get("branchLabel", ""),
                         via_function_ids=via_ids,
                     )
-                    if target_id not in expanded:
+                    if target_node.get("expandable") and target_id not in expanded:
                         expanded.add(target_id)
                         queue.append((target_id, target_node["id"], [], []))
                 else:
+                    # The main flow is a bounded composition projection.  Only
+                    # hidden implementation functions inside the main module may
+                    # be traversed.  Functional-module internals are deliberately
+                    # opaque at this layer and remain available through module
+                    # pages, Method Detail and later trace/impact views.
+                    if target_fn is None or target_fn.module_id != main_module_id:
+                        continue
                     state_key = (target_id, ancestor_node_id)
                     if state_key in hidden_seen:
                         continue

@@ -270,6 +270,9 @@ adapter → contract
 - 主流程节点：entry / orchestrator / provider / interface / dispatch。
 - 主流程边：call / call_path / composition；composition 只能低置信度虚线。
 - dispatch 候选需要显式完整性标记，无法推断时保留 unresolved。
+- **主流程边界**：遍历只在主模块内部继续；跨入功能模块时只物化 canonical interface/provider，不穿透其实现。
+- 功能模块边界节点 `flowBoundary=true`、`expandable=false`，无出边；内部 utility 不进入主流程。
+- 主流程是组合视图，全量跨模块调用与内部实现分别由模块关系视图、Method Detail 和 P4 trace 承担。
 
 项目页只展示顶层模块。功能模块页展示 Provider；主模块页默认展示主流程，并保留能力视图。
 

@@ -42,10 +42,16 @@ def test_main_flow_contains_entry_and_functional_interfaces() -> None:
     labels = {node["label"] for node in nodes.values()}
     assert flow["entrypointId"] == "fn:app.main.main"
     assert next(node for node in nodes.values() if node["kind"] == "entry")["isEntry"] is True
-    assert {"main()", "load_items()", "save_item(item)", "read_all()", "write_one(item)"} <= labels
+    assert {"main()", "load_items()", "save_item(item)"} <= labels
+    assert "read_all()" not in labels
+    assert "write_one(item)" not in labels
     assert flow["edges"]
     assert all(edge["kind"] in {"call", "call_path", "composition"} for edge in flow["edges"])
     assert all(edge["confidence"] == "high" for edge in flow["edges"] if edge["kind"] == "call")
+    for node in flow["nodes"]:
+        if node["kind"] == "interface":
+            assert node.get("capabilityId")
+            assert not str(node["capabilityId"]).startswith("flow-capability:")
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
 
 
@@ -60,6 +66,16 @@ def test_student_system_main_flow_models_server_client_branches() -> None:
     assert {"main()", "NetworkAdapter.init_connection()", "server()", "client()"} <= labels
     assert {"Spinner", "Database", "MenuSystem"} <= labels
     assert {"Database.actions(client_input: bytes)", "MenuSystem.run()"} <= labels
+    assert "NetworkAdapter.create_server(local_ip: str)" not in labels
+    assert "NetworkAdapter.connect_to_server(local_ip: str)" not in labels
+    assert "decode_message()" not in labels
+    assert "get_display_width()" not in labels
+    boundary_nodes = [node for node in flow["nodes"] if node.get("flowBoundary")]
+    assert boundary_nodes
+    assert all(node["kind"] in {"interface", "provider"} for node in boundary_nodes)
+    assert all(node.get("expandable") is False for node in boundary_nodes)
+    boundary_ids = {node["id"] for node in boundary_nodes}
+    assert not any(edge["from"] in boundary_ids for edge in flow["edges"])
     server_edges = [
         edge for edge in flow["edges"]
         if nodes[edge["from"]]["label"] == "main()" and nodes[edge["to"]]["label"] == "server()"
@@ -210,4 +226,30 @@ def test_student_system_sample_is_normalized_to_four_code_units() -> None:
     assert provider_roles["Database"] == "adapter"
     assert provider_roles["MenuSystem"] == "component"
     assert provider_roles["Spinner"] == "component"
+    assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
+
+
+def test_validator_rejects_noncanonical_flow_interface() -> None:
+    bundle = build_architecture(ROOT)
+    flow = _flow(bundle)
+    interface = next(node for node in flow["nodes"] if node["kind"] == "interface")
+    interface["capabilityId"] = "api:missing"
+    issues = validate_bundle(bundle)
+    assert any(issue["code"] == "FLOW_INTERFACE_NOT_CANONICAL" for issue in issues)
+
+
+def test_self_main_flow_stops_at_functional_module_interfaces() -> None:
+    config = REPO_ROOT / "examples" / "archmap_v3.archmap.json"
+    bundle = build_architecture(REPO_ROOT, config)
+    flow = _flow(bundle)
+    labels = {node["label"] for node in flow["nodes"]}
+    assert "ValidationManager.validate(bundle: dict[str, Any])" in labels
+    assert "RenderManager.render(bundle: dict[str, Any], annotations: dict[str, Any] | None=None)" in labels
+    assert "validate_bundle()" not in labels
+    assert "render_html()" not in labels
+    assert "load_config()" not in labels
+    assert "build_main_flows()" not in labels
+    boundary_ids = {node["id"] for node in flow["nodes"] if node.get("flowBoundary")}
+    assert boundary_ids
+    assert not any(edge["from"] in boundary_ids for edge in flow["edges"])
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]

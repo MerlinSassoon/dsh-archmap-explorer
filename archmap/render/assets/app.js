@@ -643,7 +643,7 @@
             <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.label || macroNode.providerName || macroNode.id)}</h2>
             <div class="detail-module">${escapeHtml(module?.name || macroNode.moduleName || macroNode.moduleId)}${macroNode.providerName ? ` · ${escapeHtml(macroNode.providerName)}` : ""}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "主流程组合节点")}</div>
-          <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId)}</b></span>${macroNode.signature ? `<span>签名 <b>${escapeHtml(macroNode.signature)}</b></span>` : ""}</div>
+          <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId)}</b></span><span>边界 <b>${macroNode.flowBoundary ? "功能模块接口" : "主模块编排"}</b></span>${macroNode.signature ? `<span>签名 <b>${escapeHtml(macroNode.signature)}</b></span>` : ""}</div>
           ${isDispatch ? `<div class="llm-stale">动态分发边界：候选连线使用低置信度 composition 语义，${macroNode.candidateSetComplete ? "候选集已声明完整" : "候选集未声明完整"}。</div>
             <div class="source-line">表达式：${escapeHtml(macroNode.expression || macroNode.label || "")} · 候选：${Number(macroNode.candidateCount || 0)} · 来源：${escapeHtml(macroNode.candidateSource || "unknown")}</div>` : ""}
           ${detail ? `<div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>` : ""}
@@ -1226,6 +1226,7 @@
       kind === "dispatch" && node.candidateSetComplete ? "complete" : "",
       kind === "dispatch" && !node.candidateSetComplete ? "partial" : "",
       node.capabilityKind || "",
+      node.flowBoundary ? "module boundary" : "",
     ].filter(Boolean);
     element.className = `node-card main-flow-node flow-${escapeHtml(kind)}${kind === "dispatch" ? " is-dispatch" : ""}`;
     element.dataset.uid = nodeId;

@@ -31,6 +31,9 @@
 - 主流程分析使用独立 flowRole，不修改 Provider Role、visibility 或 API 分类。
 - dispatch 节点保存表达方式、候选数量、候选来源、是否完整和 unresolved 原因。
 - 普通分支共享 branchGroup；循环不展开。
+- **主流程边界**：只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止。
+- 功能模块边界节点携带 `flowBoundary=true`、`expandable=false`，且不得有出边。
+- 功能模块内部 utility/helper 不进入主流程；其实现路径保留在 Method Detail、callSites 和后续 trace/impact 中。
 
 ### ModuleGraph
 

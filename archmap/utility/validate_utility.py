@@ -97,6 +97,11 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     module_ids = {module.get("id") for module in project_graph.get("modules", [])}
     if len(module_ids) != len(project_graph.get("modules", [])):
         issues.append(_issue("error", "DUPLICATE_MODULE", "duplicate module ids"))
+    capability_by_id: dict[str, tuple[str, dict[str, Any]]] = {
+        str(api.get("id")): (str(graph.get("moduleId")), api)
+        for graph in module_graphs
+        for api in graph.get("providedApis", [])
+    }
     main_module_id = project_graph.get("mainModuleId")
     if main_module_id not in module_ids:
         issues.append(_issue("error", "MAIN_MODULE_MISSING", f"mainModuleId must reference a module: {main_module_id}"))
@@ -336,7 +341,26 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                     issues.append(_issue("error", "DISPATCH_CANDIDATES", f"flow {flow_id} dispatch node has invalid candidateCount"))
                 if not isinstance(node.get("candidateSetComplete"), bool):
                     issues.append(_issue("error", "DISPATCH_COMPLETE", f"flow {flow_id} dispatch node must define candidateSetComplete"))
+            if node.get("kind") == "interface":
+                capability_id = str(node.get("capabilityId") or "")
+                capability = capability_by_id.get(capability_id)
+                if capability is None:
+                    issues.append(_issue("error", "FLOW_INTERFACE_NOT_CANONICAL", f"flow {flow_id} interface {node.get('id')} does not reference a canonical provided API"))
+                else:
+                    capability_module_id, capability_payload = capability
+                    if capability_module_id != node.get("moduleId"):
+                        issues.append(_issue("error", "FLOW_INTERFACE_MODULE", f"flow {flow_id} interface {node.get('id')} module disagrees with its capability"))
+                    if capability_payload.get("providerRole") in {"config", "model", "utility"}:
+                        issues.append(_issue("error", "FLOW_INTERFACE_ROLE", f"flow {flow_id} interface {node.get('id')} references a non-behavioral capability"))
+            if node.get("flowBoundary"):
+                if node.get("moduleId") == main_module_id:
+                    issues.append(_issue("error", "FLOW_BOUNDARY_MAIN", f"flow {flow_id} main-module node {node.get('id')} cannot be a boundary"))
+                if node.get("kind") not in {"interface", "provider"}:
+                    issues.append(_issue("error", "FLOW_BOUNDARY_KIND", f"flow {flow_id} boundary node {node.get('id')} must be interface/provider"))
+                if node.get("expandable") is not False:
+                    issues.append(_issue("error", "FLOW_BOUNDARY_EXPANDABLE", f"flow {flow_id} boundary node {node.get('id')} must not be expandable"))
         composition_by_source: dict[str, int] = {}
+        outgoing_sources: set[str] = set()
         for edge in flow.get("edges", []):
             if edge.get("from") not in flow_node_ids or edge.get("to") not in flow_node_ids:
                 issues.append(_issue("error", "FLOW_EDGE_ENDPOINT", f"flow {flow_id} edge endpoint missing: {edge.get('id')}"))
@@ -345,9 +369,13 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                 issues.append(_issue("error", "FLOW_EDGE_KIND", f"flow {flow_id} edge {edge.get('id')} has invalid kind: {kind}"))
             if kind == "composition" and edge.get("confidence") != "low":
                 issues.append(_issue("error", "FLOW_COMPOSITION_CONFIDENCE", f"flow {flow_id} composition edge {edge.get('id')} must be low confidence"))
+            outgoing_sources.add(str(edge.get("from")))
             if kind == "composition":
                 source = str(edge.get("from"))
                 composition_by_source[source] = composition_by_source.get(source, 0) + 1
+        for node in flow.get("nodes", []):
+            if node.get("flowBoundary") and node.get("id") in outgoing_sources:
+                issues.append(_issue("error", "FLOW_BOUNDARY_OUTGOING", f"flow {flow_id} boundary node {node.get('id')} must not have outgoing flow edges"))
         for node in flow.get("nodes", []):
             if node.get("kind") != "dispatch":
                 continue

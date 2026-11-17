@@ -943,6 +943,8 @@ archmap/
 - 节点：entry / orchestrator / provider / interface / dispatch。
 - 边：call / call_path / composition。
 - composition 必须 `confidence=low`、虚线；dispatch 节点记录 `candidateSetComplete` / `candidateSource` / `unresolvedReason`。
+- 主流程边界：只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止。
+- 功能模块边界节点 `flowBoundary=true`、`expandable=false`，无出边；utility 不得成为 flow interface。
 - 模块 I/O 字段、boundaryNodes、module_input/module_output 边全部移除。
 
 ### 候选发现
@@ -952,11 +954,11 @@ archmap/
 ### 验收
 
 ```text
-pytest:                 59 passed, 1 skipped
+pytest:                 61 passed, 1 skipped
 browser smoke:          1 passed
 schemaVersion:          3.6
 modules:                6
-main flow:              23 nodes / 24 edges
+main flow:              15 nodes / 16 edges
 dispatch:               args.func / 5 declared candidates / complete
 ```
 
