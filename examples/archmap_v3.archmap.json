@@ -5,7 +5,23 @@
     "archmap/**/*.py"
   ],
   "exclude": [
-    "**/__pycache__/**"
+    "**/__pycache__/**",
+    "archmap/analysis.py",
+    "archmap/callresolver.py",
+    "archmap/callsites.py",
+    "archmap/cli.py",
+    "archmap/config.py",
+    "archmap/contracts.py",
+    "archmap/details.py",
+    "archmap/discover.py",
+    "archmap/graph.py",
+    "archmap/pipeline.py",
+    "archmap/render.py",
+    "archmap/validate.py",
+    "archmap/frontends/base.py",
+    "archmap/frontends/registry.py",
+    "archmap/frontends/python/capabilities.py",
+    "archmap/frontends/python/roles.py"
   ],
   "project": {
     "inputs": [
@@ -17,20 +33,23 @@
     ]
   },
   "entrypoints": [
-    "archmap.cli:main"
+    "archmap.entry.cli_entry:main"
   ],
   "modules": [
     {
-      "id": "cli-pipeline",
-      "name": "CLI 与流水线",
+      "id": "entry-pipeline",
+      "name": "入口与流水线",
       "include": [
         "archmap/__init__.py",
         "archmap/__main__.py",
-        "archmap/cli.py",
-        "archmap/config.py",
-        "archmap/pipeline.py"
+        "archmap/entry/*.py",
+        "archmap/managers/__init__.py",
+        "archmap/managers/pipeline_manager.py",
+        "archmap/utility/__init__.py",
+        "archmap/utility/cli_utility.py",
+        "archmap/utility/pipeline_utility.py"
       ],
-      "note": "命令行入口、配置加载与发现→分析→调用事实→详情→构建的总流水线。",
+      "note": "CLI 入口、应用级流水线编排与 CLI 内部命令处理。",
       "inputs": [
         "命令行参数与项目配置"
       ],
@@ -41,22 +60,43 @@
       "role": "main"
     },
     {
+      "id": "config-model",
+      "name": "配置与模型",
+      "include": [
+        "archmap/config/*.py",
+        "archmap/model/*.py",
+        "archmap/utility/config_utility.py"
+      ],
+      "note": "静态配置、常量、运行期数据模型、契约模型与配置加载工具。",
+      "inputs": [
+        "JSON 配置与扫描参数"
+      ],
+      "outputs": [
+        "ProjectConfig、AnalysisResult、CallSite 与 API 契约模型"
+      ],
+      "color": "#22d3ee",
+      "role": "service"
+    },
+    {
       "id": "python-frontend",
       "name": "Python 前端",
       "include": [
-        "archmap/discover.py",
-        "archmap/analysis.py",
-        "archmap/callresolver.py",
-        "archmap/callsites.py",
-        "archmap/details.py",
-        "archmap/frontends/**/*.py"
+        "archmap/frontends/*.py",
+        "archmap/frontends/**/*.py",
+        "archmap/managers/frontend_manager.py",
+        "archmap/utility/analysis_utility.py",
+        "archmap/utility/call_utility.py",
+        "archmap/utility/detail_utility.py",
+        "archmap/utility/contract_utility.py",
+        "archmap/utility/role_utility.py",
+        "archmap/utility/discovery_utility.py"
       ],
-      "note": "源码发现、AST 索引、符号解析、调用解析与语言前端适配层。",
+      "note": "PythonFrontend 统一门面及其发现、分析、调用、详情、角色与契约内部工具。",
       "inputs": [
         "Python 源码与扫描配置"
       ],
       "outputs": [
-        "模块、函数、调用目标与 canonical 分析结果"
+        "模块、函数、调用目标、函数详情与 canonical 契约"
       ],
       "color": "#60a5fa",
       "role": "service"
@@ -65,9 +105,10 @@
       "id": "graph-projection",
       "name": "架构投影",
       "include": [
-        "archmap/graph.py"
+        "archmap/managers/graph_manager.py",
+        "archmap/utility/graph_utility.py"
       ],
-      "note": "生成 ProjectGraph、ModuleGraph、模块能力契约、宏观调用/数据边、入口与语义指纹。",
+      "note": "GraphManager 门面及其三层投影、布局与指纹内部工具。",
       "inputs": [
         "函数详情、调用记录与逻辑模块配置"
       ],
@@ -81,10 +122,12 @@
       "id": "validate-render",
       "name": "校验与渲染",
       "include": [
-        "archmap/validate.py",
-        "archmap/render.py"
+        "archmap/managers/validate_manager.py",
+        "archmap/managers/render_manager.py",
+        "archmap/utility/validate_utility.py",
+        "archmap/utility/render_utility.py"
       ],
-      "note": "三层 bundle 校验、跨引用检查以及自包含 HTML 模板渲染。",
+      "note": "ValidationManager / RenderManager 门面及校验、自包含 HTML 渲染内部工具。",
       "inputs": [
         "bundle、layout 与可选 LLM 注解"
       ],

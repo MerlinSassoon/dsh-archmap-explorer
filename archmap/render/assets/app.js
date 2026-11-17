@@ -368,6 +368,97 @@
     }[role] || "MODULE");
   }
 
+  function providerRoleLabel(role) {
+    return ({
+      config: "CONFIG",
+      model: "MODEL",
+      manager: "MANAGER",
+      entry: "ENTRY",
+      adapter: "ADAPTER",
+      component: "COMPONENT",
+      contract: "CONTRACT",
+      utility: "UTILITY",
+    }[role] || "PROVIDER");
+  }
+
+  function providerRoleBadge(role) {
+    return `<span class="provider-role-badge role-${escapeHtml(role || "utility")}">${escapeHtml(providerRoleLabel(role))}</span>`;
+  }
+
+  function roleCountChips(counts, limit = 8) {
+    const entries = Object.entries(counts || {}).filter(([, count]) => Number(count) > 0).slice(0, limit);
+    if (!entries.length) return `<span class="role-count-empty">暂无 Provider</span>`;
+    return entries.map(([role, count]) => `<span class="role-count-chip role-${escapeHtml(role)}">${escapeHtml(providerRoleLabel(role))}<b>${Number(count)}</b></span>`).join("");
+  }
+
+  function isHiddenProvider(node) {
+    return node.providerVisibility === "internal" || node.providerRole === "utility";
+  }
+
+  function visibleProviderNodes(graph) {
+    return (graph?.nodes || []).filter(node => (node.kind === "class" || node.kind === "function") && !isHiddenProvider(node));
+  }
+
+  function visibleRoleCounts(graph) {
+    if (graph?.publicProviderRoleCounts && typeof graph.publicProviderRoleCounts === "object") {
+      return graph.publicProviderRoleCounts;
+    }
+    const counts = {};
+    visibleProviderNodes(graph).forEach(node => {
+      const role = node.providerRole || "utility";
+      counts[role] = (counts[role] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function visibleComposition(graph) {
+    if (graph?.publicModuleComposition && typeof graph.publicModuleComposition === "object") {
+      return graph.publicModuleComposition;
+    }
+    const visibleIds = new Set(visibleProviderNodes(graph).map(node => node.id));
+    const composition = {};
+    Object.entries(graph?.moduleComposition || {}).forEach(([role, ids]) => {
+      const visible = (ids || []).filter(id => visibleIds.has(id));
+      if (visible.length) composition[role] = visible;
+    });
+    return composition;
+  }
+
+  function typeFieldChips(summary, limit = 3) {
+    const fields = summary?.fields || [];
+    if (!fields.length) return `<span class="type-field-empty">暂无字段摘要</span>`;
+    const chips = fields.slice(0, limit).map(field => {
+      const suffix = field.default ? ` = ${truncate(field.default, 14)}` : "";
+      const annotation = field.annotation ? `: ${truncate(field.annotation, 15)}` : "";
+      return `<span class="type-field-chip" title="${escapeHtml(field.name + annotation + suffix)}">${escapeHtml(field.name)}${escapeHtml(annotation)}${escapeHtml(suffix)}</span>`;
+    }).join("");
+    const more = fields.length > limit ? `<span class="type-field-chip more">+${fields.length - limit}</span>` : "";
+    return chips + more;
+  }
+
+  function typeFieldList(summary) {
+    const fields = summary?.fields || [];
+    if (!fields.length) return `<div class="class-method-empty">暂无字段摘要</div>`;
+    return `<div class="type-field-list">${fields.map(field => `<div class="type-field-row">
+        <span class="type-field-name">${escapeHtml(field.name)}</span>
+        <span class="type-field-annotation">${escapeHtml(field.annotation || "—")}</span>
+        <span class="type-field-default">${escapeHtml(field.default || "—")}</span>
+        <span class="type-field-kind">${escapeHtml(field.kind || "")}</span>
+      </div>`).join("")}</div>`;
+  }
+
+  function roleCompositionBlock(graph) {
+    const composition = visibleComposition(graph);
+    const counts = visibleRoleCounts(graph);
+    const entries = Object.entries(composition).filter(([, ids]) => Array.isArray(ids) && ids.length);
+    if (!entries.length) return `<div class="class-method-empty">暂无公开 Provider</div>`;
+    return `<div class="module-composition">${entries.map(([role, ids]) => `<div class="composition-row">
+      ${providerRoleBadge(role)}
+      <span class="composition-count">${Number(counts?.[role] ?? ids.length)}</span>
+      <span class="composition-ids">${ids.slice(0, 5).map(id => `<code>${escapeHtml(id.split(/[.:]/).pop())}</code>`).join("")}${ids.length > 5 ? `<em>+${ids.length - 5}</em>` : ""}</span>
+    </div>`).join("")}</div>`;
+  }
+
   function apiDisplayName(api) {
     if (!api) return "";
     return api.display || api.signature || api.name || "";
@@ -421,14 +512,28 @@
     if (!providers || !providers.length) {
       return `<div class="class-method-empty">暂无公开接口</div>`;
     }
-    return providers.map(provider => `<div class="api-provider">
+    const groups = [];
+    const byRole = new Map();
+    providers.forEach(provider => {
+      const role = provider.providerRole || "utility";
+      if (!byRole.has(role)) {
+        const items = [];
+        byRole.set(role, items);
+        groups.push([role, items]);
+      }
+      byRole.get(role).push(provider);
+    });
+    return groups.map(([role, items]) => `<div class="api-role-group">
+      <div class="api-role-heading">${providerRoleBadge(role)}<span>${items.length} provider${items.length === 1 ? "" : "s"}</span></div>
+      ${items.map(provider => `<div class="api-provider">
         <div class="api-provider-head">
           <span class="api-provider-kind">${escapeHtml(provider.providerKind || "provider")}</span>
           <b>${escapeHtml(provider.providerName || provider.providerId)}</b>
           <em>${provider.apiCount || (provider.apis || []).length}</em>
         </div>
         ${apiDetailList(provider.apis || [])}
-      </div>`).join("");
+      </div>`).join("")}
+    </div>`).join("");
   }
 
   function bindApiNavigation(root) {
@@ -500,6 +605,7 @@
           <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
         <div class="port-detail"><span>输入 <b>${escapeHtml(module.inputs.map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml(module.outputs.map(item => item.label).join(" / "))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+        <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(module)}</div>
         <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
         ${annotationBlock(module.moduleId)}
         <div class="empty-hint">双击自由函数进入方法详情；类节点右栏展示其提供接口。</div>`;
@@ -538,6 +644,7 @@
             <div class="detail-module">module://${escapeHtml(uid)}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
           <div class="port-detail"><span>输入 <b>${escapeHtml((macroNode.inputs || []).map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml((macroNode.outputs || []).map(item => item.label).join(" / "))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+          <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(graph)}</div>
           <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>
           ${annotationBlock(uid)}
@@ -549,19 +656,22 @@
       if (macroNode.kind === "class") {
         const apis = macroNode.providedApis || [];
         const usage = macroNode.usage || {};
+        const typeSummary = macroNode.typeSummary || usage.typeSummary || null;
+        const isTypeCard = macroNode.providerRole === "config" || macroNode.providerRole === "model";
         const constructorSignature = usage.constructor?.signature || `${macroNode.name}()`;
         const protocols = usage.protocols || [];
         const internalCount = Number(macroNode.internalMethodCount || 0);
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#60a5fa"}"><div class="detail-color"></div><div>
-            <div class="eyebrow">Class provider${macroNode.isAbstract ? " · contract" : ""}</div>
+            <div class="eyebrow">${isTypeCard ? "Type provider" : "Class provider"}${macroNode.isAbstract ? " · contract" : ""}</div>
             <h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">${escapeHtml(macroNode.qualifiedName || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无类备注")}</div>
-          <div class="port-detail"><span>类型 <b>${escapeHtml(macroNode.classKind || "class")}</b></span><span>接口 <b>${apis.length}</b></span>${protocols.length ? `<span>协议 <b>${escapeHtml(protocols.join(" / "))}</b></span>` : ""}</div>
-          <div class="source-line">用法：${escapeHtml(constructorSignature)}</div>
+          <div class="port-detail"><span>角色 <b>${escapeHtml(providerRoleLabel(macroNode.providerRole))}</b></span><span>类型 <b>${escapeHtml(macroNode.classKind || "class")}</b></span><span>接口 <b>${apis.length}</b></span>${protocols.length ? `<span>协议 <b>${escapeHtml(protocols.join(" / "))}</b></span>` : ""}</div>
+          <div class="source-line">角色来源：${escapeHtml(macroNode.roleSource || "structure")} · ${escapeHtml(macroNode.roleConfidence || "medium")}</div>
+          ${isTypeCard ? "" : `<div class="source-line">用法：${escapeHtml(constructorSignature)}</div>`}
           <div class="source-line">${escapeHtml(macroNode.file || "")}:${macroNode.line || "—"}</div>
           ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不接入模块输入输出。</div>` : ""}
-          <div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>
+          ${isTypeCard ? `<div class="class-method-section"><div class="class-method-heading">Type fields · ${Number(typeSummary?.fieldCount || 0)}</div>${typeFieldList(typeSummary)}</div>` : `<div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>`}
           <div class="class-method-section"><div class="class-method-heading">内部实现</div><div class="class-method-empty">${internalCount} 个内部方法，不在契约视图展示。</div></div>`;
         bindApiNavigation(detailScroll);
         return;
@@ -569,10 +679,11 @@
       if (macroNode.kind === "function") {
         const detail = functionDetailById.get(macroNode.functionDetailId);
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#60a5fa"}"><div class="detail-color"></div><div>
-            <div class="eyebrow">Function node</div><h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
+            <div class="eyebrow">Function provider</div><h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">${escapeHtml(macroNode.qualifiedName || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无函数备注")}</div>
-          <div class="port-detail"><span>暴露 <b>${escapeHtml(detail?.apiExposure || macroNode.apiExposure || "public")}</b></span><span>来源 <b>${escapeHtml(detail?.apiExposureSource || macroNode.apiExposureSource || "naming")}</b></span></div>
+          <div class="port-detail"><span>角色 <b>${escapeHtml(providerRoleLabel(macroNode.providerRole))}</b></span><span>暴露 <b>${escapeHtml(detail?.apiExposure || macroNode.apiExposure || "public")}</b></span><span>来源 <b>${escapeHtml(detail?.apiExposureSource || macroNode.apiExposureSource || "naming")}</b></span></div>
+          <div class="source-line">角色来源：${escapeHtml(macroNode.roleSource || "structure")} · ${escapeHtml(macroNode.roleConfidence || "medium")}</div>
           <div class="source-line">${escapeHtml(macroNode.file)}:${macroNode.line}</div>
           ${annotationBlock(macroNode.functionDetailId, detail?.sourceHash)}
           <div class="detail-actions"><button class="detail-action" type="button" data-open-method-detail="${escapeHtml(macroNode.functionDetailId)}">打开方法详情</button></div>`;
@@ -596,9 +707,12 @@
       return;
     }
     moduleContracts.style.setProperty("--mc-rgb", rgbFromHex(graph.color || "#60a5fa"));
-    moduleContracts.innerHTML = `<div class="contracts-label">PROVIDED API</div>
-      <div class="contracts-track">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
-      <div class="contracts-count">${apis.length} apis</div>`;
+    moduleContracts.innerHTML = `<div class="contracts-main">
+        <div class="contracts-label">PROVIDED API</div>
+        <div class="contracts-track">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
+        <div class="contracts-count">${apis.length} apis</div>
+      </div>
+      <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>`;
     moduleContracts.classList.add("is-visible");
     bindApiNavigation(moduleContracts);
   }
@@ -813,7 +927,8 @@
     const apis = graph?.providedApis || [];
     const role = module.role || graph?.role || "service";
     const isMain = role === "main";
-    const classCount = Number(graph?.classCount ?? (module.classes || []).length);
+    const visibleClasses = visibleProviderNodes(graph).filter(node => node.kind === "class").length;
+    const classCount = Number(visibleClasses || 0);
     const providerCount = Number((graph?.apiProviders || []).length);
     const apiCount = Number(module.providedApiCount ?? apis.length);
     const element = document.createElement("article");
@@ -839,6 +954,7 @@
           <div class="module-api-heading"><span>PROVIDED API</span><b>${apiCount}</b></div>
           <div class="module-api-chips">${apiChips(apis, isMain ? 4 : 3)}</div>
         </div>
+        <div class="module-role-counts">${roleCountChips(visibleRoleCounts(graph))}</div>
         <div class="module-metrics">
           <span>${classCount} class${classCount === 1 ? "" : "es"}</span>
           <span>${providerCount} provider${providerCount === 1 ? "" : "s"}</span>
@@ -891,7 +1007,7 @@
   function miniDefaultPositions(moduleId) {
     const graph = moduleGraphById.get(moduleId);
     if (!graph) return new Map();
-    const functions = graph.nodes.filter(node => node.kind === "function" || node.kind === "class");
+    const functions = visibleProviderNodes(graph);
     if (!functions.length) return new Map();
     const layout = graph.layout?.nodes || {};
     const rects = functions.map(node => {
@@ -937,7 +1053,7 @@
     const graph = moduleGraphById.get(moduleId);
     const defaults = miniDefaultPositions(moduleId);
     const positionMap = new Map();
-    graph.nodes.filter(node => node.kind === "function" || node.kind === "class").forEach(node => {
+    visibleProviderNodes(graph).forEach(node => {
       const element = host.querySelector(`.mini-node[data-uid="${cssEscape(node.id)}"]`);
       if (!element) return;
       positionMap.set(node.id, {
@@ -964,7 +1080,8 @@
     svg.setAttribute("height", "218");
     svg.setAttribute("viewBox", "0 0 540 218");
     host.appendChild(svg);
-    const edges = graph.edges.filter(edge => edge.role === "internal");
+    const visibleIds = new Set(visibleProviderNodes(graph).map(node => node.id));
+    const edges = graph.edges.filter(edge => edge.role === "internal" && visibleIds.has(edge.from) && visibleIds.has(edge.to));
     edges.forEach(edge => {
       const fromPos = getMiniPosition(moduleId, edge.from, defaults);
       const toPos = getMiniPosition(moduleId, edge.to, defaults);
@@ -977,7 +1094,7 @@
       path.setAttribute("opacity", ".42");
       svg.appendChild(path);
     });
-    graph.nodes.filter(node => node.kind === "function" || node.kind === "class").forEach(node => {
+    visibleProviderNodes(graph).forEach(node => {
       const pos = getMiniPosition(moduleId, node.id, defaults);
       const element = document.createElement("article");
       element.className = `mini-node node-card${node.kind === "class" ? " mini-class" : ""}`;
@@ -1079,6 +1196,9 @@
     world.classList.remove("page-enter");
     state.nodes = new Map();
     graph.nodes.forEach(node => {
+      if ((node.kind === "class" || node.kind === "function") && isHiddenProvider(node)) {
+        return;
+      }
       if (node.kind === "class") {
         state.nodes.set(node.id, { ...node, kind: "class", color: graph.color });
       } else if (node.kind === "function") {
@@ -1168,7 +1288,7 @@
     element.style.height = `${pos.h}px`;
     element.style.setProperty("--mc", graph?.color || "#f59e0b");
     element.style.setProperty("--mc-rgb", rgbFromHex(graph?.color || "#f59e0b"));
-    element.innerHTML = `<div class="fn-node-top"><span class="fn-node-icon">ƒ</span><span class="fn-node-kind">FUNCTION</span></div>
+    element.innerHTML = `<div class="fn-node-top"><span class="fn-node-icon">ƒ</span><span class="fn-node-kind">${escapeHtml(providerRoleLabel(node.providerRole))}</span>${providerRoleBadge(node.providerRole)}</div>
       <div class="fn-node-name">${escapeHtml(node.name)}</div>
       <div class="fn-node-note">${escapeHtml(node.note || "暂无备注")}</div>`;
     world.appendChild(element);
@@ -1191,18 +1311,20 @@
   function renderModuleClassNode(moduleId, nodeId, node) {
     const pos = state.positions.get(nodeId);
     const graph = moduleGraphById.get(moduleId);
-    const kindLabel = {
-      service: "SERVICE", component: "COMPONENT", abstract: "ABSTRACT",
-      interface: "INTERFACE", dataclass: "DATACLASS", enum: "ENUM",
-      exception: "EXCEPTION", utility: "UTILITY", model: "MODEL",
-    }[node.classKind] || "CLASS";
     const methods = Array.isArray(node.methods) ? node.methods : [];
     const apis = Array.isArray(node.providedApis) ? node.providedApis : [];
     const usage = node.usage || {};
+    const typeSummary = node.typeSummary || usage.typeSummary || null;
+    const isTypeCard = node.providerRole === "config" || node.providerRole === "model";
     const constructorSignature = usage.constructor?.signature || `${node.name}()`;
-    const chips = `<div class="class-method-chips">${apiChips(apis, 2)}</div>`;
+    const bodySummary = isTypeCard
+      ? `<div class="class-usage">${Number(typeSummary?.fieldCount || 0)} fields · type contract</div>`
+      : `<div class="class-usage">${escapeHtml(constructorSignature)}</div>`;
+    const chips = isTypeCard
+      ? `<div class="class-method-chips type-fields">${typeFieldChips(typeSummary, 2)}</div>`
+      : `<div class="class-method-chips">${apiChips(apis, 2)}</div>`;
     const element = document.createElement("article");
-    element.className = `node-card class-node${node.isAbstract ? " is-abstract" : ""}`;
+    element.className = `node-card class-node${node.isAbstract ? " is-abstract" : ""}${isTypeCard ? " is-type-card" : ""} role-${escapeHtml(node.providerRole || "utility")}`;
     element.dataset.uid = nodeId;
     element.style.left = `${pos.x}px`;
     element.style.top = `${pos.y}px`;
@@ -1212,11 +1334,12 @@
     element.style.setProperty("--mc-rgb", rgbFromHex(graph?.color || "#60a5fa"));
     element.innerHTML = `<div class="class-node-top">
         <span class="class-node-icon">C</span>
-        <span class="class-node-kind">${kindLabel}</span>
-        <span class="class-node-count">${apis.length} apis</span>
+        <span class="class-node-kind">${escapeHtml(providerRoleLabel(node.providerRole))}</span>
+        ${providerRoleBadge(node.providerRole)}
+        <span class="class-node-count">${isTypeCard ? `${Number(typeSummary?.fieldCount || 0)} fields` : `${apis.length} apis`}</span>
       </div>
       <div class="class-node-name">${escapeHtml(node.name)}</div>
-      <div class="class-usage">${escapeHtml(constructorSignature)}</div>
+      ${bodySummary}
       <div class="class-node-note">${escapeHtml(node.note || "暂无类备注")}</div>
       ${chips}`;
     world.appendChild(element);
@@ -1296,8 +1419,10 @@
       ? (moduleGraphById.get(detail.moduleId)?.nodes || []).find(node => node.id === detail.ownerClassId)
       : null;
     const module = projectModuleById.get(detail.moduleId);
+    const providerRole = detail.providerRole || ownerClass?.providerRole || "";
     const badges = [
       detail.methodKind || "function",
+      providerRole ? `role:${providerRole}` : "",
       detail.visibility || "public",
       `api:${detail.apiExposure || "public"}`,
       detail.apiExposureSource ? `source:${detail.apiExposureSource}` : "",

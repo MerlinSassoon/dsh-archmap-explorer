@@ -1,0 +1,2 @@
+"""Facade manager package."""
+

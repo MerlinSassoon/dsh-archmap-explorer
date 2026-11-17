@@ -1,18 +1,15 @@
-from __future__ import annotations
+"""Compatibility shim for the pre-P2.3 pipeline module."""
 
 from pathlib import Path
 from typing import Any
 
-from .config import load_config
-from .frontends import get_frontend
-from .graph import build_bundle
+from .managers.pipeline_manager import PipelineManager
 
 
-def build_architecture(project_root: Path, config_path: Path | None = None) -> dict[str, Any]:
-    config = load_config(project_root, config_path)
-    frontend = get_frontend(config.language)
-    analysis = frontend.analyze(project_root, config_path)
-    call_sites = frontend.build_call_sites(analysis)
-    function_details = frontend.build_function_details(analysis, call_sites)
-    contracts = frontend.build_contracts(analysis)
-    return build_bundle(analysis, call_sites, function_details, contracts)
+def build_architecture(
+    project_root: Path, config_path: Path | None = None
+) -> dict[str, Any]:
+    return PipelineManager().build_architecture(project_root, config_path)
+
+
+__all__ = ["build_architecture"]

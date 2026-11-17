@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "3.2"
+      "const": "3.5"
     },
     "kind": {
       "const": "archmap.bundle"
@@ -240,7 +240,12 @@
         "exposureSource",
         "exposureConfidence",
         "evidenceFunctionIds",
-        "isEntry"
+        "isEntry",
+        "providerRole",
+        "roleSource",
+        "roleConfidence",
+        "providerVisibility",
+        "ownerProviderId"
       ],
       "properties": {
         "id": {
@@ -333,6 +338,25 @@
         },
         "endLine": {
           "type": "integer"
+        },
+        "providerRole": {
+          "$ref": "#/$defs/providerRole"
+        },
+        "roleSource": {
+          "$ref": "#/$defs/providerRoleSource"
+        },
+        "roleConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "providerVisibility": {
+          "$ref": "#/$defs/providerVisibility"
+        },
+        "ownerProviderId": {
+          "$ref": "#/$defs/ownerProviderId"
         }
       }
     },
@@ -345,7 +369,12 @@
         "providerName",
         "moduleId",
         "apiCount",
-        "apis"
+        "apis",
+        "providerRole",
+        "roleSource",
+        "roleConfidence",
+        "providerVisibility",
+        "ownerProviderId"
       ],
       "properties": {
         "providerId": {
@@ -372,6 +401,35 @@
           "items": {
             "$ref": "#/$defs/apiCapability"
           }
+        },
+        "providerRole": {
+          "$ref": "#/$defs/providerRole"
+        },
+        "roleSource": {
+          "$ref": "#/$defs/providerRoleSource"
+        },
+        "roleConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "typeSummary": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/typeSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providerVisibility": {
+          "$ref": "#/$defs/providerVisibility"
+        },
+        "ownerProviderId": {
+          "$ref": "#/$defs/ownerProviderId"
         }
       }
     },
@@ -580,7 +638,11 @@
         "outputs",
         "nodes",
         "edges",
-        "layout"
+        "layout",
+        "moduleComposition",
+        "providerRoleCounts",
+        "publicModuleComposition",
+        "publicProviderRoleCounts"
       ],
       "properties": {
         "kind": {
@@ -663,6 +725,18 @@
         },
         "layout": {
           "$ref": "#/$defs/layout"
+        },
+        "moduleComposition": {
+          "$ref": "#/$defs/moduleComposition"
+        },
+        "providerRoleCounts": {
+          "$ref": "#/$defs/providerRoleCounts"
+        },
+        "publicModuleComposition": {
+          "$ref": "#/$defs/moduleComposition"
+        },
+        "publicProviderRoleCounts": {
+          "$ref": "#/$defs/providerRoleCounts"
         }
       }
     },
@@ -856,6 +930,25 @@
         },
         "calleeCount": {
           "type": "integer"
+        },
+        "providerRole": {
+          "$ref": "#/$defs/providerRole"
+        },
+        "roleSource": {
+          "$ref": "#/$defs/providerRoleSource"
+        },
+        "roleConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "providerVisibility": {
+          "$ref": "#/$defs/providerVisibility"
+        },
+        "ownerProviderId": {
+          "$ref": "#/$defs/ownerProviderId"
         }
       }
     },
@@ -993,8 +1086,214 @@
               "type": "integer"
             }
           }
+        },
+        "providerRoles": {
+          "$ref": "#/$defs/providerRoleCounts"
         }
       }
+    },
+    "providerRole": {
+      "type": "string",
+      "enum": [
+        "config",
+        "model",
+        "manager",
+        "entry",
+        "adapter",
+        "component",
+        "contract",
+        "utility"
+      ]
+    },
+    "providerRoleSource": {
+      "type": "string",
+      "enum": [
+        "config",
+        "docstring",
+        "comment",
+        "decorator",
+        "entrypoint",
+        "structure",
+        "naming"
+      ]
+    },
+    "typeField": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "annotation",
+        "default",
+        "kind"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "annotation": {
+          "type": "string"
+        },
+        "default": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "field",
+            "instance_field",
+            "constant",
+            "enum_member"
+          ]
+        }
+      }
+    },
+    "typeSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "fieldCount",
+        "fields"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "fieldCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeField"
+          }
+        }
+      }
+    },
+    "moduleComposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config",
+        "model",
+        "manager",
+        "entry",
+        "adapter",
+        "component",
+        "contract",
+        "utility"
+      ],
+      "properties": {
+        "config": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "model": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "manager": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entry": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "adapter": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "component": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contract": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "utility": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "providerRoleCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config",
+        "model",
+        "manager",
+        "entry",
+        "adapter",
+        "component",
+        "contract",
+        "utility"
+      ],
+      "properties": {
+        "config": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "manager": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entry": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "adapter": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "component": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contract": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "utility": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "providerVisibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "internal"
+      ]
+    },
+    "ownerProviderId": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   }
 }

@@ -495,3 +495,63 @@
     .method-source { max-height: none; }
     .method-calls-panel { display: grid; grid-template-columns: 1fr 1fr; }
   }
+
+  /* P2.2 Provider Role and type-card projection */
+  .module-contracts { flex-direction: column; align-items: stretch; gap: 6px; max-width: min(820px, calc(100% - 80px)); }
+  .contracts-main { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .contracts-roles { display: flex; align-items: center; gap: 5px; overflow: hidden; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.055); }
+  .role-count-chip {
+    display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+    border: 1px solid rgba(148,163,184,.24); border-radius: 4px; padding: 1px 5px;
+    color: #aebdd0; background: rgba(148,163,184,.055); font-family: var(--mono); font-size: 6.5px; letter-spacing: .04em;
+  }
+  .role-count-chip b { color: #e8f1ff; font-size: 7.5px; font-weight: 700; }
+  .role-count-empty { color: #748398; font-family: var(--mono); font-size: 7px; }
+  .provider-role-badge {
+    display: inline-flex; align-items: center; flex: 0 0 auto; border: 1px solid rgba(148,163,184,.30);
+    border-radius: 3px; padding: 1px 4px; color: #b9c8da; background: rgba(148,163,184,.07);
+    font-family: var(--mono); font-size: 6px; line-height: 1.3; letter-spacing: .05em;
+  }
+  .role-config { border-color: rgba(34,211,238,.40) !important; color: #b8f4ff !important; background: rgba(34,211,238,.08) !important; }
+  .role-model { border-color: rgba(96,165,250,.42) !important; color: #c5e0ff !important; background: rgba(96,165,250,.09) !important; }
+  .role-manager { border-color: rgba(245,158,11,.44) !important; color: #ffe0ad !important; background: rgba(245,158,11,.09) !important; }
+  .role-entry { border-color: rgba(139,220,100,.44) !important; color: #dcf8cc !important; background: rgba(139,220,100,.09) !important; }
+  .role-adapter { border-color: rgba(244,114,182,.42) !important; color: #ffd4e8 !important; background: rgba(244,114,182,.08) !important; }
+  .role-component { border-color: rgba(167,139,250,.44) !important; color: #e4d9ff !important; background: rgba(167,139,250,.09) !important; }
+  .role-contract { border-color: rgba(251,113,133,.44) !important; color: #ffd3da !important; background: rgba(251,113,133,.08) !important; }
+  .role-utility { border-color: rgba(148,163,184,.34) !important; color: #c5d1df !important; background: rgba(148,163,184,.07) !important; }
+  .module-role-counts { display: flex; align-items: center; gap: 4px; margin-top: 7px; overflow: hidden; min-height: 13px; }
+  .module-role-counts .role-count-chip { padding: 0 4px; font-size: 6px; }
+  .module-role-counts .role-count-chip b { font-size: 7px; }
+  .fn-node-top .provider-role-badge { margin-left: auto; }
+  .class-node.is-type-card { border-style: solid; background: linear-gradient(135deg, rgba(var(--mc-rgb), .15), rgba(var(--mc-rgb), .025) 62%, rgba(255,255,255,.010)), #0d1520; }
+  .class-node.is-type-card .class-node-icon { border-radius: 50%; }
+  .type-fields { flex-wrap: wrap; gap: 3px; }
+  .type-field-chip {
+    flex: 0 0 auto; max-width: 128px; border: 1px solid rgba(var(--mc-rgb), .24); border-radius: 4px;
+    padding: 1px 4px; color: #b9d5f2; background: rgba(var(--mc-rgb), .075);
+    font-family: var(--mono); font-size: 6.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .type-field-chip.more { color: #94a7bd; border-color: var(--line-soft); background: rgba(255,255,255,.025); }
+  .type-field-empty { color: #748398; font-family: var(--mono); font-size: 7px; }
+  .type-field-list { display: flex; flex-direction: column; gap: 4px; }
+  .type-field-row {
+    display: grid; grid-template-columns: minmax(70px, 1fr) minmax(70px, 1.1fr) minmax(70px, 1.1fr) auto;
+    align-items: center; gap: 7px; border: 1px solid var(--line-soft); border-radius: 5px;
+    padding: 5px 6px; background: rgba(255,255,255,.016); font-family: var(--mono); font-size: 7.5px;
+  }
+  .type-field-name { color: #dce9f8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .type-field-annotation { color: #91b8e8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .type-field-default { color: #b7d8a1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .type-field-kind { color: #7f93ac; font-size: 6.5px; text-transform: uppercase; }
+  .module-composition { display: flex; flex-direction: column; gap: 5px; }
+  .composition-row { display: flex; align-items: center; gap: 7px; border-bottom: 1px solid var(--line-soft); padding: 4px 1px; }
+  .composition-row:last-child { border-bottom: 0; }
+  .composition-count { color: #8bdc64; font-family: var(--mono); font-size: 7.5px; }
+  .composition-ids { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+  .composition-ids code { color: #9fb4cc; font-family: var(--mono); font-size: 7px; white-space: nowrap; }
+  .composition-ids em { color: #7f93ac; font-family: var(--mono); font-size: 6.5px; font-style: normal; }
+  .api-role-group { margin-top: 10px; }
+  .api-role-group + .api-role-group { border-top: 1px solid var(--line-soft); padding-top: 8px; }
+  .api-role-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .api-role-heading span { color: #7f93ac; font-family: var(--mono); font-size: 6.5px; }

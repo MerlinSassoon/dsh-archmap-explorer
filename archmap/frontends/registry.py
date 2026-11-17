@@ -1,17 +1,13 @@
-from __future__ import annotations
+"""Compatibility shim for language frontend registration."""
 
-from .base import LanguageFrontend
-from .python import PythonFrontend
+from ..managers.frontend_manager import FrontendManager
 
-
-FRONTENDS: dict[str, LanguageFrontend] = {
-    "python": PythonFrontend(),
-}
+_MANAGER = FrontendManager()
+FRONTENDS = _MANAGER.frontends
 
 
-def get_frontend(language: str) -> LanguageFrontend:
-    try:
-        return FRONTENDS[language]
-    except KeyError:
-        supported = ", ".join(sorted(FRONTENDS))
-        raise ValueError(f"unsupported language {language!r}; available: {supported}") from None
+def get_frontend(language: str):
+    return _MANAGER.get(language)
+
+
+__all__ = ["FRONTENDS", "get_frontend"]

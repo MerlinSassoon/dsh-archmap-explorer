@@ -1,0 +1,332 @@
+"""Architecture bundle validation helpers."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from ..config.contract_config import (
+    API_EXPOSING_ROLES,
+    CAPABILITY_KINDS,
+    EXPOSURE_SOURCES,
+    EXPOSURE_VALUES,
+    PROVIDER_ROLE_ORDER,
+    PROVIDER_ROLE_SOURCES,
+    PROVIDER_ROLES,
+)
+from ..config.project_config import MODULE_ROLES
+
+
+def _issue(severity: str, code: str, message: str, **extra: Any) -> dict[str, Any]:
+    return {"severity": severity, "code": code, "message": message, **extra}
+
+
+def _validate_capability(
+    api: dict[str, Any],
+    *,
+    module_id: str,
+    detail_by_id: dict[str, Any],
+    class_ids: set[str],
+    seen: set[str],
+) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    api_id = api.get("id")
+    if not api_id or api_id in seen:
+        issues.append(_issue("error", "PROVIDED_API_DUPLICATE", f"module {module_id} has duplicate/missing provided API id"))
+    seen.add(api_id)
+    kind = api.get("kind")
+    if kind not in CAPABILITY_KINDS:
+        issues.append(_issue("error", "PROVIDED_API_KIND", f"module {module_id} provided API {api_id} has invalid kind: {kind}"))
+    if api.get("exposure") not in EXPOSURE_VALUES:
+        issues.append(_issue("error", "PROVIDED_API_EXPOSURE", f"module {module_id} provided API {api_id} has invalid exposure"))
+    if api.get("exposureSource") not in EXPOSURE_SOURCES:
+        issues.append(_issue("error", "PROVIDED_API_SOURCE", f"module {module_id} provided API {api_id} has invalid exposure source"))
+    function_id = api.get("functionId")
+    if function_id and function_id not in detail_by_id:
+        issues.append(_issue("error", "PROVIDED_API_FUNCTION_MISSING", f"module {module_id} provided API references missing function {function_id}"))
+    if api.get("providerKind") == "class" and api.get("providerId") not in class_ids:
+        issues.append(_issue("error", "PROVIDED_API_OWNER_MISSING", f"module {module_id} provided API provider missing: {api.get('providerId')}"))
+    for evidence_id in api.get("evidenceFunctionIds", []):
+        if evidence_id and evidence_id not in detail_by_id:
+            issues.append(_issue("error", "PROVIDED_API_EVIDENCE_MISSING", f"module {module_id} provided API evidence missing: {evidence_id}"))
+    constructor_id = api.get("constructorFunctionId")
+    if constructor_id and constructor_id not in detail_by_id:
+        issues.append(_issue("error", "PROVIDED_API_CONSTRUCTOR_MISSING", f"module {module_id} provided API constructor missing: {constructor_id}"))
+    role = api.get("providerRole")
+    if role is not None and role not in PROVIDER_ROLES:
+        issues.append(_issue("error", "PROVIDED_API_ROLE", f"module {module_id} provided API {api_id} has invalid providerRole: {role}"))
+    source = api.get("roleSource")
+    if source is not None and source not in PROVIDER_ROLE_SOURCES:
+        issues.append(_issue("error", "PROVIDED_API_ROLE_SOURCE", f"module {module_id} provided API {api_id} has invalid roleSource: {source}"))
+    visibility = api.get("providerVisibility")
+    if visibility not in {"public", "internal"}:
+        issues.append(_issue("error", "PROVIDED_API_VISIBILITY", f"module {module_id} provided API {api_id} has invalid providerVisibility: {visibility}"))
+    return issues
+
+
+def _validate_provider_role_fields(
+    item: dict[str, Any], *, label: str
+) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    role = item.get("providerRole")
+    if role not in PROVIDER_ROLES:
+        issues.append(_issue("error", "PROVIDER_ROLE", f"{label} has invalid/missing providerRole: {role}"))
+    source = item.get("roleSource")
+    if source not in PROVIDER_ROLE_SOURCES:
+        issues.append(_issue("error", "PROVIDER_ROLE_SOURCE", f"{label} has invalid/missing roleSource: {source}"))
+    if item.get("roleConfidence") not in {"high", "medium", "low"}:
+        issues.append(_issue("error", "PROVIDER_ROLE_CONFIDENCE", f"{label} has invalid roleConfidence"))
+    if item.get("providerVisibility") not in {"public", "internal"}:
+        issues.append(_issue("error", "PROVIDER_VISIBILITY", f"{label} has invalid/missing providerVisibility"))
+    return issues
+def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    if bundle.get("kind") != "archmap.bundle":
+        issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
+    if str(bundle.get("schemaVersion")) != "3.5":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 3.5"))
+
+    project_graph = bundle.get("projectGraph") or {}
+    module_graphs = bundle.get("moduleGraphs") or []
+    details = bundle.get("functionDetails") or []
+    call_sites = bundle.get("callSites") or []
+    detail_by_id = {detail.get("id"): detail for detail in details}
+    if len(detail_by_id) != len(details):
+        issues.append(_issue("error", "DUPLICATE_FUNCTION", "duplicate function detail ids"))
+
+    module_ids = {module.get("id") for module in project_graph.get("modules", [])}
+    if len(module_ids) != len(project_graph.get("modules", [])):
+        issues.append(_issue("error", "DUPLICATE_MODULE", "duplicate module ids"))
+
+    class_ids: set[str] = {
+        node.get("id")
+        for graph in module_graphs
+        for node in graph.get("nodes", [])
+        if node.get("kind") == "class"
+    }
+    seen_class_ids: set[str] = set()
+    module_graph_by_id = {graph.get("moduleId"): graph for graph in module_graphs}
+    for graph in module_graphs:
+        module_id = graph.get("moduleId")
+        role = graph.get("role")
+        if role is not None and role not in MODULE_ROLES:
+            issues.append(_issue("error", "MODULE_ROLE", f"module {module_id} has invalid role: {role}"))
+        node_role_by_id: dict[str, str] = {}
+        for node in graph.get("nodes", []):
+            if node.get("kind") not in {"class", "function"}:
+                continue
+            issues.extend(
+                _validate_provider_role_fields(
+                    node, label=f"module {module_id} provider {node.get('id')}"
+                )
+            )
+            node_role_by_id[node.get("id")] = str(node.get("providerRole") or "")
+            if node.get("providerRole") in {"config", "model"}:
+                if node.get("providedApis"):
+                    issues.append(_issue("error", "ROLE_API_LEAK", f"module {module_id} config/model provider {node.get('id')} exposes module APIs"))
+                if not isinstance(node.get("typeSummary"), dict):
+                    issues.append(_issue("error", "TYPE_SUMMARY_MISSING", f"module {module_id} config/model provider {node.get('id')} has no typeSummary"))
+            if node.get("providerRole") == "utility" and node.get("providedApis"):
+                issues.append(_issue("error", "UTILITY_API_LEAK", f"module {module_id} utility provider {node.get('id')} exposes module APIs"))
+        composition = graph.get("moduleComposition") or {}
+        if not isinstance(composition, dict):
+            issues.append(_issue("error", "MODULE_COMPOSITION", f"module {module_id} moduleComposition must be an object"))
+            composition = {}
+        for role_name, provider_ids in composition.items():
+            if role_name not in PROVIDER_ROLES:
+                issues.append(_issue("error", "MODULE_COMPOSITION_ROLE", f"module {module_id} has invalid composition role: {role_name}"))
+                continue
+            if not isinstance(provider_ids, list):
+                issues.append(_issue("error", "MODULE_COMPOSITION_IDS", f"module {module_id} composition {role_name} must be a list"))
+                continue
+            for provider_id in provider_ids:
+                if provider_id not in node_role_by_id:
+                    issues.append(_issue("error", "MODULE_COMPOSITION_PROVIDER", f"module {module_id} composition references missing provider: {provider_id}"))
+                elif node_role_by_id.get(provider_id) != role_name:
+                    issues.append(_issue("error", "MODULE_COMPOSITION_ROLE_MISMATCH", f"module {module_id} composition role disagrees for {provider_id}"))
+        expected_composition_ids = {node_id for node_id in node_role_by_id}
+        actual_composition_ids = {
+            provider_id
+            for provider_ids in composition.values()
+            if isinstance(provider_ids, list)
+            for provider_id in provider_ids
+        }
+        if expected_composition_ids != actual_composition_ids:
+            issues.append(_issue("error", "MODULE_COMPOSITION_COVERAGE", f"module {module_id} moduleComposition does not cover exactly its providers"))
+        public_composition = graph.get("publicModuleComposition")
+        if not isinstance(public_composition, dict):
+            issues.append(_issue("error", "PUBLIC_MODULE_COMPOSITION", f"module {module_id} publicModuleComposition must be an object"))
+            public_composition = {}
+        for role_name, provider_ids in public_composition.items():
+            if role_name not in PROVIDER_ROLES or not isinstance(provider_ids, list):
+                issues.append(_issue("error", "PUBLIC_MODULE_COMPOSITION", f"module {module_id} has invalid public composition"))
+                continue
+            for provider_id in provider_ids:
+                if provider_id not in composition.get(role_name, []):
+                    issues.append(_issue("error", "PUBLIC_MODULE_COMPOSITION_PROVIDER", f"module {module_id} public composition provider not in full composition: {provider_id}"))
+                node = next((item for item in graph.get("nodes", []) if item.get("id") == provider_id), None)
+                if node is None or node.get("providerVisibility") != "public":
+                    issues.append(_issue("error", "PUBLIC_MODULE_COMPOSITION_VISIBILITY", f"module {module_id} public composition includes non-public provider: {provider_id}"))
+        public_counts = graph.get("publicProviderRoleCounts")
+        if not isinstance(public_counts, dict):
+            issues.append(_issue("error", "PUBLIC_PROVIDER_ROLE_COUNTS", f"module {module_id} publicProviderRoleCounts must be an object"))
+            public_counts = {}
+        for role_name, provider_ids in public_composition.items():
+            if public_counts.get(role_name) != len(provider_ids):
+                issues.append(_issue("error", "PUBLIC_PROVIDER_ROLE_COUNT", f"module {module_id} publicProviderRoleCounts mismatch for {role_name}"))
+        counts = graph.get("providerRoleCounts")
+        if not isinstance(counts, dict):
+            issues.append(_issue("error", "PROVIDER_ROLE_COUNTS", f"module {module_id} providerRoleCounts must be an object"))
+            counts = {}
+        for role_name in PROVIDER_ROLE_ORDER:
+            actual = len(composition.get(role_name, [])) if isinstance(composition.get(role_name, []), list) else 0
+            if counts.get(role_name) != actual:
+                issues.append(_issue("error", "PROVIDER_ROLE_COUNT", f"module {module_id} providerRoleCounts mismatch for {role_name}"))
+        seen_apis: set[str] = set()
+        for api in graph.get("providedApis", []):
+            issues.extend(
+                _validate_capability(
+                    api,
+                    module_id=module_id,
+                    detail_by_id=detail_by_id,
+                    class_ids=class_ids,
+                    seen=seen_apis,
+                )
+            )
+        provider_apis: list[dict[str, Any]] = []
+        for provider in graph.get("apiProviders", []):
+            provider_id = provider.get("providerId")
+            issues.extend(
+                _validate_provider_role_fields(
+                    provider, label=f"module {module_id} apiProvider {provider_id}"
+                )
+            )
+            if provider_id in node_role_by_id and provider.get("providerRole") != node_role_by_id[provider_id]:
+                issues.append(_issue("error", "API_PROVIDER_ROLE_MISMATCH", f"module {module_id} apiProvider role disagrees for {provider_id}"))
+            if provider.get("providerRole") in {"config", "model", "utility"}:
+                issues.append(_issue("error", "API_PROVIDER_ROLE_EXPOSED", f"module {module_id} apiProvider {provider_id} is non-behavioral role"))
+            for api in provider.get("apis", []):
+                provider_apis.append(api)
+                issues.extend(
+                    _validate_capability(
+                        api,
+                        module_id=module_id,
+                        detail_by_id=detail_by_id,
+                        class_ids=class_ids,
+                        seen=set(),
+                    )
+                )
+        if {api.get("id") for api in provider_apis} != {api.get("id") for api in graph.get("providedApis", [])}:
+            issues.append(_issue("error", "PROVIDED_API_PROVIDER_MISMATCH", f"module {module_id} apiProviders and providedApis disagree"))
+        for node in graph.get("nodes", []):
+            if node.get("kind") == "class":
+                if node.get("id") in seen_class_ids:
+                    issues.append(_issue("error", "DUPLICATE_CLASS", f"duplicate class node: {node.get('id')}"))
+                seen_class_ids.add(node.get("id"))
+                usage = node.get("usage") or {}
+                constructor = usage.get("constructor") or {}
+                constructor_id = constructor.get("functionId")
+                if constructor_id and constructor_id not in detail_by_id:
+                    issues.append(_issue("error", "CLASS_CONSTRUCTOR_MISSING", f"class {node.get('id')} constructor missing: {constructor_id}"))
+                class_api_ids: set[str] = set()
+                for api in node.get("providedApis", []):
+                    if api.get("providerId") != node.get("id"):
+                        issues.append(_issue("error", "CLASS_API_PROVIDER", f"class {node.get('id')} provided API has wrong provider"))
+                    class_api_ids.add(api.get("id"))
+                if node.get("providedApiCount") != len(class_api_ids):
+                    issues.append(_issue("error", "CLASS_API_COUNT", f"class {node.get('id')} providedApiCount mismatch"))
+                for method in node.get("methods", []):
+                    method_id = method.get("id")
+                    if method.get("ownerClassId") != node.get("id"):
+                        issues.append(_issue("error", "METHOD_OWNER", f"method {method_id} has wrong ownerClassId"))
+                    detail = detail_by_id.get(method_id)
+                    if detail is None:
+                        issues.append(_issue("error", "METHOD_DETAIL_MISSING", f"class {node.get('id')} method {method_id} has no function detail"))
+                    elif detail.get("ownerClassId") != node.get("id"):
+                        issues.append(_issue("error", "METHOD_DETAIL_OWNER", f"function detail {method_id} has wrong ownerClassId"))
+
+    for entry in bundle.get("entrypoints", []):
+        if entry.get("functionId") not in detail_by_id:
+            issues.append(_issue("error", "ENTRYPOINT_MISSING", f"entrypoint function missing: {entry.get('functionId')}"))
+
+    for module in project_graph.get("modules", []):
+        role = module.get("role")
+        if role is not None and role not in MODULE_ROLES:
+            issues.append(_issue("error", "MODULE_ROLE", f"project module {module.get('id')} has invalid role: {role}"))
+        graph = module_graph_by_id.get(module.get("id"))
+        if graph is not None and module.get("providedApiCount") != len(graph.get("providedApis", [])):
+            issues.append(_issue("error", "PROVIDED_API_COUNT", f"project module {module.get('id')} providedApiCount does not match module graph"))
+        if graph is not None:
+            if module.get("moduleComposition") != graph.get("moduleComposition"):
+                issues.append(_issue("error", "PROJECT_MODULE_COMPOSITION", f"project module {module.get('id')} composition does not match module graph"))
+            if module.get("providerRoleCounts") != graph.get("providerRoleCounts"):
+                issues.append(_issue("error", "PROJECT_PROVIDER_ROLE_COUNT", f"project module {module.get('id')} providerRoleCounts does not match module graph"))
+            if module.get("publicModuleComposition") != graph.get("publicModuleComposition"):
+                issues.append(_issue("error", "PROJECT_PUBLIC_COMPOSITION", f"project module {module.get('id')} publicModuleComposition does not match module graph"))
+            if module.get("publicProviderRoleCounts") != graph.get("publicProviderRoleCounts"):
+                issues.append(_issue("error", "PROJECT_PUBLIC_ROLE_COUNT", f"project module {module.get('id')} publicProviderRoleCounts does not match module graph"))
+        for fn_id in module.get("functions", []):
+            if fn_id not in detail_by_id:
+                issues.append(_issue("error", "MODULE_FUNCTION_MISSING", f"module {module.get('id')} references missing function {fn_id}"))
+        for class_id in module.get("classes", []):
+            if class_id not in class_ids:
+                issues.append(_issue("error", "MODULE_CLASS_MISSING", f"module {module.get('id')} references missing class {class_id}"))
+
+    project_node_ids = {node.get("id") for node in project_graph.get("boundaryNodes", [])} | module_ids
+    for edge in project_graph.get("edges", []):
+        if edge.get("from") not in project_node_ids or edge.get("to") not in project_node_ids:
+            issues.append(_issue("error", "PROJECT_EDGE_ENDPOINT", f"project edge endpoint missing: {edge.get('id')}"))
+
+    for graph in module_graphs:
+        module_id = graph.get("moduleId")
+        node_ids = {node.get("id") for node in graph.get("nodes", [])}
+        for node in graph.get("nodes", []):
+            if node.get("kind") == "function" and node.get("functionDetailId") not in detail_by_id:
+                issues.append(_issue("error", "FUNCTION_DETAIL_MISSING", f"module {module_id} references missing function detail {node.get('functionDetailId')}"))
+        for edge in graph.get("edges", []):
+            if edge.get("from") not in node_ids or edge.get("to") not in node_ids:
+                issues.append(_issue("error", "MODULE_EDGE_ENDPOINT", f"module {module_id} edge endpoint missing: {edge.get('id')}"))
+        for edge in graph.get("methodEdges", []):
+            for endpoint in (edge.get("from"), edge.get("to")):
+                if endpoint not in detail_by_id:
+                    issues.append(_issue("error", "METHOD_EDGE_ENDPOINT", f"module {module_id} method edge endpoint missing: {endpoint}"))
+
+    for detail in details:
+        detail_id = detail.get("id")
+        for field in ("name", "qualifiedName", "moduleId", "file", "line", "endLine", "signature", "sourceHash"):
+            if field not in detail:
+                issues.append(_issue("error", "DETAIL_FIELD", f"{detail_id}: missing {field}"))
+        source = detail.get("source") or {}
+        for field in ("text", "startLine", "endLine"):
+            if field not in source:
+                issues.append(_issue("error", "SOURCE_FIELD", f"{detail_id}: source missing {field}"))
+        source_hash = str(detail.get("sourceHash") or "")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", source_hash):
+            issues.append(_issue("error", "SOURCE_HASH", f"{detail_id}: invalid sourceHash"))
+        if detail.get("apiExposure") not in EXPOSURE_VALUES:
+            issues.append(_issue("error", "DETAIL_EXPOSURE", f"{detail_id}: invalid apiExposure"))
+        if detail.get("apiExposureSource") not in EXPOSURE_SOURCES:
+            issues.append(_issue("error", "DETAIL_EXPOSURE_SOURCE", f"{detail_id}: invalid apiExposureSource"))
+        owner_class_id = detail.get("ownerClassId")
+        if owner_class_id and owner_class_id not in class_ids:
+            issues.append(_issue("error", "OWNER_CLASS_MISSING", f"{detail_id}: owner class missing {owner_class_id}"))
+        for caller in detail.get("callers", []):
+            if caller.get("functionId") not in detail_by_id:
+                issues.append(_issue("error", "CALLER_MISSING", f"{detail_id}: caller missing {caller.get('functionId')}"))
+        for callee in detail.get("callees", []):
+            target = callee.get("functionId")
+            if target and target not in detail_by_id:
+                issues.append(_issue("error", "CALLEE_MISSING", f"{detail_id}: callee missing {target}"))
+
+    for site in call_sites:
+        from_id = site.get("fromFunctionId")
+        to_id = site.get("toFunctionId")
+        if from_id not in detail_by_id:
+            issues.append(_issue("error", "CALL_FROM_MISSING", f"call site {site.get('id')} from function missing: {from_id}"))
+        if site.get("resolved") and to_id not in detail_by_id:
+            issues.append(_issue("error", "CALL_TO_MISSING", f"call site {site.get('id')} resolved target missing: {to_id}"))
+        if not site.get("resolved") and to_id:
+            issues.append(_issue("warning", "CALL_UNRESOLVED_TARGET", f"call site {site.get('id')} is unresolved but has a target"))
+        if not isinstance(site.get("line"), int) or int(site.get("line", 0)) < 1:
+            issues.append(_issue("error", "CALL_LINE", f"call site {site.get('id')} has invalid line"))
+    return issues
