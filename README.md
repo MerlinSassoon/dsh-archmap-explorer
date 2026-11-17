@@ -503,6 +503,7 @@ ArkTS 接入时需要：
 | [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、八角色语义、依赖方向、主模块/主流程边界与可见性规范 |
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
 | [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | 唯一主模块、功能模块、主流程 DAG、dispatch 候选与 composition 契约 |
+| [`docs/约定编程skill.md`](docs/约定编程skill.md) | 约定编程 Skill：架构边界、Provider Role、数据契约、功能备注、测试和提交检查清单 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 当前 bundle JSON Schema 3.8 |
 
 ### 历史归档
@@ -521,6 +522,7 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 4. 新增 P5 及以后能力时，先更新数据契约和当前文档，再更新根 README 的使用说明与验收数据。
 5. 文档中的示例命令若引用自举配置，应同时核对 `examples/archmap_v3.archmap.json` 是否仍与源码模块一致。
 6. 文档总入口统一为根 `README.md`，不再维护独立的 docs 索引文件。
+7. 所有新增代码必须遵守 [`docs/约定编程skill.md`](docs/约定编程skill.md)；模块、类、函数、方法和测试都必须有功能备注。
 
 ## 已知边界
 
