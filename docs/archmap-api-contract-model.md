@@ -1,6 +1,6 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1 已实现（bundle schema 3.2）；P2.2 Provider Role 与 P2.3 ArchMap 自身重构已批准，尚未实现<br>
+> 状态：P2.1 / P2.2 / P2.3 已实现（bundle schema 3.5）<br>
 > 日期：2026-11-17<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 
@@ -59,7 +59,7 @@ Evidence     证据：函数 ID、文件、行号、注释或装饰器
 }
 ```
 
-### 2.1 Provider Role（P2.2 批准，未实现）
+### 2.1 Provider Role（P2.2 已实现）
 
 仅有 Capability 还不够；还需要表达 Provider 在模块中的职责：
 
@@ -74,13 +74,20 @@ contract  抽象类、Protocol、接口
 utility   纯函数 / 助手
 ```
 
-字段：
+Provider 节点与能力字段：
 
 ```json
 {
   "providerRole": "manager",
   "roleSource": "structure",
-  "roleConfidence": "medium",
+  "roleConfidence": "medium"
+}
+```
+
+模块组合字段：
+
+```json
+{
   "moduleComposition": {
     "config": ["cls:..."],
     "model": ["cls:..."],
@@ -90,9 +97,30 @@ utility   纯函数 / 助手
     "component": ["cls:..."],
     "contract": ["cls:..."],
     "utility": ["fn:..."]
+  },
+  "providerRoleCounts": {
+    "config": 0,
+    "model": 0,
+    "manager": 1,
+    "entry": 1,
+    "adapter": 0,
+    "component": 0,
+    "contract": 0,
+    "utility": 0
   }
 }
 ```
+
+`roleSource` 取值：`config` / `docstring` / `comment` / `decorator` / `entrypoint` / `structure` / `naming`；`roleConfidence` 为 `high` / `medium` / `low`。
+
+`providerVisibility` 取值为 `public` / `internal`：
+
+- utility 恒为 internal；
+- 默认项目页/模块页只显示 public Provider；
+- internal Provider 仍保留在 FunctionDetail、CallSite 和 impact/trace 事实层；
+- `publicModuleComposition` / `publicProviderRoleCounts` 是 UI 使用的公开投影；
+- `ownerProviderId` 指向内部 utility 归属的 facade manager；
+- 单个 facade manager 的阶段函数不进入 `providedApis` / `apiProviders`。
 
 判定顺序：
 
@@ -103,12 +131,14 @@ config.providerRoles 显式覆盖
   > 命名弱提示
 ```
 
-展示规则：
+展示与投影规则：
 
 - `manager` / `entry` / `component` / `contract`：展示方法/协议能力；
-- `config` / `model`：展示类型卡片、字段摘要、默认值，不把 `as_dict()` 等序列化方法当模块 API；
-- `adapter`：展示适配器入口；
-- `utility`：展示函数签名。
+- `config` / `model`：展示类型卡片、字段摘要、默认值，不把 `as_dict()` 等序列化方法当模块 API；其 `providedApis` 必须为空；
+- `adapter`：展示适配器入口能力；
+- `utility`：默认 internal，不进入项目页/模块页默认视图；仅保留为事实层实现细节；
+- `typeSummary` 仅对 config/model 类输出，包含 `kind`、`fieldCount` 与字段的 `name` / `annotation` / `default` / `kind`；
+- 模块级自由函数与类都进入 `moduleComposition`，类方法不单独作为 Provider。
 
 `FunctionInfo` 属于 `model`；`ProjectConfig` / `ModuleConfig` 属于 `config`；`CallResolver` / `PythonFrontend` / `MenuSystem` / `Database` 属于 `manager`。
 
@@ -256,6 +286,9 @@ ArkTS 的 length / index signature
     "apiExposure": {
       "module.Symbol.method": "public"
     },
+    "providerRoles": {
+      "module.Symbol": "manager"
+    },
     "moduleExports": {
       "module-id": ["cls:module.Symbol"]
     }
@@ -266,9 +299,11 @@ ArkTS 的 length / index signature
 ## 9. UI 映射
 
 - 项目页模块卡片：显示 `Provider · Capability` chips；
-- 模块页类卡片：显示类构造签名与 `providedApis` chips；
-- 模块页右栏：按 `apiProviders` 分组展示公开能力；
-- 类右栏：展示提供接口，内部方法只显示数量；
+- 项目页模块卡片：显示模块角色与 `providerRoleCounts`；
+- 模块页类卡片：config/model 显示类型卡片与字段摘要；行为型角色显示构造签名与 `providedApis` chips；
+- 模块页顶部：显示 `moduleComposition` 角色计数；
+- 模块页右栏：按 `apiProviders` 分组展示公开能力，并标注 Provider Role；
+- 类右栏：config/model 展示 `typeSummary` 字段表；其他角色展示提供接口，内部方法只显示数量；
 - 点击方法/函数能力：进入 Method Detail；
 - 点击协议能力：选中对应 Provider 类节点并展示能力详情。
 
@@ -357,14 +392,16 @@ user surface    最终用户能感知或操作的交互面
 ## 13. 阶段规划
 
 ```text
-P2.2  Provider Role 与模块组合
+P2.2  Provider Role 与模块组合（已完成）
       - role 判定、config/model/manager 展示过滤
-      - moduleComposition
+      - moduleComposition + providerRoleCounts
       - 类型卡片与 manager API 卡片分离
 
-P2.3  ArchMap 自身 config/model/manager 重构
-      - 先投影角色，再拆文件
-      - 更新自举配置
+P2.3  ArchMap 自身 config/model/manager 重构（已完成）
+      - 四类物理文件规范
+      - config/model/manager/utility 目录迁移
+      - providerVisibility 与 public 投影
+      - 旧 import shim 保留
 
 P3    类型契约、Manager 接口与继承 API
       - inherits / implements
@@ -379,3 +416,14 @@ P4    关系、API/type/provider/surface impact、user surface 传播与 DSM
 ```
 
 P2.2 是 P3/P4 的前置层，不应跳过。
+
+
+## 14. P2.2 实现记录
+
+- 语言前端新增 Python Provider Role 判定，优先级为显式配置、注释/装饰器、结构规则、命名弱提示；
+- 支持 `contract.providerRoles` 显式覆盖；
+- Provider 节点、`apiProviders`、API capability 与自由函数 FunctionDetail 输出角色字段；
+- `moduleComposition` 与 `providerRoleCounts` 进入 ModuleGraph 和项目模块卡片；
+- config/model 类生成 `typeSummary`，并把方法能力从 `providedApis` 中过滤；
+- 常量、枚举、dataclass/NamedTuple/TypedDict、ABC/Protocol、协议组件、外部 IO、manager 状态与静态工具类均有结构判定；
+- schemaVersion 升级为 3.5，校验器新增角色、组合覆盖率、公开组合、providerVisibility、ownerProviderId 与 config/model/utility API 泄漏检查。

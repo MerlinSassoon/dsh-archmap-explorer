@@ -1,8 +1,8 @@
 # ArchMap P2–P4 交接文档
 
 > 日期：2026-11-16；最后核对：2026-11-17<br>
-> 适用版本：ArchMap 1.2.0 / bundle schema 3.2<br>
-> 当前阶段：P0、P1、P1.5、P2.0、P2.1 已完成；P2.2 Provider Role、P2.3 ArchMap 自身重构、P3、P4 已批准但尚未开始。类焦点页与类内方法图不在产品计划中。
+> 适用版本：ArchMap 1.5.0 / bundle schema 3.5<br>
+> 当前阶段：P0、P1、P1.5、P2.0、P2.1、P2.2、P2.3 已完成；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中。
 >
 > 本文用于新会话接手项目，包含项目现状、代码地图、数据契约、后续规划、设计来源和风险。文档归档边界见 [`docs/README.md`](README.md)；旧 FunctionFlow 文档不再代表当前契约。
 
@@ -17,14 +17,16 @@
 3. `README.md`
 4. `docs/function-detail-p1.5-plan.md`
 5. `docs/archmap-api-contract-model.md` — Provider + Capability API 契约模型与角色规划
-6. `docs/archmap-v3-design.md`
-7. `archmap/contracts.py` — 语言中立契约 IR
-8. `archmap/frontends/python/capabilities.py` — Python exposure 与协议能力
-9. `archmap/graph.py` — 三层投影、apiProviders、类节点、模块边界
-10. `archmap/callsites.py` — 静态调用事实
-11. `archmap/details.py` — FunctionDetail / 源码 / callers / callees
-12. `archmap/render/assets/app.js` — 契约卡片、模块页与方法详情页
-13. `tests/test_api_contracts.py`、`tests/test_class_layer.py`、`tests/test_build.py`
+6. `docs/archmap-architecture-spec.md` — P2.3 四类物理文件、八角色语义、依赖方向与可见性
+7. `docs/archmap-v3-design.md`
+8. `archmap/model/contract_model.py` — 语言中立契约 IR
+9. `archmap/utility/contract_utility.py` — Python exposure 与协议能力辅助
+10. `archmap/utility/role_utility.py` / `archmap/frontends/python/role_utility.py` — Provider Role 判定、owner 归属、组合与类型摘要
+11. `archmap/managers/graph_manager.py` / `archmap/utility/graph_utility.py` — 三层投影、apiProviders、类节点、模块边界
+12. `archmap/frontends/python/call_utility.py` — 静态调用事实
+13. `archmap/frontends/python/detail_utility.py` — FunctionDetail / 源码 / callers / callees
+14. `archmap/render/assets/app.js` — 契约卡片、类型卡片、模块页与方法详情页
+15. `tests/test_api_contracts.py`、`tests/test_provider_roles.py`、`tests/test_class_layer.py`、`tests/test_build.py`
 
 历史文档 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md` 中关于 FunctionFlow 的章节是历史设计，不是当前默认契约。当前产品已明确移除语句级执行流。
 
@@ -78,6 +80,8 @@ utility  纯函数 / 助手
 - P1.5：FunctionFlow 移除、FunctionDetail + Source View + Call Graph
 - P2.0：项目页/模块页能力契约重构
 - P2.1：API 契约建模与展示
+- P2.2：Provider Role、模块组合、类型卡片与角色过滤
+- P2.3：架构规范落盘、config/model/utility/managers/entry 迁移、facade manager 所有权纠偏、providerVisibility / ownerProviderId 与 utility 隐藏
 
 ### 3.2 当前已实现能力
 
@@ -91,6 +95,13 @@ utility  纯函数 / 助手
   - `visibility`
 - 模块角色：`main` / `service` / `adapter` / `test` / `other`；
 - API 契约模型：Provider + Capability、`apiExposure`、`apiProviders`；
+- Provider Role：config / model / manager / entry / adapter / component / contract / utility；
+- `moduleComposition` / `providerRoleCounts` 与 config/model `typeSummary`；
+- `providerVisibility`、`ownerProviderId`、`publicModuleComposition` / `publicProviderRoleCounts`；
+- 每个领域只暴露 facade manager；阶段函数作为内部 utility 归属到对应 manager；
+- utility 默认 internal，不进入默认项目页/模块页；事实层保留 FunctionDetail / CallSite；
+- 物理代码按 `config/model/manager/utility` 四类组织，旧模块路径保留 import shim；
+- config/model 序列化方法不再进入模块 API；
 - 协议能力：context manager / async context manager / callable / iterable；
 - 构造签名与 Magic Method 排除；
 - 模块提供接口投影 `providedApis`（按 Provider 分组）；
@@ -123,8 +134,6 @@ utility  纯函数 / 助手
 
 ### 3.3 当前未实现
 
-- P2.2 Provider Role 与模块组合；
-- P2.3 ArchMap 自身 config/model/manager 重构；
 - P3 类型契约与继承 API；
 - P4 API/type/provider/surface impact 与 trace；
 - 主模块 user surface 投影与传播；
@@ -139,26 +148,28 @@ utility  纯函数 / 助手
 
 ### 3.4 当前验收数据
 
-最近一次自举（P2.1 后）：
+最近一次自举（P2.3 后）：
 
 ```text
 project:       archmap_v3
-modules:       4
-classes:       18
-functions:     116
-methods:       30
-call sites:    1283
-resolvedCalls: 206
-macroEdges:    112
-providedApis:  43
-apiProviders:  33
-HTML:          ~1.7 MB
-JSON:          ~2.3 MB
+modules:       5
+classes:       24
+functions:     158
+methods:       39
+call sites:    1699
+resolvedCalls: 296
+macroEdges:    164
+providedApis:  16
+apiProviders:  9
+providerRoles: config=2, model=13, manager=6, entry=2, contract=1, utility=119
+publicProviders: config=2, model=13, manager=6, entry=2, contract=1
+HTML:          ~2.4 MB
+JSON:          ~3.2 MB
 ```
 
-`examples/archmap_v3.archmap.json` 已移除失效的 `flow-build` / `layout-routing` 模块，并补齐 `callsites.py` / `details.py` 到 Python 前端模块；自举现在只包含 4 个有效源码模块。
+`examples/archmap_v3.archmap.json` 已更新为 5 个逻辑模块，并排除旧 import shim；自举只分析 `config/model/utility/managers/entry/frontends` 中的规范源码。
 
-`student_system`：
+`student_system` 历史验收数据（P2.1/P2.2 阶段，未随 P2.3 规范迁移重新自举）：
 
 ```text
 modules:       5
@@ -170,9 +181,9 @@ resolvedCalls: 43
 providedApis:  13
 ```
 
-类语义验收：
+历史类语义验收：
 
-- `MenuSystem`：1 个类节点 + 1 个自由函数节点；
+- `MenuSystem`：类节点 + 模块级辅助函数；
 - `MenuSystem` 模块边界：1 进 / 1 出；
 - `Spinner`：1 个类节点；
 - `Spinner` 模块边界：1 进 / 1 出；
@@ -181,7 +192,7 @@ providedApis:  13
 测试：
 
 ```text
-pytest: 40 passed, 1 skipped（默认跳过浏览器测试）
+pytest: 48 passed, 1 skipped（默认跳过浏览器测试）
 ARCHMAP_RUN_BROWSER=1 pytest tests/test_browser_smoke.py: 1 passed
 archmap check: OK
 ```
@@ -199,15 +210,16 @@ P2.1 契约验收：
 ## 4. 当前架构与流水线
 
 ```text
-config
-  → discover_sources
-  → analyze_project (AST / classes / functions / imports)
-  → collect_call_sites (independent ast.Call extraction)
-  → build_function_details (source / callers / callees / sourceHash)
-  → build_contracts (Provider + Capability / API exposure)
-  → build_bundle (ProjectGraph / ModuleGraph / apiProviders / aggregated edges)
-  → validate_bundle
-  → render_html
+entry.cli_entry.main
+  → managers.pipeline_manager.PipelineManager.build_architecture
+  → utility.pipeline_utility.build_architecture
+  → utility.config_utility.load_config
+  → managers.frontend_manager.FrontendManager.get
+  → frontends.python.python_manager.PythonFrontend
+  → frontends.python.*_utility stage functions
+  → managers.graph_manager.GraphManager.build_bundle
+  → managers.validate_manager.ValidationManager.validate
+  → managers.render_manager.RenderManager.render
 ```
 
 ### 4.1 语言前端
@@ -245,14 +257,17 @@ ArkTS 未来应实现相同接口，不应修改 HTML 渲染核心。
 | `archmap/callsites.py` | 独立 CallSite 提取 |
 | `archmap/details.py` | FunctionDetail、源码切片、callers/callees、API exposure |
 | `archmap/contracts.py` | 语言中立的 Provider/Capability 契约模型 |
-| `archmap/frontends/python/capabilities.py` | Python exposure、协议能力与构造签名 |
-| `archmap/graph.py` | ProjectGraph、ModuleGraph、类节点、apiProviders、聚合边、指纹 |
+| `archmap/frontends/python/capabilities.py` | Python exposure、协议能力与构造签名，按 Provider Role 过滤能力 |
+| `archmap/frontends/python/roles.py` | Provider Role 判定、模块组合来源与 config/model 类型摘要 |
+| `archmap/graph.py` | ProjectGraph、ModuleGraph、类节点、apiProviders、moduleComposition、聚合边、指纹 |
 | `archmap/validate.py` | bundle 交叉引用与数据校验 |
 | `archmap/render.py` | 单文件 HTML 模板注入 |
 | `archmap/cli.py` | build / check / method / serve / diff |
 | `archmap/render/assets/app.js` | 三层页面、类详情、方法详情 |
 | `archmap/render/assets/app.css` | 页面样式 |
 | `archmap/frontends/` | 语言前端抽象 |
+
+旧模块路径（`archmap/analysis.py`、`archmap/graph.py`、`archmap/contracts.py` 等）现在都是兼容 shim，只转发到新目录。自举配置默认排除 shim 文件。
 
 已删除：
 
@@ -269,7 +284,7 @@ Bundle 顶层：
 
 ```json
 {
-  "schemaVersion": "3.2",
+  "schemaVersion": "3.5",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],
@@ -333,6 +348,62 @@ Bundle 顶层：
 - `__init__` 只作为类 `usage.constructor`；
 - `projectGraph.layout.mode = "module-cards"`，项目页默认不渲染依赖路径；
 - 契约模型详细说明见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
+
+### 5.1.1 Provider Role 与模块组合
+
+Provider 节点、`apiProviders` 条目和 API capability 增加：
+
+```json
+{
+  "providerRole": "manager",
+  "roleSource": "structure",
+  "roleConfidence": "high"
+}
+```
+
+模块图增加：
+
+```json
+{
+  "moduleComposition": {
+    "config": [],
+    "model": [],
+    "manager": ["cls:..."],
+    "entry": ["fn:..."],
+    "adapter": [],
+    "component": [],
+    "contract": [],
+    "utility": []
+  },
+  "providerRoleCounts": {
+    "config": 0,
+    "model": 0,
+    "manager": 1,
+    "entry": 1,
+    "adapter": 0,
+    "component": 0,
+    "contract": 0,
+    "utility": 0
+  }
+}
+```
+
+config/model 类节点增加 `typeSummary`：
+
+```json
+{
+  "typeSummary": {
+    "kind": "config",
+    "fieldCount": 2,
+    "fields": [
+      {"name": "host", "annotation": "str", "default": "'localhost'", "kind": "field"},
+      {"name": "port", "annotation": "int", "default": "8080", "kind": "field"}
+    ]
+  }
+}
+```
+
+校验不变量：config/model 的 `providedApis` 必须为空；`moduleComposition` 必须恰好覆盖模块内全部类与模块级自由函数；`providerRoleCounts` 必须与组合一致。
 
 ### 5.2 Class 节点
 
@@ -465,6 +536,10 @@ P3/P4 需要增加结构关系类型：`inherits`、`implements`、`composes`、
 13. config/model 展示为类型卡片，不把 `as_dict()` 等序列化方法自动当作模块 API。
 14. 用户交互面必须数据驱动，支持配置覆盖与 confidence，不得硬编码 `menu.run`、`init_connection` 等具体项目函数。
 15. 角色判定与用户交互面识别不得只依赖名称后缀或单一项目结构。
+16. config/model Provider 的 `providedApis` 必须为空，通过 `typeSummary` 展示类型契约。
+17. 角色判定优先级不得倒置；显式配置必须高于注释、结构和命名。
+18. utility 默认 internal，不进入默认项目页/模块页或模块 API；事实层必须保留。
+19. 项目页角色计数使用 `publicProviderRoleCounts`，不得把 internal utility 计入公开能力。
 
 ---
 
@@ -580,13 +655,13 @@ ArkTS 的 length / index signature
 
 详细契约见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
 
-## 8. P2.2：Provider Role 与模块组合（已批准，未开始）
+## 8. P2.2：Provider Role 与模块组合（已完成）
 
 ### 8.1 目标
 
 当前 P2.1 已经能表达“类/函数提供什么能力”，但还缺少“Provider 是什么角色”。这导致 config/model 的序列化方法被误当成模块 API。
 
-P2.2 要增加：
+P2.2 已增加：
 
 - Provider Role：`config` / `model` / `manager` / `entry` / `adapter` / `component` / `contract` / `utility`；
 - `roleSource` / `roleConfidence`；
@@ -738,7 +813,19 @@ render/
 - `LanguageFrontend` 显示为 contract；
 - 模块组合信息正确；
 - 通用 fixture 覆盖 config/model/manager/entry/adapter/component/contract/utility；
-- `student_system` 作为集成验收。
+- `student_system` 作为集成验收；
+- 自举构建中 config/model 序列化方法不再作为模块 API；
+- schemaVersion 升级为 3.3，校验器覆盖角色、组合与 API 泄漏。
+
+实现状态（2026-11-17）：
+
+- 已新增 `archmap/frontends/python/roles.py`；
+- 已实现 8 种角色、`roleSource` / `roleConfidence`、`contract.providerRoles` 显式覆盖；
+- 已把角色挂到类节点、自由函数节点、`apiProviders`、API capability 与自由函数 FunctionDetail；
+- 已实现 `moduleComposition` / `providerRoleCounts` 与 config/model `typeSummary`；
+- 已在 UI 中增加角色计数、类型卡片和字段表；
+- `roles_demo` 覆盖 8 种角色、装饰器覆盖、配置覆盖与 API 过滤；
+- 默认测试 48 passed, 1 skipped；浏览器测试 1 passed。
 
 ### 8.9 风险
 
@@ -750,7 +837,7 @@ render/
 
 ---
 
-## 9. P2.3：ArchMap 自身 config/model/manager 重构（已批准，未开始）
+## 9. P2.3：架构规范落盘与 ArchMap 自身重构（已完成）
 
 ### 9.1 目标
 
@@ -761,35 +848,46 @@ render/
 ```text
 archmap/
   config/
-    project.py
-    defaults.py
+    project_config.py
+    contract_config.py
+    graph_config.py
   model/
-    analysis.py
-    call.py
-    contract.py
-    graph.py
+    analysis_model.py
+    call_model.py
+    contract_model.py
+    frontend_contract.py
+    graph_model.py
   managers/
-    analysis_manager.py
-    call_manager.py
-    detail_manager.py
-    contract_manager.py
+    pipeline_manager.py
+    frontend_manager.py
     graph_manager.py
     validate_manager.py
     render_manager.py
   frontends/
-    base.py
     python/
-    arkts/
+      python_manager.py
+      analysis_utility.py
+      call_utility.py
+      detail_utility.py
+      contract_utility.py
+      role_utility.py
+      discovery_utility.py
+  utility/
+    graph_utility.py
+    validate_utility.py
+    render_utility.py
+    config_utility.py
+    cli_utility.py
+    pipeline_utility.py
   entry/
-    cli.py
-    pipeline.py
+    cli_entry.py
   render/
     assets/
 ```
 
 ### 9.3 迁移步骤
 
-1. 先实现 P2.2 角色投影，不改文件结构；
+1. P2.2 角色投影已完成，不改文件结构；
 2. 抽出 model 模块，保留旧 import shim；
 3. 抽出 managers，逐个迁移并通过测试；
 4. 把 `pipeline.py` 定位为 application manager，`cli.py` 定位为 entry；
@@ -809,6 +907,22 @@ archmap/
 - 文件迁移会影响 import 路径和测试；
 - 不应为了目录美观破坏零依赖和自包含 HTML；
 - 先做角色投影可以降低重构风险。
+
+### 9.6 实现记录（2026-11-17）
+
+- 新增 [`archmap-architecture-spec.md`](archmap-architecture-spec.md)，冻结四类物理文件、八角色逻辑语义、依赖方向与可见性规则；迁移细节见 [`p2.3-migration-plan.md`](p2.3-migration-plan.md)；
+- 将实现迁移为 `config/model/utility/managers/entry` 目录；
+- 保留旧模块路径作为 import shim；
+- 自举配置更新为 5 个逻辑模块并排除 shim；
+- 新增 `providerVisibility`、`ownerProviderId`、`publicModuleComposition`、`publicProviderRoleCounts`；
+- 每个领域收敛为 facade manager：PipelineManager、FrontendManager、PythonFrontend、GraphManager、ValidationManager、RenderManager；
+- Python 前端阶段函数统一归为 `PythonFrontend` 的内部 utility；
+- Graph/Validate/Render/Pipeline 阶段函数归为对应 facade manager 的 utility；
+- utility 默认 internal，不进入默认项目页/模块页；事实层继续保留 FunctionDetail / CallSite；
+- `analyze_project`、`collect_call_sites`、`build_bundle`、`validate_bundle`、`render_html` 等不再作为公开独立卡片；
+- schemaVersion 升级为 3.5，包版本升级为 1.5.0；
+- 校验器新增 public composition、visibility、ownerProviderId、utility API 泄漏检查；
+- 全量测试和浏览器测试通过。
 
 ---
 
@@ -1073,11 +1187,9 @@ entry    -> surface    produces user interaction
 14. 旧 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md`、`docs/v1-acceptance-report.md` 已加归档说明；维护时不要把其中的 FunctionFlow 设计重新写回当前契约。
 15. 模块层次/子模块（`parentId`）尚未建模，当前模块配置仍是扁平的。
 16. P2.1 明确延期序列协议：`__len__` / `__getitem__` / `__contains__` / 切片 / ArkTS index signature；后续不得遗忘。
-17. P2.2 Provider Role 尚未实现：当前 `config`/`model` 的 `as_dict()` 等序列化方法仍可能出现在模块 API 中。
-18. 用户交互面（user surface）尚未建模；主模块默认仍按普通模块展示 developer API。
-19. P2.3 ArchMap 自身 config/model/manager 文件重构尚未开始；当前只做了语义层的 API 契约。
-20. config/model 与 manager 的自动判定规则尚未实现，后续需要显式 `contract.providerRoles` 覆盖兜底。
-21. 角色化会影响模块 API、指纹和 UI，实施 P2.2 时必须同步更新 schema、验证器、测试与文档。
+17. 用户交互面（user surface）尚未建模；主模块默认仍按普通模块展示 developer API。
+19. Provider Role 自动判定仍是启发式，模糊类型应使用 `contract.providerRoles` 显式覆盖。
+20. 角色化、可见性、owner 归属和物理文件规范已影响模块 API、指纹和 UI；后续 P3/P4 必须保持 bundle schema 3.5 与默认视图行为稳定。
 
 ---
 
@@ -1108,13 +1220,13 @@ python3 -m archmap serve .archmap/self
 ## 15. 新会话建议开工顺序
 
 1. 先跑全量测试和浏览器测试，确认当前基线。
-2. 先实现 P2.2 Provider Role：config/model/manager/entry/adapter/component/contract/utility。
-3. 再做 P2.3 的 model/managers/entry 目录迁移，先保留兼容 shim。
-4. P3 在角色之上做类型契约、manager 接口和继承 API，不做类焦点页。
-5. P4 先做角色感知关系提取和 API/type/provider impact，再做 user surface 传播与可选 DSM。
-6. 序列协议继续延期；若要实现，先更新契约文档和通用 fixture。
+2. P2.3 已完成，下一步进入 P3：继承/实现边、继承 API、多态 candidates。
+3. P3 在角色与可见性之上做类型契约、manager 接口和继承 API，不做类焦点页。
+4. P4 先做角色感知关系提取和 API/type/provider impact，再做 user surface 传播与可选 DSM。
+5. 序列协议继续延期；若要实现，先更新契约文档和通用 fixture。
+6. 规范模式的源码识别与发现规则在 P3 前或 P3 中按 `archmap-architecture-spec.md` 落地，兼容模式保留。
 
-不要跳过 P2.2 直接做 P3/P4。
-不要同时开始 P2.3、P3、P4。
+不要跳过 P3/P4 的既有前置约束。
+不要同时开始 P3、P4。
 不要重新引入 FunctionFlow。
 不要新增类焦点页或类内方法图。

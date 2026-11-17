@@ -1,8 +1,8 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档冻结 v3.2 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md) 和 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 为准。
+> 本文档冻结 v3.5 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md) 和 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 为准。
 >
-> **当前状态（2026-11-17）**：P0/P1/P1.5/P2.0/P2.1 已完成；P2.2 Provider Role、P2.3 ArchMap 自身重构、P3、P4 已批准但尚未开始。类焦点页与类内方法图不在产品计划中；角色、结构关系和用户交互面是后续契约。
+> **当前状态（2026-11-17）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3 已完成；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中；结构关系和用户交互面是后续契约。
 
 ## 1. 三层投影
 
@@ -12,6 +12,7 @@
 
 - 模块是项目页一等节点，包含名称、人工备注、输入、输出、角色和提供接口。
 - 模块角色为 `main` / `service` / `adapter` / `test` / `other`；显式配置优先，否则含入口函数的模块为 `main`。
+- 模块卡片同时展示 Provider Role 数量；模块间依赖证据仍不默认绘制。
 - `providedApis` 来自 Provider + Capability 契约投影，包含公开方法、抽象契约方法和协议能力。
 - 项目边界节点保留在数据中，但默认不以画布节点渲染。
 - 项目页默认不绘制 `projectGraph.edges`；模块间调用/数据证据保留，供可选“关系”模式与后续查询使用。
@@ -22,7 +23,9 @@
 模块页展示模块提供接口、模块输入/输出、类节点和模块级自由函数节点：
 
 - 顶部提供接口条来自 `moduleGraphs[].providedApis`，接口 chips 可下钻到 Method Detail。
-- `moduleGraphs[].apiProviders` 按 Provider 分组展示模块公开能力。
+- `moduleGraphs[].apiProviders` 按 Provider 分组展示模块公开能力，并携带 `providerRole` / `roleSource` / `roleConfidence`。
+- `moduleGraphs[].moduleComposition` 按角色列出类与模块级自由函数 Provider；`providerRoleCounts` 提供事实层计数。
+- `publicModuleComposition` / `publicProviderRoleCounts` 只包含 `providerVisibility = "public"` 的 Provider，供默认 UI 使用。
 - 类节点是模块内的一等组件，带 `classKind`、`isAbstract`、`usage`、`providedApis` 和方法摘要。
 - 类卡片只展示构造签名与提供接口；类内方法图和类焦点页不在产品计划中。
 - 类方法归属 `class` 节点，不直接平铺为模块页函数节点；方法级关系保存在 `methodEdges` 和全局 `callSites` 中。
@@ -57,26 +60,47 @@ P2.1 引入语言中立的 Provider + Capability 模型：
 
 详细说明见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
 
-### Provider Role（P2.2 规划）
+### Provider Role（P2.2 已实现）
 
-P2.2 将在 Capability 之上增加角色：
+Capability 之上增加 Provider 级角色：
 
 ```text
 config / model / manager / entry / adapter / component / contract / utility
 ```
 
-职责：
+职责与展示：
 
-- `config`：类型定义、字段、默认值、常量表、枚举；
-- `model`：运行期数据记录、DTO、分析结果；
+- `config`：类型定义、字段、默认值、常量表、枚举；展示类型卡片；
+- `model`：运行期数据记录、DTO、分析结果；展示类型卡片；
 - `manager`：管理 model/config 实例，组织行为，对外 API；
 - `entry`：主模块、CLI、用户入口；
-- `adapter`：外部系统适配；
+- `adapter`：外部系统适配，展示适配器入口能力；
 - `component`：UI/协议组件；
 - `contract`：抽象类、Protocol、接口；
-- `utility`：纯函数/助手。
+- `utility`：纯函数/助手，展示函数签名。
 
-模块增加 `moduleComposition`，按角色分组 Provider。`config` / `model` 展示为类型卡片，不把 `as_dict()` 等序列化方法当作模块 API。
+角色判定优先级：
+
+```text
+contract.providerRoles 显式覆盖
+  > 注释 / 装饰器 / JSDoc 标注
+  > 结构规则
+  > 命名弱提示
+```
+
+Provider 节点、`apiProviders` 与 API capability 均带：
+
+```json
+{
+  "providerRole": "manager",
+  "roleSource": "structure",
+  "roleConfidence": "high",
+  "providerVisibility": "public",
+  "ownerProviderId": null
+}
+```
+
+模块图输出 `moduleComposition` / `providerRoleCounts`，以及只含公开 Provider 的 `publicModuleComposition` / `publicProviderRoleCounts`。`config` / `model` 的 `providedApis` 必须为空，其字段通过 `typeSummary` 展示；`utility` 默认 internal，不进入默认项目页/模块页，但仍保留在 FunctionDetail 与 CallSite 事实层。内部阶段函数通过 `ownerProviderId` 指向其 facade manager。
 
 ### User Surface（P4 规划）
 
@@ -209,7 +233,7 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ```json
 {
-  "schemaVersion": "3.2",
+  "schemaVersion": "3.5",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],

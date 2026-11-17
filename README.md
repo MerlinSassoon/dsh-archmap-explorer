@@ -1,4 +1,4 @@
-# ArchMap v3.2
+# ArchMap v3.5
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
 
@@ -17,8 +17,8 @@ ArchMap 负责“结构和关系”，源码负责“实现细节”，LLM 负�
 P0 / P1 / P1.5  已完成
 P2.0 项目页/模块页能力契约重构  已完成
 P2.1 API 契约建模与展示         已完成
-P2.2 Provider Role 与模块组合   已批准，未开始
-P2.3 ArchMap 自身分层重构       已批准，未开始
+P2.2 Provider Role 与模块组合   已完成
+P2.3 ArchMap 自身分层重构       已完成
 P3 继承/接口/多态/继承 API      未开始
 P4 类关系/API impact/user surface 未开始
 ```
@@ -64,8 +64,8 @@ python -m archmap serve .archmap/student_system
 
 ## 三层视图
 
-- **项目页**：模块能力卡片，展示职责、角色、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。
-- **模块页**：顶部展示模块提供接口；画布展示模块输入/输出、类节点、模块级自由函数节点；类方法归属类节点，不直接平铺。
+- **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。
+- **模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示模块输入/输出、类节点、模块级自由函数节点；类方法归属类节点，不直接平铺。config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；内部方法只显示数量，不展开类内方法图。点击方法/函数接口进入方法详情页。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees；点击调用者可继续下钻。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
@@ -128,10 +128,14 @@ python -m archmap serve .archmap/student_system
 
 详细契约模型见 [docs/archmap-api-contract-model.md](docs/archmap-api-contract-model.md)。
 
-已批准的下一步模型：
+**延期项**：`__len__`、`__getitem__`、`__contains__`、切片、ArkTS index signature 等序列协议不在 P2.1 实现，避免启发式误报。
+
+## Provider Role 与模块组合
+
+P2.2 在 Capability 之上增加 Provider 级职责：
 
 ```text
-config    类型、字段、默认值、常量表、枚举
+config    类型定义、字段、默认值、常量表、枚举
 model     运行期数据模型 / DTO / 分析结果
 manager   管理 model/config 实例，组织行为，对外 API
 entry     主模块 / CLI / 用户入口
@@ -141,9 +145,118 @@ contract  抽象类 / Protocol / 接口
 utility   纯函数 / 助手
 ```
 
-P2.2 将把 config/model 展示为类型卡片，只让 manager/entry/component/contract 的方法进入模块 API；主模块将使用独立的 user surface 表达用户交互面。
+角色判定优先级：
 
-**延期项**：`__len__`、`__getitem__`、`__contains__`、切片、ArkTS index signature 等序列协议不在 P2.1 实现，避免启发式误报。
+```text
+contract.providerRoles 显式覆盖
+  > 注释 / 装饰器 / JSDoc 标注
+  > 结构规则
+  > 命名弱提示
+```
+
+每个 Provider 节点、`apiProviders` 条目和 API capability 都携带：
+
+```json
+{
+  "providerRole": "manager",
+  "roleSource": "structure",
+  "roleConfidence": "high"
+}
+```
+
+模块图额外输出：
+
+```json
+{
+  "moduleComposition": {
+    "config": ["cls:app.config.AppConfig"],
+    "model": ["cls:app.model.Order"],
+    "manager": ["cls:app.manager.OrderManager"],
+    "entry": ["fn:app.main.main"],
+    "adapter": [],
+    "component": [],
+    "contract": [],
+    "utility": ["fn:app.util.helper"]
+  },
+  "providerRoleCounts": {
+    "config": 1,
+    "model": 1,
+    "manager": 1,
+    "entry": 1,
+    "adapter": 0,
+    "component": 0,
+    "contract": 0,
+    "utility": 1
+  }
+}
+```
+
+展示规则：
+
+- `manager` / `entry` / `component` / `contract`：展示方法/协议能力；
+- `config` / `model`：展示类型卡片、字段摘要和默认值，不把 `as_dict()` 等序列化方法当作模块 API；
+- `adapter`：展示适配器入口能力；
+- `utility`：展示函数签名。
+
+显式角色覆盖示例：
+
+```json
+{
+  "contract": {
+    "providerRoles": {
+      "app.model.Order": "model",
+      "app.config.AppConfig": "config"
+    }
+  }
+}
+```
+
+## 代码架构规范
+
+P2.3 起，ArchMap 自身源码遵循“物理代码单元 + 逻辑 Provider Role”两层规范。
+
+物理代码单元：
+
+```text
+<domain>/<domain>_config.py     静态定义、默认值、常量、枚举
+<domain>/<domain>_model.py      数据结构、DTO、结果、契约接口
+<domain>/<domain>_manager.py    状态、生命周期、行为编排、入口代理
+<domain>/<domain>_utility.py    无状态内部辅助逻辑
+```
+
+逻辑角色仍然是：
+
+```text
+config / model / manager / entry / adapter / component / contract / utility
+```
+
+关键规则：
+
+- `contract` 默认物理归入 model 文件，逻辑角色保持独立；
+- `entry`、`adapter`、`component` 默认物理归入 manager 文件，逻辑角色由入口/外部 IO/协议生命周期派生；
+- `utility` 是无状态内部实现，默认 `providerVisibility = "internal"`，不进入项目页/模块页；
+- utility 仍保留在 `functionDetails`、`callSites` 和 impact/trace 事实层中；
+- 项目页角色计数只使用 `publicProviderRoleCounts`；
+- 每个领域只暴露少量 facade manager；例如 Python 前端的 `analyze_project`、`collect_call_sites` 等阶段函数是 `PythonFrontend` 的内部 utility。
+- 内部 utility 通过 `ownerProviderId` 归属到 facade manager，不生成独立卡片。
+- 依赖方向为 `config ← model ← manager`，`utility ← manager`，`entry → manager`。
+
+当前目录：
+
+```text
+archmap/
+├── config/        project_config.py / contract_config.py / graph_config.py ...
+├── model/         analysis_model.py / call_model.py / contract_model.py ...
+├── utility/       graph_utility.py / validate_utility.py / render_utility.py ...
+├── managers/      pipeline_manager.py / frontend_manager.py / graph_manager.py ...
+├── entry/         cli_entry.py
+├── frontends/     python/python_manager.py + internal utility stages
+└── render/assets/
+```
+
+旧模块路径保留为 import shim，兼容既有测试和外部调用；自举图默认排除 shim 文件。
+
+详细规范见 [docs/archmap-architecture-spec.md](docs/archmap-architecture-spec.md)，迁移记录见 [docs/p2.3-migration-plan.md](docs/p2.3-migration-plan.md)。
 
 ## 人工备注与 LLM 注解
 
@@ -205,7 +318,7 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`40 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：`48 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 
@@ -214,6 +327,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - FunctionDetail、源码切片、sourceHash。
 - CallSite 提取、callers/callees、模块级聚合边。
 - API exposure、协议能力合成、Provider 分组和契约校验。
+- Provider Role 判定、模块组合、config/model 类型卡片与 API 过滤。
 - 宏布局几何、指纹稳定性和布局无关性。
 - 自包含 HTML、方法详情页和 LLM 注解嵌入。
 - CLI build/check/method 闭环。
@@ -232,7 +346,8 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前文档入口：
 
 - [docs/README.md](docs/README.md)：文档索引与当前/历史文档边界。
-- [docs/archmap-v3-design.md](docs/archmap-v3-design.md)：v3.2 数据契约。
+- [docs/archmap-architecture-spec.md](docs/archmap-architecture-spec.md)：物理代码单元、八角色语义、依赖方向与迁移规范。
+- [docs/archmap-v3-design.md](docs/archmap-v3-design.md)：v3.5 数据契约。
 - [docs/archmap-api-contract-model.md](docs/archmap-api-contract-model.md)：Provider + Capability API 契约模型。
 - [docs/function-detail-p1.5-plan.md](docs/function-detail-p1.5-plan.md)：P1.5 实现记录。
 - [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：P2.2–P4 最新交接文档。
@@ -245,9 +360,8 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 宏布局的局部重叠和边界启发式仍需要持续校验。
 - P2.1 只合成 context manager、async context manager、callable、iterable；序列协议延期。
 - 类焦点页和类内方法图不在当前产品计划中。
-- P2.2 Provider Role、P2.3 ArchMap 自身分层重构尚未开始。
-- 用户交互面（user surface）尚未建模；主模块仍按普通模块展示 developer API。
+- 用户交互面（user surface）尚未建模；主模块仍按普通模块展示 developer API。P2.2 已提供 Provider Role 与模块组合，但 user surface 仍属于 P4。
 - 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
-- P3 继承/实现关系、继承 API、多态 candidates，以及 P4 的角色感知关系、API/type/surface impact、user surface 传播仍未实现。
+- P3 继承/实现关系、继承 API、多态 candidates，以及 P4 的角色感知关系、API/type/surface impact、user surface 传播仍未实现；P2.3 已完成，下一步进入 P3。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
 - 旧 `docs/archmap-2.0-design.md` 和旧 `docs/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

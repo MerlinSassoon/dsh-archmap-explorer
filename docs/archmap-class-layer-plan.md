@@ -502,8 +502,8 @@ Phase 1 / P1    已完成
 P1.5           已完成
 P2.0           已完成：项目页/模块页能力契约、模块角色、providedApis
 P2.1           已完成：Provider + Capability API 契约、协议能力、apiProviders
-P2.2           已批准，未开始：Provider Role（config/model/manager/entry/...）与模块组合
-P2.3           已批准，未开始：ArchMap 自身 config/model/manager 目录重构
+P2.2           已完成：Provider Role（config/model/manager/entry/...）与模块组合
+P2.3           已完成：架构规范落盘、自身代码迁移与 facade/owner 语义归属纠偏
 类焦点页       不再计划：类只作为 Provider，不展示类内方法图
 P3             未开始：继承/实现边、继承 API、多态 candidates、类型关系
 P4             未开始：角色感知关系、API/type/surface impact、user surface、DSM
@@ -516,7 +516,7 @@ P4             未开始：角色感知关系、API/type/surface impact、user s
 - `classNode.usage` / `providedApis` 已提供类的构造签名与公开能力；
 - 项目页使用 `layout.mode = "module-cards"`，默认不绘制依赖线；
 - 类焦点页与类内方法图明确不在产品计划中；
-- P2.2 将增加 config/model/manager/entry/adapter/component/contract/utility 角色，config/model 展示为类型卡片，不再把序列化方法当模块 API；
+- P2.2 已增加 config/model/manager/entry/adapter/component/contract/utility 角色，config/model 展示为类型卡片，不再把序列化方法当模块 API；
 - 主模块将使用 user surface 表达用户交互面；
 - `ModuleGraph.methodEdges` 已包含方法级调用边；
 - `FunctionDetail` 已包含源码、备注、callers/callees 和 `sourceHash`；

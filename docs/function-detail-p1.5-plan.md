@@ -4,7 +4,7 @@
 > 日期：2026-11-16；最后核对：2026-11-17<br>
 > 目标：移除语句级 FunctionFlow 主产品路径，把方法详情、源码阅读和调用关系升级为架构浏览器核心。
 >
-> 后续状态：P2.0 项目页/模块页能力契约、P2.1 API 契约建模已完成；P2.2 Provider Role 与 P2.3 ArchMap 自身分层重构已批准但未开始；类焦点页不再计划；P3/P4 尚未开始。当前交接与实施顺序见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
+> 后续状态：P2.0 项目页/模块页能力契约、P2.1 API 契约建模、P2.2 Provider Role 与模块组合、P2.3 架构规范、自身代码迁移与语义归属纠偏已完成；类焦点页不再计划；P3/P4 尚未开始。当前交接与实施顺序见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
 
 ## 1. 决策
 
@@ -183,7 +183,7 @@ P2–P4 均尚未开始；详细方案见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)
 
 ## 8. 兼容性
 
-- `schemaVersion` 从 `3.0` 升级到 `3.1`，后续 P2.1 升级到 `3.2`；旧 bundle 不再通过 `archmap check`。
+- `schemaVersion` 从 `3.0` 升级到 `3.1`，后续 P2.1 升级到 `3.2`、P2.2 升级到 `3.3`、P2.3 升级到 `3.4`/`3.5`；旧 bundle 不再通过 `archmap check`。
 - 旧 `#/module/:id/function/:fid` 路由保留，但渲染 Method Detail。
 - 旧函数级布局覆盖 `override.functions` 不再生效；项目页/模块页覆盖继续可用。
 - 旧 LLM 注解的 `sourceHash` 基于 FunctionFlow；新版本会将其标记为过期，建议重新生成。
