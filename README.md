@@ -71,7 +71,7 @@ yield/student_system/
 
 - **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。
 - **项目页交互**：模块卡片不再提供“+”内联展开；双击卡片或点击右上角 ↗ 进入独立模块页面。
-- **主模块页**：默认展示 entry → orchestrator/provider/interface 的主流程 DAG；可切换到能力视图查看类与自由函数。
+- **主模块页**：默认展示 entry → orchestrator/provider/interface 的主流程 DAG；可切换到能力视图查看类与自由函数。上下文管理器等协议用法会在 Provider 边界节点上携带 `capabilityKind`、`protocols` 与 `usageKind`，例如显示 `with Spinner(...)`，但主流程仍是调用/模块组合图，不是语句级执行顺序图。
 - **功能模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示类节点、模块级自由函数节点；不再有模块输入/输出端口。config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；内部方法只显示数量，不展开类内方法图。点击方法/函数接口进入方法详情页。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
@@ -378,7 +378,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - P2.1 只合成 context manager、async context manager、callable、iterable；序列协议延期。
 - 类焦点页和类内方法图不在当前产品计划中。
 - 用户交互面（user surface）尚未建模；主模块仍按普通模块展示 developer API。P2.2 已提供 Provider Role 与模块组合，但 user surface 仍属于 P4。
-- 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
+- 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。主流程只表达函数级调用与模块组合，不表达 `if/while/try/with` 内部的逐语句执行顺序。
 - P3 继承/实现关系、继承 API、多态 candidates，以及 P4 的角色感知关系、API/type/surface impact、user surface 传播仍未实现；P2.4 已完成，下一步进入 P3。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
 - 旧 `docs/archmap-2.0-design.md` 和旧 `docs/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

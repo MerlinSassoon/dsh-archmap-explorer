@@ -29,7 +29,9 @@
 - composition 必须 `confidence=low` 并以虚线渲染，绝不伪装成 call。
 - 主模块自由函数可作为 orchestrator 节点；功能模块公开能力作为 interface/provider 节点。
 - 主流程分析使用独立 flowRole，不修改 Provider Role、visibility 或 API 分类。
+- context manager / async context manager 等协议用法的 CallSite 带 `usageKind`；对应 Provider 边界节点带 canonical `capabilityId`、`capabilityKind`、`protocols`，但仍保持 `kind=provider`。
 - dispatch 节点保存表达方式、候选数量、候选来源、是否完整和 unresolved 原因。
+- 主流程是函数级调用/模块组合 DAG，不是语句级执行顺序图；同 rank 节点必须使用不重叠的纵向槽位。
 - 普通分支共享 branchGroup；循环不展开。
 - **主流程边界**：只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止。
 - 功能模块边界节点携带 `flowBoundary=true`、`expandable=false`，且不得有出边。

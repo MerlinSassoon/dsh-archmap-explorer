@@ -49,6 +49,7 @@ class CallSite:
     confidence: str
     candidates: list[str] = field(default_factory=list)
     argument_count: int = 0
+    usage_kind: str = "call"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -69,4 +70,5 @@ class CallSite:
             "confidence": self.confidence,
             "candidates": list(self.candidates),
             "argumentCount": self.argument_count,
+            "usageKind": self.usage_kind,
         }

@@ -35,3 +35,23 @@ def test_validator_detects_invalid_api_exposure_and_capability_kind() -> None:
     issues = validate_bundle(bundle)
     assert any(issue["code"] == "DETAIL_EXPOSURE" for issue in issues)
     assert any(issue["code"] == "PROVIDED_API_KIND" for issue in issues)
+
+
+def test_validator_detects_invalid_call_usage_kind() -> None:
+    bundle = build_architecture(ROOT)
+    bundle["callSites"][0]["usageKind"] = "invalid"
+    issues = validate_bundle(bundle)
+    assert any(issue["code"] == "CALL_USAGE_KIND" for issue in issues)
+
+
+def test_validator_detects_noncanonical_provider_capability() -> None:
+    repo_root = Path(__file__).parent.parent
+    bundle = build_architecture(
+        repo_root / "Projects" / "student_system",
+        repo_root / "examples" / "student_system.archmap.json",
+    )
+    flow = bundle["projectGraph"]["mainFlows"][0]
+    provider = next(node for node in flow["nodes"] if node.get("providerName") == "Spinner")
+    provider["capabilityId"] = "api:missing"
+    issues = validate_bundle(bundle)
+    assert any(issue["code"] == "FLOW_PROVIDER_CAPABILITY_NOT_CANONICAL" for issue in issues)

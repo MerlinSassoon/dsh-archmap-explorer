@@ -209,6 +209,11 @@ def _class_provider_metadata(module_graphs: list[dict[str, Any]]) -> dict[str, d
             constructor_id = (usage.get("constructor") or {}).get("functionId")
             if not constructor_id:
                 continue
+            protocol_capabilities: dict[str, dict[str, Any]] = {}
+            for api in node.get("providedApis", []):
+                kind = str(api.get("kind") or "")
+                if kind in {"context_manager", "async_context_manager", "callable", "iterable"}:
+                    protocol_capabilities[kind] = dict(api)
             result[str(constructor_id)] = {
                 "kind": "provider",
                 "providerId": node.get("id"),
@@ -222,6 +227,7 @@ def _class_provider_metadata(module_graphs: list[dict[str, Any]]) -> dict[str, d
                 "signature": (usage.get("constructor") or {}).get("signature") or "",
                 "note": node.get("note") or "",
                 "protocols": list(usage.get("protocols") or []),
+                "protocolCapabilities": protocol_capabilities,
                 "w": FLOW_PROVIDER_W,
                 "h": FLOW_PROVIDER_H,
             }
@@ -363,9 +369,31 @@ def _node_meta_for_target(
     class_meta: dict[str, dict[str, Any]],
     module_name_by_id: dict[str, str],
     color_by_module: dict[str, str],
+    usage_kind: str = "",
 ) -> dict[str, Any] | None:
     if target_id in class_meta:
-        return dict(class_meta[target_id])
+        meta = dict(class_meta[target_id])
+        capability = (meta.get("protocolCapabilities") or {}).get(usage_kind)
+        if capability is not None:
+            meta.update(
+                {
+                    "capabilityId": capability.get("id"),
+                    "capabilityKind": capability.get("kind") or usage_kind,
+                    "label": (
+                        capability.get("display")
+                        or capability.get("signature")
+                        or meta.get("label")
+                    ),
+                    "signature": capability.get("signature") or meta.get("signature") or "",
+                    "protocols": sorted(
+                        set(meta.get("protocols") or [])
+                        | {str(capability.get("kind") or usage_kind)}
+                    ),
+                    "usageKind": usage_kind,
+                }
+            )
+        meta.pop("protocolCapabilities", None)
+        return meta
     if fn is None:
         return None
     # Main-module orchestration functions keep their flow identity even when
@@ -411,16 +439,17 @@ def _edge_path(from_node: dict[str, Any], to_node: dict[str, Any]) -> str:
     )
 
 
-def _layout_flow(nodes: list[dict[str, Any]], edges: list[dict[str, Any]], flow_id: str) -> dict[str, Any]:
+def _layout_flow(
+    nodes: list[dict[str, Any]], edges: list[dict[str, Any]], flow_id: str
+) -> dict[str, Any]:
     by_id = {node["id"]: node for node in nodes}
+    node_order = {node["id"]: index for index, node in enumerate(nodes)}
     predecessors: dict[str, list[str]] = defaultdict(list)
-    successors: dict[str, list[str]] = defaultdict(list)
     for edge in edges:
         source = edge.get("from")
         target = edge.get("to")
         if source in by_id and target in by_id and source != target:
             predecessors[target].append(source)
-            successors[source].append(target)
 
     memo: dict[str, int] = {}
     visiting: set[str] = set()
@@ -440,27 +469,46 @@ def _layout_flow(nodes: list[dict[str, Any]], edges: list[dict[str, Any]], flow_
     groups: dict[int, list[str]] = defaultdict(list)
     for node_id, value in ranks.items():
         groups[value].append(node_id)
+
     positions: dict[str, dict[str, Any]] = {}
+    placed_y: dict[str, float] = {}
+    max_rows = max((len(group) for group in groups.values()), default=1)
+    row_span = max(0.0, (max_rows - 1) * FLOW_Y_GAP)
+
     for value in sorted(groups):
-        group = sorted(groups[value])
-        total = (len(group) - 1) * FLOW_Y_GAP
-        start_y = FLOW_PAD + 80 - total / 2
+        group = list(groups[value])
+        if value == 0:
+            group.sort(key=lambda node_id: (node_order.get(node_id, 0), node_id))
+        else:
+            def barycenter(node_id: str) -> float:
+                parent_y = [
+                    placed_y[parent]
+                    for parent in predecessors.get(node_id, [])
+                    if parent in placed_y
+                ]
+                return sum(parent_y) / len(parent_y) if parent_y else float("inf")
+
+            group.sort(
+                key=lambda node_id: (
+                    barycenter(node_id),
+                    node_order.get(node_id, 0),
+                    node_id,
+                )
+            )
+
+        group_span = max(0.0, (len(group) - 1) * FLOW_Y_GAP)
+        start_y = FLOW_PAD + (row_span - group_span) / 2
         for index, node_id in enumerate(group):
             node = by_id[node_id]
+            y = round(start_y + index * FLOW_Y_GAP, 2)
             positions[node_id] = {
                 "x": round(FLOW_PAD + value * FLOW_X_GAP, 2),
-                "y": round(max(FLOW_PAD, start_y + index * FLOW_Y_GAP), 2),
+                "y": y,
                 "w": node.get("w", FLOW_NODE_W),
                 "h": node.get("h", FLOW_NODE_H),
             }
-    min_x = min((item["x"] for item in positions.values()), default=0)
-    min_y = min((item["y"] for item in positions.values()), default=0)
-    if min_x != FLOW_PAD or min_y != FLOW_PAD:
-        dx = FLOW_PAD - min_x
-        dy = FLOW_PAD - min_y
-        for item in positions.values():
-            item["x"] = round(item["x"] + dx, 2)
-            item["y"] = round(item["y"] + dy, 2)
+            placed_y[node_id] = y
+
     max_x = max((item["x"] + item["w"] for item in positions.values()), default=400)
     max_y = max((item["y"] + item["h"] for item in positions.values()), default=300)
     layout_edges: dict[str, Any] = {}
@@ -540,7 +588,13 @@ def build_main_flows(
         hidden_seen: set[tuple[str, str]] = set()
         truncated = False
 
-        def ensure_node(function_id: str, meta: dict[str, Any] | None = None, *, force_kind: str | None = None) -> dict[str, Any] | None:
+        def ensure_node(
+            function_id: str,
+            meta: dict[str, Any] | None = None,
+            *,
+            force_kind: str | None = None,
+            usage_kind: str = "",
+        ) -> dict[str, Any] | None:
             fn = fn_by_id.get(function_id)
             resolved_meta = meta or _node_meta_for_target(
                 function_id,
@@ -550,6 +604,7 @@ def build_main_flows(
                 class_meta=class_meta,
                 module_name_by_id=module_name_by_id,
                 color_by_module=color_by_module,
+                usage_kind=usage_kind,
             )
             if resolved_meta is None and function_id not in fn_by_id:
                 return None
@@ -594,6 +649,7 @@ def build_main_flows(
                 "capabilityId": resolved_meta.get("capabilityId"),
                 "capabilityKind": resolved_meta.get("capabilityKind"),
                 "protocols": list(resolved_meta.get("protocols") or []),
+                "usageKind": resolved_meta.get("usageKind") or "",
                 "isEntry": function_id == entry_id,
                 "flowBoundary": bool(
                     resolved_meta.get("moduleId")
@@ -753,6 +809,8 @@ def build_main_flows(
                             "file": item.file,
                             "line": item.line,
                             "argumentCount": item.argument_count,
+                            "callText": item.call_text,
+                            "usageKind": item.usage_kind,
                         }
                         for item in [*trail, site]
                     ]
@@ -776,8 +834,11 @@ def build_main_flows(
                             class_meta=class_meta,
                             module_name_by_id=module_name_by_id,
                             color_by_module=color_by_module,
+                            usage_kind=site.usage_kind,
                         )
-                        candidate_node = ensure_node(candidate_id, candidate_meta)
+                        candidate_node = ensure_node(
+                            candidate_id, candidate_meta, usage_kind=site.usage_kind
+                        )
                         if candidate_node is None:
                             continue
                         add_edge(
@@ -806,6 +867,7 @@ def build_main_flows(
                     class_meta=class_meta,
                     module_name_by_id=module_name_by_id,
                     color_by_module=color_by_module,
+                    usage_kind=site.usage_kind,
                 )
                 evidence = [
                     {
@@ -815,11 +877,13 @@ def build_main_flows(
                         "file": item.file,
                         "line": item.line,
                         "argumentCount": item.argument_count,
+                        "callText": item.call_text,
+                        "usageKind": item.usage_kind,
                     }
                     for item in [*trail, site]
                 ]
                 if target_meta is not None:
-                    target_node = ensure_node(target_id, target_meta)
+                    target_node = ensure_node(target_id, target_meta, usage_kind=site.usage_kind)
                     if target_node is None:
                         continue
                     add_edge(

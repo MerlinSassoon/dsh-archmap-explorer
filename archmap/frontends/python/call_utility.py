@@ -11,6 +11,7 @@ from ...utility.call_utility import (
     BUILTIN_NAMES,
     _annotation_name,
     _calls_in_function,
+    _context_manager_usage,
     _unparse,
 )
 
@@ -275,6 +276,7 @@ def collect_call_sites(
     result: list[CallSite] = []
     selected = list(functions) if functions is not None else analysis.functions
     for fn in sorted(selected, key=lambda item: (item.file, item.line, item.id)):
+        context_manager_usage = _context_manager_usage(fn)
         for ordinal, call in enumerate(_calls_in_function(fn), start=1):
             resolved = resolver.resolve(call, fn)
             target = fn_by_id.get(resolved.target_function_id or "")
@@ -283,6 +285,7 @@ def collect_call_sites(
             callee_text = _unparse(call.func, 180)
             call_text = _unparse(call, 300)
             kind = "instantiate" if target is not None and target.name == "__init__" else "call"
+            usage_kind = context_manager_usage.get(id(call), kind)
             result.append(
                 CallSite(
                     id=f"call:{fn.id}:{line}:{column}:{ordinal}",
@@ -302,6 +305,7 @@ def collect_call_sites(
                     confidence=resolved.confidence,
                     candidates=list(resolved.candidates),
                     argument_count=len(call.args) + len(call.keywords),
+                    usage_kind=usage_kind,
                 )
             )
     return result

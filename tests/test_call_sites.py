@@ -26,3 +26,23 @@ def test_nested_calls_in_conditions_are_collected() -> None:
     run = next(detail for detail in bundle["functionDetails"] if detail["name"] == "run")
     assert run["calleeCount"] >= 1
     assert any(site["fromFunctionId"] == run["id"] for site in bundle["callSites"])
+
+
+def test_context_manager_calls_are_annotated_without_marking_plain_instantiation() -> None:
+    config = REPO_ROOT / "examples" / "student_system.archmap.json"
+    bundle = build_architecture(REPO_ROOT / "Projects" / "student_system", config)
+    spinner_call = next(
+        site for site in bundle["callSites"]
+        if site["fromFunctionId"] == "fn:student_system.main.server"
+        and site["toFunctionId"] == "fn:student_system.managers.spinner_manager.Spinner.__init__"
+    )
+    assert spinner_call["kind"] == "instantiate"
+    assert spinner_call["usageKind"] == "context_manager"
+
+    menu_call = next(
+        site for site in bundle["callSites"]
+        if site["fromFunctionId"] == "fn:student_system.main.client"
+        and site["toFunctionId"] == "fn:student_system.managers.menu_manager.MenuSystem.__init__"
+    )
+    assert menu_call["kind"] == "instantiate"
+    assert menu_call["usageKind"] == "instantiate"

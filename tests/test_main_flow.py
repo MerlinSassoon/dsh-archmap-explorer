@@ -67,7 +67,7 @@ def test_student_system_main_flow_models_server_client_branches() -> None:
     kinds = {node["kind"] for node in nodes.values()}
     assert {"entry", "orchestrator", "provider", "interface"} <= kinds
     assert {"main()", "NetworkAdapter.init_connection()", "server()", "client()"} <= labels
-    assert {"Spinner", "Database", "MenuSystem"} <= labels
+    assert {"with Spinner(message: str='加载中')", "with Database(password: str)", "MenuSystem"} <= labels
     assert {"Database.actions(client_input: bytes)", "MenuSystem.run()"} <= labels
     assert "NetworkAdapter.create_server(local_ip: str)" not in labels
     assert "NetworkAdapter.connect_to_server(local_ip: str)" not in labels
@@ -92,6 +92,32 @@ def test_student_system_main_flow_models_server_client_branches() -> None:
     for forbidden in {"while", "try", "input()", "print()", "sockets.recv"}:
         assert forbidden not in labels
     assert all(edge["kind"] != "composition" for edge in flow["edges"])
+    spinner = next(node for node in flow["nodes"] if node.get("providerName") == "Spinner")
+    assert spinner["kind"] == "provider"
+    assert spinner["capabilityKind"] == "context_manager"
+    assert spinner["capabilityId"] == "api:cls:student_system.managers.spinner_manager.Spinner:context_manager"
+    assert spinner["usageKind"] == "context_manager"
+    assert "context_manager" in spinner["protocols"]
+    database = next(node for node in flow["nodes"] if node.get("providerName") == "Database")
+    assert database["label"] == "with Database(password: str)"
+    assert database["capabilityKind"] == "context_manager"
+    layout_nodes = flow["layout"]["nodes"]
+    for index, first_id in enumerate(sorted(layout_nodes)):
+        first = layout_nodes[first_id]
+        for second_id in sorted(layout_nodes)[index + 1:]:
+            second = layout_nodes[second_id]
+            separated = (
+                first["x"] + first["w"] <= second["x"]
+                or second["x"] + second["w"] <= first["x"]
+                or first["y"] + first["h"] <= second["y"]
+                or second["y"] + second["h"] <= first["y"]
+            )
+            assert separated, f"{first_id} overlaps {second_id}"
+    assert layout_nodes[next(node["id"] for node in flow["nodes"] if node["label"] == "server()")]["y"] != (
+        layout_nodes[next(node["id"] for node in flow["nodes"] if node["label"] == "client()")]["y"]
+    )
+    edge_paths = [payload["d"] for payload in flow["layout"]["edges"].values()]
+    assert len(edge_paths) == len(set(edge_paths))
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
 
 

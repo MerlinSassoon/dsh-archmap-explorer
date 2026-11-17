@@ -151,3 +151,15 @@ def test_render_contains_provider_roles_and_type_cards() -> None:
     app_config = next(node for node in graph["nodes"] if node["id"] == "cls:app.roles.AppConfig")
     assert app_config["providerRole"] == "config"
     assert app_config["typeSummary"]["fieldCount"] == 3
+
+
+def test_render_includes_context_manager_provider_semantics() -> None:
+    repo_root = Path(__file__).parent.parent
+    bundle = build_architecture(
+        repo_root / "Projects" / "student_system",
+        repo_root / "examples" / "student_system.archmap.json",
+    )
+    html = render_html(bundle)
+    assert "with Spinner(message: str='加载中')" in html
+    assert "context_manager" in html
+    assert "usageKind" in html

@@ -23,6 +23,7 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
 ROLE_ROOT = Path(__file__).parent / "fixtures" / "roles_demo"
 DISPATCH_ROOT = Path(__file__).parent / "fixtures" / "dispatch_demo"
+REPO_ROOT = Path(__file__).parent.parent
 
 
 def _free_port() -> int:
@@ -111,6 +112,12 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.boundary-node').length") == 0
         assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
         assert execute("return document.querySelectorAll('.contracts-track .module-api-chip').length") > 0
+        flow_edge_count = execute("return document.querySelectorAll('.flow-edge').length")
+        assert flow_edge_count > 0
+        execute("document.querySelector('.main-flow-node').dispatchEvent(new MouseEvent('mouseenter')); return true")
+        assert execute("return document.querySelectorAll('.flow-edge.is-dim').length") == 0
+        assert execute("return document.querySelectorAll('.flow-edge.is-highlight').length") > 0
+        execute("document.querySelector('.main-flow-node').dispatchEvent(new MouseEvent('mouseleave')); return true")
         execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
         time.sleep(.3)
         assert execute("return document.querySelectorAll('.function-node').length") == 1
@@ -167,6 +174,51 @@ def test_browser_smoke() -> None:
         expected_bg = "rgb(9, 13, 19)" if method_theme["dark"] else "rgb(248, 250, 252)"
         assert method_theme["background"] == expected_bg
         assert method_theme["token"] == ("#090d13" if method_theme["dark"] else "#f8fafc")
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
+        # Context-manager providers retain protocol semantics on the main flow.
+        student_config = REPO_ROOT / "examples" / "student_system.archmap.json"
+        student_bundle = build_architecture(REPO_ROOT / "Projects" / "student_system", student_config)
+        student_html = browser_dir / "student-system-flow.html"
+        student_html.write_text(render_html(student_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": f"{student_html.resolve().as_uri()}#/module/main"})
+        time.sleep(.8)
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+        assert execute("return document.querySelectorAll('.flow-edge').length") == 10
+        labels = execute("return Array.from(document.querySelectorAll('.flow-node-label')).map(node => node.textContent)")
+        assert "with Spinner(message: str='加载中')" in labels
+        assert "with Database(password: str)" in labels
+        spinner_badge = execute("""return Array.from(document.querySelectorAll('.main-flow-node'))
+          .find(node => node.textContent.includes('with Spinner'))
+          ?.querySelector('.flow-node-badges')?.textContent || ''""")
+        assert "context_manager" in spinner_badge
+        assert "with" in spinner_badge
+        edge_titles = execute("return Array.from(document.querySelectorAll('.flow-edge title')).map(node => node.textContent)")
+        assert any(title.startswith("with Spinner(") for title in edge_titles)
+        execute("""return (() => {
+          const spinner = Array.from(document.querySelectorAll('.main-flow-node'))
+            .find(node => node.textContent.includes('with Spinner'));
+          spinner.dispatchEvent(new MouseEvent('mouseenter'));
+          return true;
+        })()""")
+        assert execute("return document.querySelectorAll('.flow-edge.is-dim').length") == 0
+        assert execute("return document.querySelectorAll('.flow-edge.is-highlight').length") == 2
+        positions = execute("""return (() => {
+          const byLabel = label => Array.from(document.querySelectorAll('.main-flow-node'))
+            .find(node => node.querySelector('.flow-node-label')?.textContent === label);
+          const client = byLabel('client()');
+          const server = byLabel('server()');
+          const actions = byLabel('Database.actions(client_input: bytes)');
+          const run = byLabel('MenuSystem.run()');
+          return {
+            clientTop: client.style.top,
+            serverTop: server.style.top,
+            actionsTop: actions.style.top,
+            runTop: run.style.top,
+          };
+        })()""")
+        assert positions["clientTop"] != positions["serverTop"]
+        assert positions["actionsTop"] != positions["runTop"]
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # Phase 1 class layer: classes are component nodes on the module page;

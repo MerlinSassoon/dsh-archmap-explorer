@@ -185,6 +185,7 @@
       edges.forEach(edge => edge.classList.remove("is-dim", "is-highlight"));
       return;
     }
+    const isFlowPage = Boolean(world.querySelector(".main-flow-node"));
     const neighborUids = new Set([focusUid]);
     state.pageEdges.forEach(edge => {
       if (edge.from === focusUid || edge.to === focusUid) {
@@ -200,7 +201,8 @@
     edges.forEach(edge => {
       const highlighted = edge.dataset.from === focusUid || edge.dataset.to === focusUid;
       edge.classList.toggle("is-highlight", highlighted);
-      edge.classList.toggle("is-dim", !highlighted);
+      if (isFlowPage) edge.classList.remove("is-dim");
+      else edge.classList.toggle("is-dim", !highlighted);
     });
   }
 
@@ -1082,6 +1084,7 @@
       kind === "dispatch" ? `${Number(node.candidateCount || 0)} candidates` : "",
       kind === "dispatch" && node.candidateSetComplete ? "complete" : "",
       kind === "dispatch" && !node.candidateSetComplete ? "partial" : "",
+      node.usageKind === "context_manager" ? "with" : node.usageKind === "async_context_manager" ? "async with" : "",
       node.capabilityKind || "",
       node.flowBoundary ? "module boundary" : "",
     ].filter(Boolean);
@@ -1161,7 +1164,14 @@
       path.setAttribute("data-edge-id", edge.id);
       path.setAttribute("data-edge-kind", edge.kind || "call");
       const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-      title.textContent = `${edge.kind || "call"} · ${edge.confidence || "medium"}${edge.branchLabel ? ` · ${edge.branchLabel}` : ""}`;
+      const firstEvidence = (edge.evidence || [])[0] || {};
+      const callText = firstEvidence.callText || "";
+      const usagePrefix = firstEvidence.usageKind === "context_manager"
+        ? "with "
+        : firstEvidence.usageKind === "async_context_manager"
+          ? "async with "
+          : "";
+      title.textContent = `${usagePrefix}${callText || edge.kind || "call"} · ${edge.confidence || "medium"}${edge.branchLabel ? ` · ${edge.branchLabel}` : ""}`;
       path.appendChild(title);
       const from = state.positions.get(edge.from);
       const to = state.positions.get(edge.to);
