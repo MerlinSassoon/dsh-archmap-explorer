@@ -20,13 +20,13 @@ from ..model.analysis_model import AnalysisResult, FunctionInfo, ModuleInfo
 from ..model.call_model import CallSite
 
 FLOW_NODE_W = 244
-FLOW_NODE_H = 108
+FLOW_NODE_H = 140
 FLOW_PROVIDER_W = 224
-FLOW_PROVIDER_H = 96
+FLOW_PROVIDER_H = 140
 FLOW_DISPATCH_W = 248
-FLOW_DISPATCH_H = 112
+FLOW_DISPATCH_H = 140
 FLOW_X_GAP = 330
-FLOW_Y_GAP = 170
+FLOW_Y_GAP = 190
 FLOW_PAD = 70
 FLOW_MAX_NODES = 120
 

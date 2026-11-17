@@ -1097,13 +1097,15 @@
     element.style.setProperty("--mc", node.color || "#60a5fa");
     element.style.setProperty("--mc-rgb", rgbFromHex(node.color || "#60a5fa"));
     const icon = kind === "entry" ? "▶" : kind === "dispatch" ? "⑂" : kind === "provider" ? "C" : kind === "interface" ? "I" : "ƒ";
+    const labelText = node.label || node.providerName || node.id;
+    const noteText = node.note || "";
     element.innerHTML = `<div class="flow-node-top">
         <span class="flow-node-icon">${icon}</span>
         <span class="flow-node-kind">${escapeHtml(kind.toUpperCase())}</span>
         <span class="flow-node-module">${escapeHtml(node.moduleName || node.moduleId || "")}</span>
       </div>
-      <div class="flow-node-label">${escapeHtml(node.label || node.providerName || node.id)}</div>
-      <div class="flow-node-note">${escapeHtml(node.note || node.signature || "主流程组合节点")}</div>
+      <div class="flow-node-label" title="${escapeHtml(labelText)}">${escapeHtml(labelText)}</div>
+      ${noteText ? `<div class="flow-node-note" title="${escapeHtml(noteText)}">${escapeHtml(noteText)}</div>` : ""}
       ${badges.length ? `<div class="flow-node-badges">${badges.map(item => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}`;
     world.appendChild(element);
     bindNodeHover(element, nodeId);
@@ -1148,9 +1150,9 @@
     state.flowId = flow.id;
     flow.nodes.forEach(node => {
       state.nodes.set(node.id, { ...node, color: node.color || graph.color });
-      state.sizes.set(node.id, { w: Number(node.w || 244), h: Number(node.h || 108) });
+      state.sizes.set(node.id, { w: Number(node.w || 244), h: Number(node.h || 140) });
       const pos = getFlowPosition(moduleId, node.id, flow);
-      state.positions.set(node.id, { x: pos.x, y: pos.y, w: Number(node.w || 244), h: Number(node.h || 108) });
+      state.positions.set(node.id, { x: pos.x, y: pos.y, w: Number(node.w || 244), h: Number(node.h || 140) });
     });
     const canvas = flow.layout?.canvas || { width: 1200, height: 800 };
     const svg = makeSvg(Number(canvas.width || 1200), Number(canvas.height || 800), "world-edges");

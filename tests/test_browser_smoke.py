@@ -221,6 +221,44 @@ def test_browser_smoke() -> None:
         assert positions["actionsTop"] != positions["runTop"]
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
+        # Long flow labels must stay inside the fixed-height card, with badges
+        # pinned inside the card instead of spilling below the border.
+        self_config = REPO_ROOT / "examples" / "archmap_v3.archmap.json"
+        self_bundle = build_architecture(REPO_ROOT, self_config)
+        self_html = browser_dir / "self-flow.html"
+        self_html.write_text(render_html(self_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": f"{self_html.resolve().as_uri()}#/module/main-pipeline"})
+        time.sleep(.8)
+        card_bounds = execute("""return (() => {
+          const card = Array.from(document.querySelectorAll('.main-flow-node'))
+            .find(node => node.querySelector('.flow-node-label')?.textContent.startsWith('RenderManager.render'));
+          if (!card) return null;
+          const label = card.querySelector('.flow-node-label');
+          const note = card.querySelector('.flow-node-note');
+          const badges = card.querySelector('.flow-node-badges');
+          const cardRect = card.getBoundingClientRect();
+          const labelRect = label.getBoundingClientRect();
+          const noteRect = note ? note.getBoundingClientRect() : null;
+          const badgesRect = badges.getBoundingClientRect();
+          return {
+            card: {top: cardRect.top, bottom: cardRect.bottom, styleHeight: card.style.height},
+            label: {top: labelRect.top, bottom: labelRect.bottom, title: label.title},
+            note: noteRect ? {top: noteRect.top, bottom: noteRect.bottom} : null,
+            badges: {top: badgesRect.top, bottom: badgesRect.bottom},
+            scrollHeight: card.scrollHeight,
+            clientHeight: card.clientHeight,
+          };
+        })()""")
+        assert card_bounds is not None
+        assert card_bounds["card"]["styleHeight"] == "140px"
+        assert card_bounds["label"]["bottom"] <= card_bounds["card"]["bottom"] + 0.5
+        assert card_bounds["badges"]["top"] >= card_bounds["card"]["top"]
+        assert card_bounds["badges"]["bottom"] <= card_bounds["card"]["bottom"] + 0.5
+        if card_bounds["note"] is not None:
+            assert card_bounds["note"]["bottom"] <= card_bounds["card"]["bottom"] + 0.5
+        assert "RenderManager.render" in card_bounds["label"]["title"]
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
         # Phase 1 class layer: classes are component nodes on the module page;
         # methods are listed in the class detail instead of being flattened.
         class_bundle = build_architecture(CLASS_ROOT)

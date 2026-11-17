@@ -124,6 +124,10 @@ def test_render_contains_main_flow_and_no_boundary_nodes() -> None:
     assert "flow-switcher" in html
     assert "boundary-node" not in html
     assert "module-ports" not in html
+    assert "flex-direction: column; overflow: hidden;" in html
+    assert "margin-top: auto; padding-top: 7px; overflow: hidden;" in html
+    assert "h: Number(node.h || 140)" in html
+    assert 'class="flow-node-label" title=' in html
     match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
     assert match is not None
     embedded = json.loads(match.group(1))
