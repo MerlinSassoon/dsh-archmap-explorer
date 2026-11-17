@@ -419,6 +419,7 @@ def collect_call_sites(
         for ordinal, call in enumerate(_calls_in_function(fn), start=1):
             resolved = resolver.resolve(call, fn)
             target = fn_by_id.get(resolved.target_function_id or "")
+            recursive = target.id == fn.id if target is not None else resolved.recursive
             line = int(getattr(call, "lineno", fn.line) or fn.line)
             column = int(getattr(call, "col_offset", 0) or 0) + 1
             callee_text = _unparse(call.func, 180)
@@ -439,7 +440,7 @@ def collect_call_sites(
                     kind=kind,
                     resolved=resolved.resolved,
                     external=resolved.external,
-                    recursive=resolved.recursive,
+                    recursive=recursive,
                     confidence=resolved.confidence,
                     candidates=list(resolved.candidates),
                     argument_count=len(call.args) + len(call.keywords),

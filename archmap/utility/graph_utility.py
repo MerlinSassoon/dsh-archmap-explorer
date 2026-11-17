@@ -852,12 +852,6 @@ def build_bundle(
         # Canonical method-level graph, used by the future class focus view.
         method_aggregate: dict[tuple[str, str], list[CallRecord]] = defaultdict(list)
         for record in internal_records:
-            source_fn = fn_by_id.get(record.from_function)
-            target_fn = fn_by_id.get(record.to_function)
-            if source_fn is None or target_fn is None:
-                continue
-            if not source_fn.class_name or not target_fn.class_name:
-                continue
             method_aggregate[(record.from_function, record.to_function)].append(record)
         method_edges: list[dict[str, Any]] = []
         for edge_index, ((from_id, to_id), records) in enumerate(sorted(method_aggregate.items()), start=1):

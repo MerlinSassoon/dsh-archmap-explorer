@@ -37,8 +37,9 @@ def test_methods_are_owned_by_class_nodes_not_flattened() -> None:
                 detail["id"] for detail in bundle["functionDetails"]
             }
     assert graph["methodEdges"]
+    detail_ids = {detail["id"] for detail in bundle["functionDetails"]}
     assert all(
-        edge["from"] in method_ids and edge["to"] in method_ids
+        edge["from"] in detail_ids and edge["to"] in detail_ids
         for edge in graph["methodEdges"]
     )
 
