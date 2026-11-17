@@ -1,9 +1,12 @@
 # ArchMap 类语义层设计与实施计划
 
-> 状态：设计讨论稿
-> 日期：2026-11-16
+> 状态：部分实现（类语义设计 + 实施计划；P2–P4 尚未开始）<br>
+> 日期：2026-11-16；最后核对：2026-11-17<br>
 > 目标：解决“类被当作流程节点、类方法在模块页平铺、模块边界被方法污染”的问题。
+>
 > 结论：类应成为模块内的一等语义容器；类本身不是执行流节点，方法才是。
+>
+> **当前术语**：Phase 0/1 与 P1.5 已完成；P1.5 后默认产品使用 **Method Detail**，语句级 FunctionFlow 已移除。本文中保留的 FunctionFlow 内容仅用于解释当时的设计演进，当前契约以 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 和 [`archmap-v3-design.md`](archmap-v3-design.md) 为准。
 
 ## 1. 设计结论
 
@@ -14,14 +17,14 @@
 | ProjectGraph | 否 | 项目页只展示逻辑模块与项目边界 |
 | ModuleGraph | 是 | 类节点、模块级自由函数、模块边界 |
 | ClassFocusView / ClassGraph | 是，作为容器 | 方法节点、方法间关系、契约/继承信息 |
-| FunctionFlow | 否 | 方法内部的 ENTRY / 步骤 / 分支 / 循环 / EXIT |
+| Method Detail | 否 | 源码、人工备注、LLM 语义与调用邻域；不再渲染方法内部执行流 |
 
 类可以被视为“模块内的一等组件节点”，但**不能被视为一个具备单一控制流的函数节点**。
 因此：
 
 - 类可以有 `ENTRY` / `EXIT` 吗？不能。类没有单一执行流。
 - 类可以出现在模块页吗？可以，作为组件/容器节点。
-- 方法可以有执行流吗？可以，`FunctionFlow` 属于方法。
+- 方法可以有独立详情页吗？可以，`FunctionDetail` 属于方法；方法内部执行流不再是默认主视图。
 - 抽象类可以接入模块输入输出吗？默认不能。抽象类不是可实例化的运行时入口。
 
 ### 1.2 导航上的落点
@@ -31,14 +34,14 @@
 ```text
 项目页
   └─ 模块页（类节点 + 自由函数节点）
-       └─ 类焦点页（方法节点 + 方法关系）
-            └─ 函数执行流页（方法内部）
+       └─ 类焦点页（方法节点 + 方法关系，P2 规划）
+            └─ 方法详情页（源码 + 备注 + callers/callees）
 ```
 
 类焦点页是 ModuleGraph 的一个聚焦投影，不是重新定义一套语义。
 模块页默认显示“折叠的类节点”；类焦点页负责展开方法。这样既保留类作为语义容器的地位，也避免 18 个方法直接铺在模块页。
 
-后续可以在模块页增加“内联展开类”能力，但第一版优先使用类焦点页，因为当前布局是 Python 预计算 + 确定性正交路由，类焦点页更容易复用现有宏布局。
+后续可以在模块页增加“内联展开类”能力，但第一版优先使用类焦点页，因为当前布局是 Python 预计算 + 确定性宏观布局，类焦点页更容易复用现有布局算法。
 
 ## 2. 调研结论
 
@@ -161,7 +164,7 @@ Emerge 把图明确拆成不同分析视图：
 
 - 类依赖图和类继承图应当可以分别查看；
 - 后续可以采用“视图切换”而不是把结构关系混进调用图；
-- 当前 ArchMap 已经有 `ProjectGraph` / `ModuleGraph` / `FunctionFlow` 的多投影传统，适合继续扩展。
+- 当前 ArchMap 已经有 `ProjectGraph` / `ModuleGraph` / `Method Detail` 的多投影传统，适合继续扩展。
 
 ### 2.8 Understand / Structure101 / Lattix / Stan4j
 
@@ -219,7 +222,7 @@ ArchMap 不应照搬其 UI，但应采纳其核心原则：
   "isAbstract": false,
   "isStatic": false,
   "isClassMethod": false,
-  "functionFlowId": "fn:menu_system.MenuSystem.run"
+  "functionDetailId": "fn:menu_system.MenuSystem.run"
 }
 ```
 
@@ -251,8 +254,8 @@ ArchMap 不应照搬其 UI，但应采纳其核心原则：
 第一版不必新增一份完全独立的 ClassGraph 数据源。推荐：
 
 - `ModuleGraph.nodes` 包含类节点、自由函数节点、边界节点；
-- 方法节点可以存在，但默认隐藏，带 `ownerClassId`；
-- `ModuleGraph.edges` 保留 `contains`、`calls` 等真实关系；
+- P2 类焦点投影可以生成方法节点，带 `ownerClassId`；当前 ModuleGraph 只保存方法摘要，不把方法作为节点平铺。
+- `ModuleGraph.edges` 目前只聚合 `call` / `data` / `control`；`contains`、`inherits` 等结构关系属于后续扩展。
 - 类焦点视图从 ModuleGraph 中过滤出 `classId + methods + 相关边`，再由后端生成该视图的布局。
 
 这样：
@@ -305,10 +308,10 @@ ArchMap 不应照搬其 UI，但应采纳其核心原则：
 抽象类/接口：
 
 - 不生成模块输入/输出边；
-- 不生成类级 FunctionFlow；
+- 不生成类级方法详情入口；
 - 可以生成 `inherits` / `implements` 结构边；
 - 抽象方法只作为契约节点，不生成执行流；
-- 抽象类中的具体模板方法仍可生成 FunctionFlow。
+- 抽象类中的具体模板方法仍可生成 FunctionDetail。
 
 ## 5. 抽象类与多态
 
@@ -354,7 +357,7 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 - 类节点显示 `class` 标识、类类型、方法数、公开方法摘要；
 - 类节点默认折叠；
 - 自由函数节点保持原样；
-- 双击/按钮进入类焦点页。
+- 双击/按钮进入类焦点页（P2 目标）。
 
 类焦点页：
 
@@ -362,7 +365,7 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 - 分组：公开 API、生命周期、内部方法；
 - 方法间 `calls` / `data` 边；
 - 继承/实现关系以结构边或详情区展示；
-- 双击方法进入 FunctionFlow。
+- 双击/点击方法进入 Method Detail。
 
 建议路由：
 
@@ -376,28 +379,28 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 
 ## 7. 实施顺序
 
-### Phase 0：数据契约
+### Phase 0：数据契约（已完成）
 
 - `analysis.py` 的 `ClassInfo` 投影到 bundle；
-- 增加 `class` 节点、`method` 节点、`ownerClassId`、`classKind`；
-- 增加 `contains` 边；
-- FunctionFlow 增加 `ownerClassId` 和 `methodKind`。
+- 增加 `class` 节点、方法摘要、`ownerClassId`、`classKind`；
+- 方法归属与 `methodEdges` 进入 ModuleGraph；
+- 方法归属信息由后续 `FunctionDetail` 和类方法摘要承载。
 
-### Phase 1：模块页重构
+### Phase 1：模块页重构（已完成）
 
 - 类节点替代方法平铺；
 - 自由函数与类节点并列；
-- 模块边界改为 `entryMethodIds` 显式驱动；
-- 无入口时输出 `ENTRY_AMBIGUOUS` 诊断，不生成假边。
+- 模块边界由类 `entryMethodIds` / 公开方法和显式自由函数入口驱动；
+- 无法确定入口时不伪造方法级边界边。当前没有单独的 `ENTRY_AMBIGUOUS` 诊断实现。
 
-### Phase 2：类焦点视图
+### Phase 2 / P2：类焦点视图（未开始）
 
 - 从 ModuleGraph 过滤出类 + 方法 + 相关边；
 - 复用现有宏布局算法生成类内方法布局；
 - 增加类焦点路由与右侧详情；
-- 方法节点双击进入 FunctionFlow。
+- 方法节点双击进入 Method Detail。
 
-### Phase 3：抽象类与继承
+### Phase 3 / P3：抽象类与继承（未开始）
 
 - 检测 abstract/interface/protocol；
 - 增加 `inherits` / `implements`；
@@ -405,7 +408,7 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 - 多态调用 candidates；
 - 类层次视图/筛选。
 
-### Phase 4：类关系增强
+### Phase 4 / P4：类关系增强（未开始）
 
 - 从类型注解/构造赋值提取 `composes` / `aggregates`；
 - 区分 `uses` / `instantiates`；
@@ -425,7 +428,7 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 3. 模块输入/输出只连接到 `MenuSystem` 类节点，不连接到每个方法；
 4. `Spinner` 模块页只出现 `Spinner` 类节点，`_animate` 不再直接接模块输入/输出；
 5. 抽象类不生成模块边界，不生成类级执行流；
-6. 同一份数据可生成模块页、类焦点页和 FunctionFlow；
+6. 同一份数据可生成模块页、P2 类焦点页投影和 Method Detail；
 7. `archmap check` 不产生新增 error；
 8. 浏览器路由、类页拖拽、布局覆盖和重置可用。
 
@@ -439,6 +442,8 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 
 ## 10. 下一步
 
+> 以下为 Phase 0/1 当时的推进顺序，保留作历史记录。当前下一步是 P2。
+
 先实现 Phase 0 + Phase 1，不先改类页 UI。
 先用 `student_system` 重建，确认：
 
@@ -446,7 +451,7 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 - 模块边界边数量显著下降；
 - 方法归属正确；
 - 抽象类/继承信息可输出；
-- 现有函数执行流和布局校验仍然通过。
+- 现有宏布局校验仍然通过。
 
 数据模型验证通过后，再做类焦点页。
 
@@ -456,12 +461,12 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 
 - `ClassInfo` 增加 `module_id`、文件/行号、备注、decorators、`isAbstract`、`classKind`；
 - `FunctionInfo` 增加 `methodKind`、`visibility`、`isAbstract`；
-- `FunctionFlow` 增加 `ownerClassId`、`methodKind`、`visibility`、`isAbstract`；
+- Phase 1 当时先由 `FunctionFlow` 承载 `ownerClassId`、`methodKind`、`visibility`、`isAbstract`；P1.5 后这些字段由 `FunctionDetail` 与类方法摘要承载。
 - ModuleGraph 增加 `class` 节点、类方法摘要、`methodEdges`、`classCount`、`methodCount`；
 - 模块页不再平铺类方法，只显示类节点和模块级自由函数；
 - 模块输入/输出只连接类节点或显式自由函数入口，并通过 `viaMethodIds` 保留方法级证据；
 - 抽象类/接口不接模块输入输出，`entryMethodIds` 为空；
-- 类节点详情展示公开 API 和内部/生命周期方法，可进入方法执行流；
+- 类节点详情展示公开 API 和内部/生命周期方法，可进入方法详情；
 - schema、语义指纹、校验器和浏览器冒烟测试已同步更新。
 
 验证结果（`student_system`）：
@@ -475,14 +480,36 @@ classKind: service | component | abstract | interface | dataclass | enum | excep
 
 尚未执行：
 
-- 类焦点页与类内方法布局；
-- 继承/实现/组合/聚合关系图；
-- 多态调用 candidates；
+- P2：类焦点页与类内方法布局；
+- P3：继承/实现/组合/聚合关系图与多态调用 candidates；
+- P4：组合/聚合、类级 impact/trace 与 DSM；
 - 可选的内联展开类节点。
 
 
 ## 12. P1.5 结果
 
 P1.5 已完成：默认 FunctionFlow 已移除，方法详情页、源码视图、callSites 和 callers/callees 已接入。
-类页/方法详情导航仍保留 `#/module/:id/function/:fid` 兼容路由，但页面现在是源码与方法语义视图而不是执行流图。
-详见 [`docs/function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md)。
+方法详情导航仍保留 `#/module/:id/function/:fid` 兼容路由，但页面现在是源码与方法语义视图而不是执行流图。
+详见 [`function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md)。
+
+## 13. 当前实施状态（2026-11-17 核对）
+
+```text
+Phase 0 / P0    已完成
+Phase 1 / P1    已完成
+P1.5           已完成
+P2             未开始：类焦点页、类内方法布局、类路由
+P3             未开始：继承/实现边、抽象方法契约、多态 candidates、类层次
+P4             未开始：组合/聚合、instantiates、impact/trace、DSM
+```
+
+当前代码事实：
+
+- `ModuleGraph.nodes` 已包含类节点，方法摘要归属类节点；
+- `ModuleGraph.methodEdges` 已包含方法级调用边；
+- `FunctionDetail` 已包含源码、备注、callers/callees 和 `sourceHash`；
+- `app.js` 目前只有项目页、模块页和方法详情页路由；
+- 尚未生成 `classView`/`classGraphs` 投影；
+- `ClassInfo.bases` 仍保留原始字符串，尚未解析为类 ID 或结构边。
+
+P2–P4 的实施顺序、数据方案和验收标准见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。

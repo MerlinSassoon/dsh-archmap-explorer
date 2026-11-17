@@ -1,7 +1,9 @@
-# ArchMap v1 验收记录
+# ArchMap v1 验收记录（已归档）
 
-日期：2026-11-15  
-样例：`student_system`  
+> **归档状态（2026-11-17）**：本文档记录 v1 验收结果，其中函数执行流页面、ENTRY/EXIT、step/branch/loop 和旧布局覆盖均已在 P1.5 移除。当前状态见 [P2–P4 交接](HANDOFF-P2-P4.md) 与 [文档索引](README.md)。
+
+日期：2026-11-15
+样例：`student_system`
 产物：`.archmap/student_system/architecture.json`、`architecture.html`
 
 ## 样例构建结果

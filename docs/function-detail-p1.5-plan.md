@@ -1,8 +1,10 @@
 # P1.5：FunctionDetail + Source View + Call Graph
 
-> 状态：已实现  
-> 日期：2026-11-16  
+> 状态：已实现（P1.5）<br>
+> 日期：2026-11-16；最后核对：2026-11-17<br>
 > 目标：移除语句级 FunctionFlow 主产品路径，把方法详情、源码阅读和调用关系升级为架构浏览器核心。
+>
+> 后续状态：P2 类焦点页、P3 继承/接口/多态、P4 类关系/impact/trace 均尚未开始。当前交接与实施顺序见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
 
 ## 1. 决策
 
@@ -173,8 +175,11 @@ Hash 路由保持旧兼容：
 
 ## 7. 后续
 
-P2：类焦点页与类内方法调用图。  
-P3：继承/实现/组合/聚合、多态 candidates、impact/trace。
+- P2：类焦点页与类内方法调用图。
+- P3：继承/实现边、抽象方法契约、多态 candidates 与类层次。
+- P4：组合/聚合、instantiates、类级 impact/trace 与 DSM。
+
+P2–P4 均尚未开始；详细方案见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
 
 ## 8. 兼容性
 

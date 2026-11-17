@@ -1,9 +1,10 @@
 # ArchMap P2–P4 交接文档
 
-> 日期：2026-11-16  
-> 适用版本：ArchMap 1.1.0 / bundle schema 3.1  
-> 当前阶段：P0、P1、P1.5 已完成；P2、P3、P4 尚未开始。  
-> 本文用于新会话接手项目，包含项目现状、代码地图、数据契约、后续规划、设计来源和风险。
+> 日期：2026-11-16；最后核对：2026-11-17<br>
+> 适用版本：ArchMap 1.1.0 / bundle schema 3.1<br>
+> 当前阶段：P0、P1、P1.5 已完成；P2、P3、P4 尚未开始。
+>
+> 本文用于新会话接手项目，包含项目现状、代码地图、数据契约、后续规划、设计来源和风险。文档归档边界见 [`docs/README.md`](README.md)；旧 FunctionFlow 文档不再代表当前契约。
 
 ---
 
@@ -12,15 +13,16 @@
 建议按以下顺序阅读：
 
 1. 本文 `docs/HANDOFF-P2-P4.md`
-2. `README.md`
-3. `docs/function-detail-p1.5-plan.md`
-4. `docs/archmap-class-layer-plan.md`
-5. `docs/archmap-v3-design.md`
-6. `archmap/graph.py` — 三层投影、类节点、模块边界、methodEdges
-7. `archmap/callsites.py` — 静态调用事实
-8. `archmap/details.py` — FunctionDetail / 源码 / callers / callees
-9. `archmap/render/assets/app.js` — 方法详情页与模块页
-10. `tests/test_class_layer.py`、`tests/test_call_sites.py`、`tests/test_build.py`
+2. `docs/README.md` — 当前/历史文档边界
+3. `README.md`
+4. `docs/function-detail-p1.5-plan.md`
+5. `docs/archmap-class-layer-plan.md`
+6. `docs/archmap-v3-design.md`
+7. `archmap/graph.py` — 三层投影、类节点、模块边界、methodEdges
+8. `archmap/callsites.py` — 静态调用事实
+9. `archmap/details.py` — FunctionDetail / 源码 / callers / callees
+10. `archmap/render/assets/app.js` — 方法详情页与模块页
+11. `tests/test_class_layer.py`、`tests/test_call_sites.py`、`tests/test_build.py`
 
 历史文档 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md` 中关于 FunctionFlow 的章节是历史设计，不是当前默认契约。当前产品已明确移除语句级执行流。
 
@@ -106,12 +108,18 @@ LLM    = 高层语义
 
 ```text
 project:       archmap_v3
-modules:       6
+modules:       6（其中 2 个为空模块，见下方说明）
+classes:       15
 functions:     96
+methods:       24
 call sites:    987
+resolvedCalls: 162
+macroEdges:    88
 HTML:          ~1.2 MB
 JSON:          ~1.6 MB
 ```
+
+> 注意：`examples/archmap_v3.archmap.json` 仍引用已删除的 `archmap/flow.py` 和 `archmap/layout.py`，因此自举结果中的 `flow-build`、`layout-routing` 是空模块。该配置和对应测试断言需要清理；当前统计不能理解为有 6 个有效源码模块。
 
 `student_system`：
 
@@ -135,8 +143,8 @@ resolvedCalls: 43
 测试：
 
 ```text
-pytest: 26 passed, 1 skipped
-ARCHMAP_RUN_BROWSER=1 pytest: 1 passed
+pytest: 26 passed, 1 skipped（默认跳过浏览器测试）
+ARCHMAP_RUN_BROWSER=1 pytest tests/test_browser_smoke.py: 1 passed
 archmap check: OK
 ```
 
@@ -331,7 +339,7 @@ P3/P4 需要增加结构关系类型：`inherits`、`implements`、`composes`、
 6. 类不是执行流节点；类本身没有 ENTRY/EXIT。
 7. 抽象类/接口不接模块输入输出。
 8. 源码是方法实现的最终事实来源；LLM 注解是侧车，不写回源码。
-9. 布局覆盖只影响项目页/模块页/类页，不影响语义指纹。
+9. 布局覆盖只影响项目页/模块页（类页命名空间在 P2 增加），不影响语义指纹。
 
 ---
 
@@ -636,6 +644,8 @@ Class 节点增加或完善：
 10. 旧函数级布局覆盖 `override.functions` 不再生效。
 11. `config.py` 中部分旧 `maxSteps` / `maxDataDeps` 配置已失去主要用途，后续可清理。
 12. 浏览器测试默认跳过，只有当 `ARCHMAP_RUN_BROWSER=1` 时执行。
+13. `examples/archmap_v3.archmap.json` 仍包含已删除的 `flow.py` / `layout.py` 模块配置，导致自举出现 `flow-build`、`layout-routing` 两个空模块；测试 `test_archmap_v3_self_config_builds_cross_module_edges` 也仍断言 6 个模块，需要同步清理。
+14. 旧 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md`、`docs/v1-acceptance-report.md` 已加归档说明；维护时不要把其中的 FunctionFlow 设计重新写回当前契约。
 
 ---
 
@@ -648,7 +658,7 @@ python3 -m pytest -q
 # 浏览器测试
 ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py
 
-# 构建
+# 构建（注意：自举配置当前仍有两个空模块，待清理）
 python3 -m archmap build . --config examples/archmap_v3.archmap.json --out .archmap/self
 
 # 校验
@@ -666,13 +676,14 @@ python3 -m archmap serve .archmap/self
 ## 13. 新会话建议开工顺序
 
 1. 先跑全量测试和浏览器测试，确认当前基线。
-2. 阅读 `graph.py` 中类节点/`methodEdges` 生成逻辑。
-3. 阅读 `app.js` 中 `renderModuleClassNode`、`renderSelectionDetail`、`renderMethodPage`。
-4. 先实现 P2 的 classView 数据投影，不要先动 UI。
-5. 用 `class_demo` 和 `student_system` 验证类页数据和布局。
-6. P2 验收后，再做 P3 的类型层次和 candidates。
-7. P4 最后做组合/聚合、impact/trace 和 DSM。
+2. 清理 `examples/archmap_v3.archmap.json` 的两个空模块配置，并同步修正自举测试断言。
+3. 阅读 `graph.py` 中类节点/`methodEdges` 生成逻辑。
+4. 阅读 `app.js` 中 `renderModuleClassNode`、`renderSelectionDetail`、`renderMethodPage`。
+5. 先实现 P2 的 classView 数据投影，不要先动 UI。
+6. 用 `class_demo` 和 `student_system` 验证类页数据和布局。
+7. P2 验收后，再做 P3 的类型层次和 candidates。
+8. P4 最后做组合/聚合、impact/trace 和 DSM。
 
-不要同时开始 P2、P3、P4。  
-不要重新引入 FunctionFlow。  
+不要同时开始 P2、P3、P4。
+不要重新引入 FunctionFlow。
 不要为了类页一次性重写现有 Macro Layout；先复用和投影。

@@ -1,6 +1,8 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档冻结 `docs/HANDOFF.md` 中的新增概念，并作为实现和后续 ArkTS 扩展的契约。与 `archmap-2.0-design.md` 冲突时，以本文档和最新用户要求为准。
+> 本文档冻结 v3.1 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md) 和 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 为准。
+>
+> **当前状态（2026-11-17）**：P0/P1/P1.5 已完成；P2 类焦点页、P3 继承/接口/多态、P4 类关系/impact/trace 尚未开始。本文中的 ClassFocusView 和结构关系是后续契约，不代表当前已经生成。
 
 ## 1. 三层投影
 
@@ -23,6 +25,7 @@
 - 模块输入/输出边界只连接类节点或显式自由函数入口，并通过 `viaMethodIds` 保留方法级证据；抽象类/接口不接模块边界。
 - 函数节点只展示函数名和人工备注，不展示步骤数、调用数等生成统计。
 - 双击自由函数或点击类方法进入 Method Detail 页面。
+- 类焦点页、类内方法布局和类路由尚未实现；当前类方法从模块页的类详情面板进入 Method Detail。
 
 ### FunctionDetail / CallSite
 
@@ -104,11 +107,12 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 - 后端输出 ProjectGraph、ModuleGraph 的默认坐标与边路径。
 - 前端不做宏观 rank/x/y/自动布局。
-- 项目页/模块页/类节点拖拽写入 `localStorage` 覆盖层，键为 `archmap-v3-layout-v1`。
+- 项目页、模块页类/函数节点和展开模块内部节点拖拽写入 `localStorage` 覆盖层，键为 `archmap-v3-layout-v1`。
 - 覆盖文件由前端导入/导出为 `layout-overrides.json`。
 - 覆盖项按稳定 ID 保存，忽略过期或无效键。
 - 覆盖不进入语义指纹。
 - P1.5 后不再存在函数级执行流布局覆盖；方法详情页以源码和调用关系为主。
+- 类焦点页布局覆盖命名空间属于 P2 规划，当前尚未启用。
 - 方法详情页和源码面板遵循系统 `prefers-color-scheme`。
 
 ## 7. 语言前端接口

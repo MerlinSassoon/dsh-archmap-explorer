@@ -11,6 +11,18 @@
 ArchMap 负责“结构和关系”，源码负责“实现细节”，LLM 负责“高层语义”。
 默认产物是独立 CLI + 自包含单文件 HTML，不注册插件、不依赖 CDN、不需要第三方运行时依赖。
 
+## 当前状态
+
+```text
+P0 / P1 / P1.5  已完成
+P2 类焦点页与类内方法图  未开始
+P3 继承/接口/多态/类层次  未开始
+P4 类关系/impact/trace  未开始
+```
+
+当前方法入口是 **Method Detail** 页面；语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
+文档权威性与历史归档说明见 [docs/README.md](docs/README.md)。
+
 ## 快速开始
 
 ```bash
@@ -139,8 +151,14 @@ python -m archmap diff <before.json> <after.json>
 ## 测试
 
 ```bash
+# 全量测试（浏览器测试默认跳过）
 python -m pytest -q
+
+# 浏览器冒烟测试
+ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
+
+当前基线：`26 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 
@@ -161,10 +179,14 @@ python -m pytest -q
 - `LanguageFrontend` 负责发现、解析、符号解析、CallSite 提取和 FunctionDetail 构建。
 - `graph.py`、`validate.py`、`render.py` 与语言无关。
 - 语言注册使用显式 `FRONTENDS` 字典，不是插件系统。
-- ArkTS 阶段新增 `frontends/arkts`，可使用可选解析器依赖；Python v1 仍保持标准库零依赖。
+- ArkTS 阶段新增 `frontends/arkts`，可使用可选解析器依赖；当前 Python 后端仍保持标准库零依赖。
 
-详见 [docs/archmap-v3-design.md](docs/archmap-v3-design.md) 与 [docs/function-detail-p1.5-plan.md](function-detail-p1.5-plan.md)。
-新会话接手 P2–P4 请阅读 [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)。
+当前文档入口：
+
+- [docs/README.md](docs/README.md)：文档索引与当前/历史文档边界。
+- [docs/archmap-v3-design.md](docs/archmap-v3-design.md)：v3.1 数据契约。
+- [docs/function-detail-p1.5-plan.md](docs/function-detail-p1.5-plan.md)：P1.5 实现记录。
+- [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：P2–P4 最新交接文档。
 
 ## 已知边界
 
@@ -173,4 +195,5 @@ python -m pytest -q
 - 方法详情默认内嵌源码切片，单函数源码有长度上限；超大函数会标记为 truncated。
 - 宏布局的局部重叠和边界启发式仍需要持续校验。
 - 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
-- 类焦点页、继承/实现/组合/聚合关系图、多态 candidates 和类级 impact/trace 仍在 P2/P3。
+- 类焦点页、继承/实现/组合/聚合关系图、多态 candidates 和类级 impact/trace 仍在 P2–P4。
+- 旧 `docs/archmap-2.0-design.md` 和旧 `docs/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

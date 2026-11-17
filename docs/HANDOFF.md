@@ -1,12 +1,13 @@
-# ArchMap v3 新会话交接文档
+# ArchMap v3 历史交接文档（已归档）
 
-> 交接时间：2026-11-15 21:16 CST  
-> 工作区根目录：`/home/sasson/桌面/Project/dsh_project/架构图_v3`  
-> 当前状态：**v1 Python 后端、三层 bundle、真实函数执行流、单文件 HTML、CLI 与自动化/浏览器测试已完成。** ArkTS 前端仍为后续目标。
-> 当前执行策略：普通开发工作不需要再向用户确认；按本文档与最新用户要求直接推进。  
-> v1 验收记录：见 [`docs/v1-acceptance-report.md`](v1-acceptance-report.md)。
-> 2026-11-16 更新：已完成类语义层 Phase 0 + Phase 1，并完成 P1.5（FunctionDetail + Source View + Call Graph，移除默认 FunctionFlow）；详见 [`docs/archmap-class-layer-plan.md`](archmap-class-layer-plan.md) 与 [`docs/function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md)。
-> 新会话接手 P2–P4：请先阅读 [`docs/HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
+> **归档状态（2026-11-17）**：本文档记录的是 v1/v2 前端样机与早期 FunctionFlow 方案，技术方案章节已经过时。当前产品已移除语句级 FunctionFlow，方法入口为 Method Detail。
+>
+> **仍可参考**：第 1 节工作区约束（不读 Projects/v2、无插件、零第三方运行时依赖、自包含 HTML 等）仍然有效。
+>
+> **当前权威文档**：[`README.md`](../README.md)、[`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)、[`archmap-v3-design.md`](archmap-v3-design.md)、[`function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md)、[文档索引](README.md)。
+>
+> 原文交接时间：2026-11-15 21:16 CST。原工作区根目录：`/home/sasson/桌面/Project/dsh_project/架构图_v3`。
+> 原 v1 验收记录：[`v1-acceptance-report.md`](v1-acceptance-report.md)。
 
 ---
 

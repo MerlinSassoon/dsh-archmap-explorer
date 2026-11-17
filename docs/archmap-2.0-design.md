@@ -1,8 +1,12 @@
-# dsh-archmap 2.0 设计文档
+# dsh-archmap 2.0 设计文档（已归档）
 
-> **定位**：把 Python 项目变成“从 ENTRY 到 EXIT”的可下钻执行流图。
-> **状态**：重构基线（Draft 1.0），用于替换 1.x 的“依赖图 + 执行流”混合模型。
-> **约束**：纯 Python 分析后端；前端只渲染，不做图算法。
+> **归档状态（2026-11-17）**：本文档仅用于追溯 2.0 函数内部执行流设计。当前产品已在 P1.5 移除 FunctionFlow，默认 bundle、UI 和流水线均不再包含语句级执行流。
+>
+> 当前权威文档：[项目 README](../README.md)、[P2–P4 交接](HANDOFF-P2-P4.md)、[v3 数据契约](archmap-v3-design.md)、[P1.5 实现记录](function-detail-p1.5-plan.md)、[文档索引](README.md)。
+>
+> **原文定位**：把 Python 项目变成“从 ENTRY 到 EXIT”的可下钻执行流图。
+> **原文状态**：重构基线（Draft 1.0），用于替换 1.x 的“依赖图 + 执行流”混合模型。
+> **原文约束**：纯 Python 分析后端；前端只渲染，不做图算法。
 
 ---
 
