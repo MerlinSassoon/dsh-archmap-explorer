@@ -8,7 +8,7 @@ from thread_waiting import Spinner
 colorama.init()
 
 
-def get_display_width(text):
+def _get_display_width(text):
     """计算字符串在终端的显示宽度（中文算2，英文算1）"""
     width = 0
     for ch in text:
@@ -57,10 +57,10 @@ class MenuSystem:
         for i, (item_name, _) in enumerate(self.menu_items):
             if i == highlight_index:
                 item_display = "> " + item_name + " <"
-                spaces = " " * (length - get_display_width(item_display) - 4)
+                spaces = " " * (length - _get_display_width(item_display) - 4)
                 sys.stdout.write("\033[7m" + f"|  {item_display}{spaces}|" + "\033[0m" + "\n")
             else:
-                spaces = " " * (length - get_display_width(item_name) - 4)
+                spaces = " " * (length - _get_display_width(item_name) - 4)
                 sys.stdout.write(f"|  {item_name}{spaces}|" + "\n")
 
         sys.stdout.write("|" + "=" * (length - 2) + "|" + "\n")
@@ -93,7 +93,7 @@ class MenuSystem:
         for table in tables:
             sys.stdout.write("|")
             for column in range(len(table)):
-                sys.stdout.write(f"{table[column]}{' ' * (widths[column] - get_display_width(str(table[column]))) }|")
+                sys.stdout.write(f"{table[column]}{' ' * (widths[column] - _get_display_width(str(table[column]))) }|")
             sys.stdout.write("\n")
 
         # 下边框
