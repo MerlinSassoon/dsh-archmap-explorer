@@ -12,7 +12,7 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 def test_build_bundle_contract() -> None:
     bundle = build_architecture(ROOT)
     assert bundle["kind"] == "archmap.bundle"
-    assert bundle["schemaVersion"] == "3.1"
+    assert bundle["schemaVersion"] == "3.2"
     assert bundle["project"]["name"] == "student_demo"
     assert len(bundle["projectGraph"]["modules"]) == 3
     assert len(bundle["functionDetails"]) == 5

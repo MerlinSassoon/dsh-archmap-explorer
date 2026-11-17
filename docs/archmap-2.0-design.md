@@ -2,6 +2,8 @@
 
 > **归档状态（2026-11-17）**：本文档仅用于追溯 2.0 函数内部执行流设计。当前产品已在 P1.5 移除 FunctionFlow，默认 bundle、UI 和流水线均不再包含语句级执行流。
 >
+> **当前契约更新**：当前 API 契约以 [`archmap-api-contract-model.md`](archmap-api-contract-model.md) 为准；P2.2 Provider Role（config/model/manager/entry/...）与 P2.3 ArchMap 自身分层重构已批准，详见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
+>
 > 当前权威文档：[项目 README](../README.md)、[P2–P4 交接](HANDOFF-P2-P4.md)、[v3 数据契约](archmap-v3-design.md)、[P1.5 实现记录](function-detail-p1.5-plan.md)、[文档索引](README.md)。
 >
 > **原文定位**：把 Python 项目变成“从 ENTRY 到 EXIT”的可下钻执行流图。

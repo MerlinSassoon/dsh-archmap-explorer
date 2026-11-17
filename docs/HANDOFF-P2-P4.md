@@ -1,8 +1,8 @@
 # ArchMap P2–P4 交接文档
 
 > 日期：2026-11-16；最后核对：2026-11-17<br>
-> 适用版本：ArchMap 1.1.0 / bundle schema 3.1<br>
-> 当前阶段：P0、P1、P1.5、P2.0 已完成；P2.1（类焦点页）、P3、P4 尚未开始。
+> 适用版本：ArchMap 1.2.0 / bundle schema 3.2<br>
+> 当前阶段：P0、P1、P1.5、P2.0、P2.1 已完成；P2.2 Provider Role、P2.3 ArchMap 自身重构、P3、P4 已批准但尚未开始。类焦点页与类内方法图不在产品计划中。
 >
 > 本文用于新会话接手项目，包含项目现状、代码地图、数据契约、后续规划、设计来源和风险。文档归档边界见 [`docs/README.md`](README.md)；旧 FunctionFlow 文档不再代表当前契约。
 
@@ -16,13 +16,15 @@
 2. `docs/README.md` — 当前/历史文档边界
 3. `README.md`
 4. `docs/function-detail-p1.5-plan.md`
-5. `docs/archmap-class-layer-plan.md`
+5. `docs/archmap-api-contract-model.md` — Provider + Capability API 契约模型与角色规划
 6. `docs/archmap-v3-design.md`
-7. `archmap/graph.py` — 三层投影、类节点、模块边界、methodEdges
-8. `archmap/callsites.py` — 静态调用事实
-9. `archmap/details.py` — FunctionDetail / 源码 / callers / callees
-10. `archmap/render/assets/app.js` — 方法详情页与模块页
-11. `tests/test_class_layer.py`、`tests/test_call_sites.py`、`tests/test_build.py`
+7. `archmap/contracts.py` — 语言中立契约 IR
+8. `archmap/frontends/python/capabilities.py` — Python exposure 与协议能力
+9. `archmap/graph.py` — 三层投影、apiProviders、类节点、模块边界
+10. `archmap/callsites.py` — 静态调用事实
+11. `archmap/details.py` — FunctionDetail / 源码 / callers / callees
+12. `archmap/render/assets/app.js` — 契约卡片、模块页与方法详情页
+13. `tests/test_api_contracts.py`、`tests/test_class_layer.py`、`tests/test_build.py`
 
 历史文档 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md` 中关于 FunctionFlow 的章节是历史设计，不是当前默认契约。当前产品已明确移除语句级执行流。
 
@@ -30,7 +32,7 @@
 
 ## 2. 项目一句话
 
-ArchMap 把 Python 项目转换为**模块优先、类为组件、方法为行为、源码为事实来源**的可交互架构浏览器。
+ArchMap 把 Python 项目转换为**模块优先、Provider 为组件、Capability 为契约、源码为事实来源**的可交互架构浏览器。
 
 产品分工：
 
@@ -39,6 +41,21 @@ ArchMap 把 Python 项目转换为**模块优先、类为组件、方法为行�
 源码   = 实现细节
 LLM    = 高层语义
 ```
+
+已批准的模块内职责模型：
+
+```text
+config   类型定义、字段、默认值、常量表、枚举
+model    运行期数据模型 / DTO / 分析结果
+manager  管理 model/config 实例，组织行为，对外暴露 API
+entry    主模块 / CLI / 用户入口
+adapter  外部系统适配
+component UI / 协议组件
+contract 抽象类 / Protocol / 接口
+utility  纯函数 / 助手
+```
+
+一个完整业务模块通常由 `config + model + manager` 组成；不是所有项目都有 config/model，也不是所有模块都有 manager。
 
 默认产物：
 
@@ -60,6 +77,7 @@ LLM    = 高层语义
 - P1：模块页类组件化、模块边界修复
 - P1.5：FunctionFlow 移除、FunctionDetail + Source View + Call Graph
 - P2.0：项目页/模块页能力契约重构
+- P2.1：API 契约建模与展示
 
 ### 3.2 当前已实现能力
 
@@ -72,10 +90,13 @@ LLM    = 高层语义
   - `methodKind`
   - `visibility`
 - 模块角色：`main` / `service` / `adapter` / `test` / `other`；
-- 模块提供接口投影 `providedApis`（公开类方法、抽象契约方法、公开自由函数）；
+- API 契约模型：Provider + Capability、`apiExposure`、`apiProviders`；
+- 协议能力：context manager / async context manager / callable / iterable；
+- 构造签名与 Magic Method 排除；
+- 模块提供接口投影 `providedApis`（按 Provider 分组）；
 - 项目页模块能力卡片：
   - 默认不绘制模块依赖线；
-  - 显示职责、角色、提供接口、类/方法数量；
+  - 显示职责、角色、Provider/Capability、类/Provider/API 数量；
   - 主模块视觉强调；
   - 可选“关系”模式查看保留的模块调用证据；
 - 模块页：
@@ -85,8 +106,9 @@ LLM    = 高层语义
   - 模块级自由函数；
   - 类方法不再平铺。
 - 类详情面板：
-  - 类类型、抽象标记、方法列表；
-  - 方法按钮进入 Method Detail。
+  - 类类型、抽象标记、构造签名；
+  - 提供接口列表；
+  - 内部方法只显示数量，不展开方法图。
 - 方法详情页：
   - 人类备注、LLM 语义；
   - 签名、返回、异常；
@@ -101,32 +123,37 @@ LLM    = 高层语义
 
 ### 3.3 当前未实现
 
-- P2.1 类焦点页；
-- 类内方法图；
+- P2.2 Provider Role 与模块组合；
+- P2.3 ArchMap 自身 config/model/manager 重构；
+- P3 类型契约与继承 API；
+- P4 API/type/provider/surface impact 与 trace；
+- 主模块 user surface 投影与传播；
 - 继承/实现的结构化边；
 - 多态调用 candidates；
 - 组合/聚合关系；
-- 类级 impact / trace；
+- Provider / API 级 impact / trace；
 - 类关系矩阵；
-- 类层次视图；
+- 继承/实现类型关系视图；
+- 序列协议（`__len__`、`__getitem__`、切片、ArkTS index signature）延期；
 - 完整语法高亮（当前源码是纯文本 + 行号 + 调用行高亮）。
 
 ### 3.4 当前验收数据
 
-最近一次自举（P2.0 后）：
+最近一次自举（P2.1 后）：
 
 ```text
 project:       archmap_v3
 modules:       4
-classes:       15
-functions:     100
-methods:       24
-call sites:    1070
-resolvedCalls: 173
-macroEdges:    93
-providedApis:  36
-HTML:          ~1.4 MB
-JSON:          ~1.8 MB
+classes:       18
+functions:     116
+methods:       30
+call sites:    1283
+resolvedCalls: 206
+macroEdges:    112
+providedApis:  43
+apiProviders:  33
+HTML:          ~1.7 MB
+JSON:          ~2.3 MB
 ```
 
 `examples/archmap_v3.archmap.json` 已移除失效的 `flow-build` / `layout-routing` 模块，并补齐 `callsites.py` / `details.py` 到 Python 前端模块；自举现在只包含 4 个有效源码模块。
@@ -138,8 +165,9 @@ modules:       5
 classes:       3
 functions:     45
 methods:       36
-call sites:    266
+call sites:    269
 resolvedCalls: 43
+providedApis:  13
 ```
 
 类语义验收：
@@ -153,10 +181,18 @@ resolvedCalls: 43
 测试：
 
 ```text
-pytest: 32 passed, 1 skipped（默认跳过浏览器测试）
+pytest: 40 passed, 1 skipped（默认跳过浏览器测试）
 ARCHMAP_RUN_BROWSER=1 pytest tests/test_browser_smoke.py: 1 passed
 archmap check: OK
 ```
+
+P2.1 契约验收：
+
+- `thread_waiting.Spinner` → `with Spinner(message='加载中')`；
+- `database.Database` → `with Database(password)` + `Database.actions(client_input)`；
+- `menu_system.MenuSystem` → `MenuSystem.run()`；
+- 魔术方法、`__init__`、内部下划线方法不进入普通 API；
+- 序列协议延期。
 
 ---
 
@@ -168,7 +204,8 @@ config
   → analyze_project (AST / classes / functions / imports)
   → collect_call_sites (independent ast.Call extraction)
   → build_function_details (source / callers / callees / sourceHash)
-  → build_bundle (ProjectGraph / ModuleGraph / aggregated edges)
+  → build_contracts (Provider + Capability / API exposure)
+  → build_bundle (ProjectGraph / ModuleGraph / apiProviders / aggregated edges)
   → validate_bundle
   → render_html
 ```
@@ -182,6 +219,7 @@ class LanguageFrontend(Protocol):
     def analyze(project_root, config_path=None) -> Any: ...
     def build_call_sites(analysis) -> list[Any]: ...
     def build_function_details(analysis, call_sites) -> list[dict]: ...
+    def build_contracts(analysis) -> ContractModel: ...
 ```
 
 Python 前端：
@@ -191,6 +229,7 @@ archmap/frontends/python/__init__.py
   → analysis.analyze_project
   → callsites.collect_call_sites
   → details.build_function_details
+  → frontends.python.capabilities.build_capabilities
 ```
 
 ArkTS 未来应实现相同接口，不应修改 HTML 渲染核心。
@@ -204,8 +243,10 @@ ArkTS 未来应实现相同接口，不应修改 HTML 渲染核心。
 | `archmap/analysis.py` | AST 索引、类/函数/方法元数据 |
 | `archmap/callresolver.py` | 调用目标解析 |
 | `archmap/callsites.py` | 独立 CallSite 提取 |
-| `archmap/details.py` | FunctionDetail、源码切片、callers/callees |
-| `archmap/graph.py` | ProjectGraph、ModuleGraph、类节点、聚合边、指纹 |
+| `archmap/details.py` | FunctionDetail、源码切片、callers/callees、API exposure |
+| `archmap/contracts.py` | 语言中立的 Provider/Capability 契约模型 |
+| `archmap/frontends/python/capabilities.py` | Python exposure、协议能力与构造签名 |
+| `archmap/graph.py` | ProjectGraph、ModuleGraph、类节点、apiProviders、聚合边、指纹 |
 | `archmap/validate.py` | bundle 交叉引用与数据校验 |
 | `archmap/render.py` | 单文件 HTML 模板注入 |
 | `archmap/cli.py` | build / check / method / serve / diff |
@@ -228,7 +269,7 @@ Bundle 顶层：
 
 ```json
 {
-  "schemaVersion": "3.1",
+  "schemaVersion": "3.2",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],
@@ -241,42 +282,57 @@ Bundle 顶层：
 }
 ```
 
-### 5.1 Module 角色与提供接口
+### 5.1 Provider / Capability API 契约
 
-`projectGraph.modules[]` 与 `moduleGraphs[]` 都包含：
+`moduleGraphs[]` 同时提供扁平 `providedApis` 和按 Provider 分组的 `apiProviders`：
 
 ```json
 {
   "role": "main",
-  "providedApiCount": 14,
-  "providedApis": [
+  "providedApiCount": 1,
+  "apiProviders": [
     {
-      "id": "api:fn:archmap.cli.main",
-      "kind": "function",
-      "name": "main",
-      "qualifiedName": "archmap.cli.main",
-      "ownerId": "cli-pipeline",
-      "ownerName": "CLI 与流水线",
-      "ownerKind": "module",
-      "moduleId": "cli-pipeline",
-      "functionId": "fn:archmap.cli.main",
-      "functionDetailId": "fn:archmap.cli.main",
-      "signature": "def main()",
-      "methodKind": "function",
-      "visibility": "public",
-      "isAbstract": false,
-      "isEntry": true
+      "providerId": "cls:thread_waiting.Spinner",
+      "providerKind": "class",
+      "providerName": "Spinner",
+      "moduleId": "async",
+      "apiCount": 1,
+      "apis": [
+        {
+          "id": "api:cls:thread_waiting.Spinner:context_manager",
+          "kind": "context_manager",
+          "display": "with Spinner(message='加载中')",
+          "signature": "with Spinner(message='加载中')",
+          "providerId": "cls:thread_waiting.Spinner",
+          "providerKind": "class",
+          "providerName": "Spinner",
+          "moduleId": "async",
+          "exposure": "public",
+          "exposureSource": "protocol",
+          "exposureConfidence": "high",
+          "functionId": null,
+          "evidenceFunctionIds": [
+            "fn:thread_waiting.Spinner.__init__",
+            "fn:thread_waiting.Spinner.__enter__",
+            "fn:thread_waiting.Spinner.__exit__"
+          ],
+          "constructorFunctionId": "fn:thread_waiting.Spinner.__init__",
+          "isEntry": false
+        }
+      ]
     }
   ]
 }
 ```
 
-`providedApis` 是投影而非新事实源：
+规则：
 
-- 公开类方法与抽象契约方法（`kind: method` / `abstract_method`）；
-- 公开模块级自由函数（`kind: function`）；
-- 构造函数、dunder、下划线内部方法不进入；
-- `projectGraph.layout.mode = "module-cards"`，项目页默认不渲染依赖路径。
+- `function` / `method` 能力对应真实函数 ID；
+- `context_manager` 等协议能力没有单一 `functionId`，但保留 `evidenceFunctionIds`；
+- 构造函数、dunder、下划线内部方法不进入普通方法 API；
+- `__init__` 只作为类 `usage.constructor`；
+- `projectGraph.layout.mode = "module-cards"`，项目页默认不渲染依赖路径；
+- 契约模型详细说明见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
 
 ### 5.2 Class 节点
 
@@ -296,6 +352,16 @@ Bundle 顶层：
   "publicMethodIds": [],
   "entryMethodIds": [],
   "exitMethodIds": [],
+  "internalMethodCount": 10,
+  "usage": {
+    "constructor": {
+      "functionId": "fn:menu_system.MenuSystem.__init__",
+      "signature": "MenuSystem(sockets)"
+    },
+    "protocols": []
+  },
+  "providedApis": [],
+  "providedApiCount": 1,
   "methods": []
 }
 ```
@@ -309,6 +375,9 @@ Bundle 顶层：
 - `methodKind`
 - `visibility`
 - `isAbstract`
+- `apiExposure`
+- `apiExposureSource`
+- `apiExposureConfidence`
 - `signature`
 - `note`
 - `file` / `line` / `endLine`
@@ -322,6 +391,9 @@ Bundle 顶层：
   "ownerClassId": "cls:menu_system.MenuSystem",
   "methodKind": "public_api",
   "visibility": "public",
+  "apiExposure": "public",
+  "apiExposureSource": "docstring",
+  "apiExposureConfidence": "high",
   "signature": "def run(self)",
   "returns": "",
   "raises": [],
@@ -386,7 +458,13 @@ P3/P4 需要增加结构关系类型：`inherits`、`implements`、`composes`、
 6. 类不是执行流节点；类本身没有 ENTRY/EXIT。
 7. 抽象类/接口不接模块输入输出。
 8. 源码是方法实现的最终事实来源；LLM 注解是侧车，不写回源码。
-9. 布局覆盖只影响项目页/模块页（类页命名空间在 P2 增加），不影响语义指纹。
+9. 布局覆盖只影响项目页/模块页，不影响语义指纹。
+10. 类焦点页和类内方法图不在产品计划中；类只作为 Provider 展示构造签名与提供接口。
+11. 序列协议（`__len__` / `__getitem__` / 切片 / ArkTS index signature）延期，未写入契约前不得用启发式实现。
+12. P2.2 Provider Role 是 P3/P4 的前置层；不得跳过角色直接做类型/影响分析。
+13. config/model 展示为类型卡片，不把 `as_dict()` 等序列化方法自动当作模块 API。
+14. 用户交互面必须数据驱动，支持配置覆盖与 confidence，不得硬编码 `menu.run`、`init_connection` 等具体项目函数。
+15. 角色判定与用户交互面识别不得只依赖名称后缀或单一项目结构。
 
 ---
 
@@ -405,113 +483,351 @@ P2.0 已落地：
 
 P2.0 不新增第二套事实源：`providedApis` 从现有类方法、抽象方法和自由函数派生。
 
-## 7. P2：类焦点页与类内方法图
+## 7. P2.1：API 契约建模与展示（已完成）
 
-> 说明：本节以下内容即 P2.1，尚未开始。P2.0 契约层已完成。
+### 7.1 产品决策
 
-### 7.1 目标
+类焦点页和类内方法图**不再计划**。类被视为 Provider，产品只关心：
 
-把当前“类详情面板 + 方法列表”升级为独立类视图：
+- 模块对外提供什么能力；
+- 类构造与使用方式；
+- 类/函数提供哪些公开能力；
+- 每个能力的暴露级别和证据。
 
-```text
-项目页
-  └─ 模块页
-       └─ 类焦点页
-            └─ 方法详情页
-```
+类内部方法只在 Method Detail 的源码与 callers/callees 中查看。
 
-类焦点页展示：
-
-- 类信息：`classKind`、`isAbstract`、bases、方法数；
-- 公开 API 方法；
-- 生命周期方法；
-- 内部方法；
-- 方法间调用/数据关系；
-- 点击方法进入 Method Detail；
-- 类内方法图默认只展示类内边，跨类边作为“外部依赖”列表或二级入口。
-
-### 7.2 设计来源
-
-- Sourcetrail：类节点可展开成员，聚焦当前符号的邻域；
-- CodeViz AI：类节点 + 方法 membership 边 + ELK 层级布局；
-- cgviz：统一节点/边、focus mode、视图过滤；
-- codeglass：`Symbol.parent`、`TypeHierarchyResult` 的类/方法组织结构。
-
-### 7.3 建议路由
+### 7.2 已实现模型
 
 ```text
-#/project
-#/module/:moduleId
-#/module/:moduleId/class/:classId
-#/module/:moduleId/class/:classId/function/:methodId
-#/module/:moduleId/function/:functionId
+Provider     class / function
+Capability   function / method / context_manager / async_context_manager / callable / iterable
+Exposure     public / internal
+Source       docstring / comment / decorator / config / entrypoint / protocol / naming
 ```
 
-旧函数路由继续兼容到 Method Detail。
+数据字段：
 
-### 7.4 数据方案
+- `apiExposure`
+- `apiExposureSource`
+- `apiExposureConfidence`
+- `moduleGraphs[].providedApis`
+- `moduleGraphs[].apiProviders`
+- `classNode.usage`
+- `classNode.providedApis`
+- `functionNode.providedApis`
 
-优先从现有数据派生，不新增第二套事实源：
+### 7.3 Exposure 规则
 
-- 方法节点来自 `classNode.methods`；
-- 方法级边来自 `moduleGraphs[].methodEdges`；
-- 方法详情来自 `functionDetails`；
-- 类内布局由 Python 生成，建议新增 `classViews[]` 或 `classGraphs[]` 投影，但必须标记为 ModuleGraph 的投影。
+优先级：
 
-建议 `classView` 结构：
-
-```json
-{
-  "classId": "cls:menu_system.MenuSystem",
-  "moduleId": "menu",
-  "nodes": [],
-  "edges": [],
-  "layout": {}
-}
+```text
+config 覆盖
+  > decorator
+  > docstring / comment 标签
+  > entrypoint
+  > protocol
+  > naming
 ```
 
-### 7.5 实施任务
+默认：
 
-1. 生成类焦点投影（classView）。
-2. 复用或抽取 `graph.py` 的宏观布局算法为类内方法布局。
-3. 增加类焦点 Hash 路由。
-4. 模块页类节点双击/按钮进入类焦点页。
-5. 类页方法节点双击进入 Method Detail。
-6. 类页右侧详情显示类备注、继承、公开 API。
-7. 布局覆盖增加 `classes` 命名空间。
-8. 浏览器测试覆盖类页和方法跳转。
+- `_name` → internal；
+- 非下划线无标注 → public，来源 `naming`；
+- `__init__` → 不进入方法 API，只保留构造签名；
+- `__enter__` / `__exit__` → 合成 context manager；
+- `__aenter__` / `__aexit__` → async context manager；
+- `__call__` → callable；
+- `__iter__` → iterable；
+- 其他 dunder → 默认不进入 API。
 
-### 7.6 验收标准
+标签词表可通过 `contract.publicTags` / `contract.internalTags` 扩展。
 
-- `MenuSystem` 类页出现 18 个方法节点；
-- `Spinner` 类页出现 4 个方法节点；
-- 方法间 `methodEdges` 正确显示；
-- 点击方法进入 Method Detail；
-- 类页不出现语句级执行流；
-- 旧函数路由不回归。
+### 7.4 明确延期：序列协议
 
-### 7.7 风险
+以下能力不在 P2.1 实现：
 
-- 18 个方法的类页需要可读的布局；
-- 跨类调用在类页中如何表达需要明确：内部边 vs 外部依赖列表；
-- 类页布局覆盖不能污染模块页坐标。
+```text
+__len__
+__getitem__
+__setitem__
+__contains__
+__reversed__
+切片 / 索引签名
+ArkTS 的 length / index signature
+```
 
----
+原因：需要类型与形状语义，静态启发式容易误报。后续在 P3/P4 或独立 protocol 阶段处理。
 
-## 8. P3：继承、接口、多态与类层次
+### 7.5 UI
+
+- 项目页模块卡片展示 Provider + Capability chips；
+- 模块页类卡片展示构造签名与 providedApis；
+- 模块页右栏按 apiProviders 分组；
+- 类右栏只展示提供接口，内部方法仅显示数量；
+- 方法/函数能力点击进入 Method Detail；
+- 协议能力点击选中对应 Provider 类节点；
+- 不新增类焦点页路由。
+
+### 7.6 验收
+
+- `contracts_demo` 覆盖 context manager、callable、iterable、序列协议延期、internal/private、config override 和 entrypoint；
+- `Spinner` 产出 `with Spinner(message='加载中')`，不产出 `__init__` / `__enter__` / `__exit__`；
+- `Database` 产出 context manager + `Database.actions(client_input)`；
+- `MenuSystem` 产出 `MenuSystem.run()`；
+- `pytest`: 40 passed, 1 skipped；
+- 浏览器冒烟测试通过；
+- `archmap check` 通过。
+
+详细契约见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
+
+## 8. P2.2：Provider Role 与模块组合（已批准，未开始）
 
 ### 8.1 目标
 
-在 P2 类页基础上增加“类型/契约”语义：
+当前 P2.1 已经能表达“类/函数提供什么能力”，但还缺少“Provider 是什么角色”。这导致 config/model 的序列化方法被误当成模块 API。
+
+P2.2 要增加：
+
+- Provider Role：`config` / `model` / `manager` / `entry` / `adapter` / `component` / `contract` / `utility`；
+- `roleSource` / `roleConfidence`；
+- `module.composition`；
+- 模块 API 按角色过滤；
+- config/model 以类型卡片展示，不把 `as_dict()` 等序列化方法当模块 API；
+- manager/entry/component/contract 才展示方法能力。
+
+### 8.2 角色定义
+
+| 角色 | 含义 | 典型例子 |
+|---|---|---|
+| `config` | 类型定义、字段、默认值、常量表、枚举 | `ProjectConfig`、`ModuleConfig`、默认标签表 |
+| `model` | 运行期数据记录、DTO、分析结果 | `FunctionInfo`、`ClassInfo`、`AnalysisResult`、`CallSite` |
+| `manager` | 管理 model/config 实例，组织行为，对外 API | `CallResolver`、`PythonFrontend`、`MenuSystem`、`Database` |
+| `entry` | 主模块、CLI、用户入口 | `cli.py`、`main.py`、ArkTS `@Entry` |
+| `adapter` | 外部系统适配 | TCP、数据库、文件、HTTP、解析器 |
+| `component` | UI/协议组件 | `Spinner` context manager |
+| `contract` | 抽象类、Protocol、接口 | `LanguageFrontend`、`Worker` |
+| `utility` | 纯函数/助手 | `get_display_width`、`module_name_for` |
+
+### 8.3 判定优先级
+
+```text
+config.providerRoles 显式覆盖
+  > 注释 / 装饰器 / JSDoc 标注
+  > 结构规则
+  > 命名弱提示
+```
+
+结构规则建议：
+
+- dataclass / NamedTuple / TypedDict / 大量字段 + 少量方法 → `model`；
+- 只有类级常量、默认值、枚举、类型声明 → `config`；
+- 有实例状态、公开方法、调用其他项目类、被 entry/其他模块调用 → `manager`；
+- 配置的 entrypoint 或主模块 → `entry`；
+- 主要封装外部 IO 库 → `adapter`；
+- `Protocol` / ABC → `contract`；
+- 纯函数、无状态 → `utility`。
+
+`Manager` 后缀只能作为低权重提示，不能作为主规则。
+
+### 8.4 数据模型
+
+```json
+{
+  "providerRole": "manager",
+  "roleSource": "structure",
+  "roleConfidence": "medium",
+  "moduleComposition": {
+    "config": ["cls:..."],
+    "model": ["cls:..."],
+    "manager": ["cls:..."],
+    "entry": ["fn:..."],
+    "adapter": ["cls:..."],
+    "component": ["cls:..."],
+    "contract": ["cls:..."],
+    "utility": ["fn:..."]
+  }
+}
+```
+
+### 8.5 API 展示规则
+
+- `manager` / `entry` / `component` / `contract`：展示方法/协议能力；
+- `config` / `model`：展示类型卡片、字段摘要、默认值，不展示 `as_dict()` 等序列化方法为模块 API；
+- `adapter`：展示适配器入口能力；
+- `utility`：展示函数签名；
+- 模块页按角色分组 Provider；
+- 项目页模块卡片显示 `CONFIG / MODEL / MANAGER / ENTRY` 数量与 manager API chips。
+
+### 8.6 开发者 API 与用户交互面
+
+必须区分两个概念：
+
+```text
+developer API   模块之间调用的代码契约
+user surface    最终用户能感知或操作的交互面
+```
+
+同一能力可以同时是两者：
+
+- `MenuSystem.run()`：menu 模块 manager 的开发者 API，同时是 TUI 键盘菜单交互面；
+- `init_connection(port=12345)`：entry-network 的函数 API，同时是 CLI 输入提示交互面。
+
+建议后续字段：
+
+```json
+{
+  "audiences": ["developer", "end_user"],
+  "surfaces": ["cli_input", "tui_menu", "keyboard_event", "network_endpoint"]
+}
+```
+
+并增加独立的 `userSurfaces[]` 投影：
+
+```json
+{
+  "kind": "cli_input",
+  "display": "选择服务器/客户端并输入服务器 IP",
+  "moduleId": "entry-network",
+  "evidenceFunctionIds": ["fn:TcpConnect.init_connection"],
+  "entrypointIds": ["fn:main.__main__"],
+  "confidence": "medium"
+}
+```
+
+主模块规则：
+
+- 主模块默认不展示 developer API；
+- 主模块展示 `entry` + `userSurfaces`；
+- `MenuSystem.run()` 属于 menu 模块 manager API，同时作为用户交互面被项目入口引用；
+- 客户端路径和服务器路径可以有不同的 surface 集合；
+- 不同项目的用户交互面不同，必须数据驱动、支持配置覆盖。
+
+自动识别（P4 实现）：
+
+- `input()` / `print()` / `sys.stdout.write` → CLI/TUI surface；
+- keyboard listener / event handler → keyboard surface；
+- socket / HTTP server → network surface；
+- ArkTS `@Entry` / `@Component` / `@Builder` / `TextInput` / `Button` → UI surface；
+- 沿调用图从 entrypoint 传播 surface，带 confidence，不硬编码具体项目函数名。
+
+### 8.7 ArchMap 自身的目标划分
+
+```text
+config/
+  ProjectConfig, ModuleConfig, 默认值, 标签词表, role 枚举
+model/
+  FunctionInfo, ClassInfo, ModuleInfo, AnalysisResult,
+  CallSite, ResolvedCall, ApiCapability, ClassUsage, ContractModel
+managers/
+  AnalysisManager, CallManager, DetailManager,
+  ContractManager, GraphManager, ValidateManager, RenderManager
+frontends/
+  LanguageFrontend contract + Python/ArkTS adapters
+entry/
+  cli.py, pipeline.py
+render/
+  assets/
+```
+
+### 8.8 验收
+
+- `FunctionInfo.as_dict()`、`ClassUsage.as_dict()`、`ContractModel.capabilities_by_*()` 不再作为模块 API；
+- `ProjectConfig` / `ModuleConfig` 显示为 config 类型；
+- `FunctionInfo` / `ClassInfo` / `AnalysisResult` 显示为 model 类型；
+- `CallResolver` / `PythonFrontend` / `MenuSystem` / `Database` 显示为 manager；
+- `LanguageFrontend` 显示为 contract；
+- 模块组合信息正确；
+- 通用 fixture 覆盖 config/model/manager/entry/adapter/component/contract/utility；
+- `student_system` 作为集成验收。
+
+### 8.9 风险
+
+- config 与 model 边界可能模糊，需要显式配置兜底；
+- dataclass 不一定都是 model，也可能是 config 或 DTO；
+- manager 不能仅靠后缀判断；
+- 不能把 `as_dict()` 一律当内部方法，某些项目可能确实把它作为公开序列化 API；
+- 角色变化会影响模块 API 列表，需要语义指纹覆盖角色字段。
+
+---
+
+## 9. P2.3：ArchMap 自身 config/model/manager 重构（已批准，未开始）
+
+### 9.1 目标
+
+让 ArchMap 自己成为 `config + model + manager + entry` 模型的示范项目，同时保持外部行为、CLI 和 bundle 契约不变。
+
+### 9.2 目标目录
+
+```text
+archmap/
+  config/
+    project.py
+    defaults.py
+  model/
+    analysis.py
+    call.py
+    contract.py
+    graph.py
+  managers/
+    analysis_manager.py
+    call_manager.py
+    detail_manager.py
+    contract_manager.py
+    graph_manager.py
+    validate_manager.py
+    render_manager.py
+  frontends/
+    base.py
+    python/
+    arkts/
+  entry/
+    cli.py
+    pipeline.py
+  render/
+    assets/
+```
+
+### 9.3 迁移步骤
+
+1. 先实现 P2.2 角色投影，不改文件结构；
+2. 抽出 model 模块，保留旧 import shim；
+3. 抽出 managers，逐个迁移并通过测试；
+4. 把 `pipeline.py` 定位为 application manager，`cli.py` 定位为 entry；
+5. 更新 `examples/archmap_v3.archmap.json`，让自举图显示 config/model/manager/entry；
+6. 最后移除兼容 shim。
+
+### 9.4 验收
+
+- 所有测试通过；
+- CLI、bundle schema、HTML 行为不变；
+- 自举图中 config/model/manager/entry 划分清晰；
+- `FunctionInfo.as_dict()` 等不再显示为模块 API；
+- README 与交接文档同步。
+
+### 9.5 风险
+
+- 文件迁移会影响 import 路径和测试；
+- 不应为了目录美观破坏零依赖和自包含 HTML；
+- 先做角色投影可以降低重构风险。
+
+---
+
+## 10. P3：继承、接口、多态与继承 API
+
+> P3 不再做类层次页面或类内方法图；重点是类型契约、继承 API 和多态调用证据。
+
+### 10.1 目标
+
+在 P2.1 API 契约基础上增加“类型/契约”语义：
 
 - `inherits`：类 → 基类；
 - `implements`：类 → 接口/Protocol；
 - 抽象方法契约；
 - 多态调用 candidates；
-- 类型层次视图；
-- 继承/实现关系与调用/依赖关系分视图展示。
+- 继承来的公开 API 纳入类 `providedApis`；
+- 类型关系与调用/依赖关系分视图展示。
 
-### 8.2 设计来源
+### 10.2 设计来源
 
 - CortexPlexus：`get_class_hierarchy` 方向性继承/实现遍历，`get_implementations`，避免兄弟节点污染；
 - codeglass：`TypeHierarchyResult` 含 `bases`、`subclasses`、`is_abstract`；
@@ -519,7 +835,7 @@ P2.0 不新增第二套事实源：`providedApis` 从现有类方法、抽象方
 - Sourcetrail / Understand：UML/类型层级视图与调用图分开；
 - Python 语义：`abc.ABC`、`ABCMeta`、`typing.Protocol`、`@abstractmethod`。
 
-### 8.3 数据模型
+### 10.3 数据模型
 
 Class 节点增加或完善：
 
@@ -556,30 +872,33 @@ Class 节点增加或完善：
 }
 ```
 
-### 8.4 实施任务
+### 10.4 实施任务
 
-1. 解析类引用和导入，把 `bases` 字符串解析为 `baseClassIds`。
-2. 增加全局类索引和 base/subclass 双向关系。
-3. 增加 `inherits` / `implements` 结构边。
-4. 类型层次视图或类页关系区块。
-5. 多态调用解析：
+1. 以 P2.2 的 Provider Role 为前提：区分 config/model 类型契约与 manager/contract 行为契约。
+2. 解析类引用和导入，把 `bases` 字符串解析为 `baseClassIds`。
+3. 增加全局类索引和 base/subclass 双向关系。
+4. 增加 `inherits` / `implements` 结构边。
+5. 把继承/实现的公开能力合入 Provider API，并标记 `declaredOn` / `inheritedFrom` / `implementedFrom`。
+6. manager/contract 的继承 API 进入模块 API；config/model 的继承关系只作为类型关系展示。
+7. 类右栏展示继承 API 与类型关系区块（不新增类焦点页）。
+8. 多态调用解析：
    - `self.abstract_method()`；
    - `cls.method()`；
    - 已知类型注解的变量；
    - 没有唯一实现时返回 candidates。
-6. 抽象方法不生成执行流；具体模板方法仍可生成 FunctionDetail。
-7. 继承来的方法调用解析（当前 `EchoWorker.run -> self.label()` 仍是 unresolved）。
+9. 抽象方法不生成执行流；具体模板方法仍可生成 FunctionDetail。
+10. 继承来的方法调用解析（当前 `EchoWorker.run -> self.label()` 仍是 unresolved）。
 
-### 8.5 验收标准
+### 10.5 验收标准
 
 - `class_demo` 中 `EchoWorker` 继承 `Worker`，产生 `inherits` 边；
 - `Worker` 抽象方法列表正确；
 - 抽象类不接模块边界；
 - 调用抽象方法时产生 candidates，而不是伪造唯一目标；
-- 类层次视图不出现兄弟节点污染；
+- 类型关系视图不出现兄弟节点污染；
 - 不影响 ModuleGraph 和 Method Detail。
 
-### 8.6 风险
+### 10.6 风险
 
 - Python 动态类型导致多态解析天然不确定；
 - 继承/接口关系不能硬塞进现有 `call/data/control` 三种边；
@@ -587,22 +906,24 @@ Class 节点增加或完善：
 
 ---
 
-## 9. P4：类关系、影响分析与架构查询
+## 11. P4：角色感知关系、API/类型/交互面影响分析与架构查询
 
-### 9.1 目标
+> P4 以 Provider / Capability 为中心，不做全量类关系图。
 
-从“类结构浏览器”升级为“可查询的架构知识图”：
+### 11.1 目标
 
-- `composes`：强所有权；
-- `aggregates`：弱引用/可选引用；
-- `uses`：类型引用/字段访问；
-- `instantiates`：构造调用；
-- 类级 impact analysis；
+从“方法清单”升级为“角色化的可查询架构知识图”：
+
+- 角色感知的 `composes` / `aggregates` / `uses` / `instantiates`；
+- manager → model/config 的资源关系；
+- entry → manager 的调用与用户入口路径；
+- API / type / provider / surface 级 impact analysis；
 - 调用路径 trace；
-- 类关系矩阵/DSM 视图；
+- 用户交互面（user surface）投影与传播；
+- 按 config/model/manager/entry 分组的 DSM；
 - 项目级依赖视图切换。
 
-### 9.2 设计来源
+### 11.2 设计来源
 
 - CodeScope 资料中提到的 `COMPOSES` / `AGGREGATES` / `INHERITS` 方向值得借鉴；但公开 PyPI `codescope` 实际主要是 Adonis/Scope 调用图，本次未确认其完整关系 API，因此应把组合/聚合视为我们自己的 UML 扩展，而不是已验证实现事实。
 - UML 类图：组合、聚合、继承、依赖。
@@ -611,7 +932,7 @@ Class 节点增加或完善：
 - CortexPlexus：`get_dependencies`、`get_impact_analysis`、DI/实体关系。
 - Emerge：dependency graph、inheritance graph、complete graph 分视图。
 
-### 9.3 数据模型
+### 11.3 数据模型
 
 结构关系：
 
@@ -627,42 +948,82 @@ Class 节点增加或完善：
 
 候选提取依据：
 
-- `__init__` 中的 `self.repo = Repo(...)` → `composes`；
+- manager 的 `__init__` 中 `self.repo = Repo(...)` → `composes`；
 - 类型注解 `repo: Repo` + 非 Optional → `composes`；
 - `repo: Repo | None` / `Optional[Repo]` → `aggregates`；
 - 参数/局部变量类型 → `uses`；
 - `Repo()` → `instantiates`。
 
-### 9.4 查询能力
+角色感知示例：
+
+```text
+entry    -> manager    calls / entrypoint_path
+manager  -> model      composes / aggregates
+manager  -> config     uses
+manager  -> adapter    uses / depends
+manager  -> manager    calls / collaboration
+model    -> config     uses
+entry    -> surface    produces user interaction
+```
+
+用户交互面单独投影：
+
+```json
+{
+  "kind": "cli_input",
+  "display": "选择服务器/客户端并输入服务器 IP",
+  "moduleId": "entry-network",
+  "evidenceFunctionIds": ["fn:TcpConnect.init_connection"],
+  "entrypointIds": ["fn:main.__main__"],
+  "confidence": "medium"
+}
+```
+
+自动识别线索：
+
+- `input()` / `print()` / `sys.stdout.write` → CLI/TUI；
+- keyboard listener / event handler → keyboard event；
+- socket / HTTP server → network；
+- ArkTS `@Entry` / `@Component` / `@Builder` / `TextInput` / `Button` → UI；
+- 沿 entrypoint 调用路径传播，带 confidence，支持配置覆盖。
+
+### 11.4 查询能力
 
 建议提供按需查询而不是全量展开：
 
-- `class_dependencies(classId)`；
-- `class_impact(classId, depth)`；
+- `provider_dependencies(providerId)`；
+- `api_impact(capabilityId, depth)`；
+- `type_impact(configId/modelId, depth)`；
+- `provider_impact(providerId, depth)`；
+- `surface_impact(surfaceId, depth)`；
 - `trace_calls(fromId, toId, depth)`；
 - `type_hierarchy(classId, direction)`；
 - `implementations(interfaceId)`。
 
 这些可以只作为 bundle 数据和 CLI/前端视图，不需要引入图数据库。
 
-### 9.5 可视化方向
+### 11.5 可视化方向
 
-- 类页关系区块：继承/实现/组合/聚合；
+- 类右栏类型关系区块：继承/实现/组合/聚合；
 - 模块页视图切换：调用关系 / 类型关系 / 全部关系；
-- 项目级 DSM 或依赖矩阵；
+- 主模块右栏展示 user surfaces；
+- 项目级 DSM 按 config/model/manager/entry/adapter 分组；
 - 边点击显示证据列表；
-- impact 视图高亮反向依赖闭包。
+- impact 视图高亮反向依赖闭包；
+- 不展示全量类关系图。
 
-### 9.6 验收标准
+### 11.6 验收标准
 
 - `OrderService -> OrderRepository` 类型注解产生 `composes` 或 `aggregates`；
 - 可选类型产生 `aggregates`；
 - 构造调用产生 `instantiates`；
-- `impact` 从任一方法/类返回反向依赖闭包与深度；
+- manager → model/config 关系与 entry → manager 关系可区分；
+- `api_impact` / `type_impact` / `surface_impact` 返回反向依赖闭包与深度；
 - 结构关系与调用关系可分开筛选；
+- 用户交互面按 entrypoint 路径产生，并带 confidence；
 - 不伪造无源码证据的边。
 
-### 9.7 风险
+### 11.7 风险
 
 - 动态类型和运行时装配合降低静态关系可信度；
 - 组合/聚合与普通依赖边界模糊，需要置信度和证据；
@@ -671,7 +1032,7 @@ Class 节点增加或完善：
 
 ---
 
-## 10. 设计来源与置信度
+## 12. 设计来源与置信度
 
 | 来源 | 可借鉴内容 | 置信度/备注 |
 |---|---|---|
@@ -689,7 +1050,7 @@ Class 节点增加或完善：
 
 ---
 
-## 11. 当前已知问题
+## 13. 当前已知问题
 
 1. 静态调用解析仍不完整：
    - 动态 `getattr`；
@@ -702,8 +1063,8 @@ Class 节点增加或完善：
 4. 方法详情源码目前纯文本展示，没有完整语法高亮。
 5. 单函数源码有 24000 字符上限，超长会 truncated。
 6. 方法详情页没有“调用路径搜索”，目前只有 callers/callees 列表。
-7. P2.1 类焦点页尚未实现，类方法目前从类详情面板进入。
-8. 旧 schema 3.0 bundle 不再通过 `archmap check`。
+7. 类焦点页和类内方法图已明确不在产品计划中；类卡片只展示构造签名与提供接口。
+8. 旧 schema 3.0/3.1 bundle 不再通过 `archmap check`。
 9. 旧 FunctionFlow 注解的 `sourceHash` 会过期，需要重新生成。
 10. 旧函数级布局覆盖 `override.functions` 不再生效。
 11. `config.py` 中部分旧 `maxSteps` / `maxDataDeps` 配置已失去主要用途，后续可清理。
@@ -711,10 +1072,16 @@ Class 节点增加或完善：
 13. P2.0 已清理自举配置中的 `flow-build` / `layout-routing` 空模块，并把 `callsites.py` / `details.py` 归入 Python 前端模块。
 14. 旧 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md`、`docs/v1-acceptance-report.md` 已加归档说明；维护时不要把其中的 FunctionFlow 设计重新写回当前契约。
 15. 模块层次/子模块（`parentId`）尚未建模，当前模块配置仍是扁平的。
+16. P2.1 明确延期序列协议：`__len__` / `__getitem__` / `__contains__` / 切片 / ArkTS index signature；后续不得遗忘。
+17. P2.2 Provider Role 尚未实现：当前 `config`/`model` 的 `as_dict()` 等序列化方法仍可能出现在模块 API 中。
+18. 用户交互面（user surface）尚未建模；主模块默认仍按普通模块展示 developer API。
+19. P2.3 ArchMap 自身 config/model/manager 文件重构尚未开始；当前只做了语义层的 API 契约。
+20. config/model 与 manager 的自动判定规则尚未实现，后续需要显式 `contract.providerRoles` 覆盖兜底。
+21. 角色化会影响模块 API、指纹和 UI，实施 P2.2 时必须同步更新 schema、验证器、测试与文档。
 
 ---
 
-## 12. 常用命令
+## 14. 常用命令
 
 ```bash
 # 全量测试
@@ -738,16 +1105,16 @@ python3 -m archmap serve .archmap/self
 
 ---
 
-## 13. 新会话建议开工顺序
+## 15. 新会话建议开工顺序
 
 1. 先跑全量测试和浏览器测试，确认当前基线。
-2. 阅读 `graph.py` 中类节点、`methodEdges`、`providedApis` 与 `_layout_module_cards`。
-3. 阅读 `app.js` 中 `renderProjectModule`、`renderModuleClassNode`、`renderSelectionDetail`、`renderMethodPage`。
-4. 先实现 P2.1 的 classView 数据投影，不要先动 UI。
-5. 用 `class_demo` 和 `student_system` 验证类页数据和布局。
-6. P2.1 验收后，再做 P3 的类型层次和 candidates。
-7. P4 最后做组合/聚合、impact/trace 和 DSM。
+2. 先实现 P2.2 Provider Role：config/model/manager/entry/adapter/component/contract/utility。
+3. 再做 P2.3 的 model/managers/entry 目录迁移，先保留兼容 shim。
+4. P3 在角色之上做类型契约、manager 接口和继承 API，不做类焦点页。
+5. P4 先做角色感知关系提取和 API/type/provider impact，再做 user surface 传播与可选 DSM。
+6. 序列协议继续延期；若要实现，先更新契约文档和通用 fixture。
 
-不要同时开始 P2、P3、P4。
+不要跳过 P2.2 直接做 P3/P4。
+不要同时开始 P2.3、P3、P4。
 不要重新引入 FunctionFlow。
-不要为了类页一次性重写现有 Macro Layout；先复用和投影。
+不要新增类焦点页或类内方法图。

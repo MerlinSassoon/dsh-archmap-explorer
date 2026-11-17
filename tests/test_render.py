@@ -9,6 +9,7 @@ from archmap.render import render_html
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
+CONTRACT_ROOT = Path(__file__).parent / "fixtures" / "contracts_demo"
 
 
 def test_render_is_self_contained_and_embeds_real_data() -> None:
@@ -76,3 +77,22 @@ def test_render_contains_class_component_contract() -> None:
     assert "class-method-row" in html
     assert "cls:app.worker.EchoWorker" in html
     assert "抽象类/接口是契约节点" in html
+
+
+def test_render_contains_api_contract_capabilities() -> None:
+    bundle = build_architecture(CONTRACT_ROOT)
+    html = render_html(bundle)
+    assert "apiProviders" in html
+    assert "context_manager" in html
+    assert "api-provider" in html
+    assert "with Resource" in html
+    match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
+    assert match is not None
+    embedded = json.loads(match.group(1))
+    displays = [
+        api["display"]
+        for graph in embedded["moduleGraphs"]
+        for api in graph["providedApis"]
+    ]
+    assert any(display.startswith("with Resource") for display in displays)
+    assert not any("__enter__" in display or "__exit__" in display or "__init__" in display for display in displays)

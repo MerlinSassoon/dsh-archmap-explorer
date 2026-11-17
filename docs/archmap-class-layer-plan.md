@@ -1,6 +1,8 @@
 # ArchMap 类语义层设计与实施计划
 
-> 状态：部分实现（类语义设计 + 实施计划；P2–P4 尚未开始）<br>
+> **当前产品决策（2026-11-17）**：类焦点页与类内方法图不再计划。类只作为 Provider，通过类卡片和右栏展示构造签名与 `providedApis`。本文中的类焦点页内容保留为历史设计，当前契约见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
+
+> 状态：历史设计 + 当前契约边界（P2.1 已完成；类焦点页不再计划）<br>
 > 日期：2026-11-16；最后核对：2026-11-17<br>
 > 目标：解决“类被当作流程节点、类方法在模块页平铺、模块边界被方法污染”的问题。
 >
@@ -499,16 +501,23 @@ Phase 0 / P0    已完成
 Phase 1 / P1    已完成
 P1.5           已完成
 P2.0           已完成：项目页/模块页能力契约、模块角色、providedApis
-P2.1           未开始：类焦点页、类内方法布局、类路由
-P3             未开始：继承/实现边、抽象方法契约、多态 candidates、类层次
-P4             未开始：组合/聚合、instantiates、impact/trace、DSM
+P2.1           已完成：Provider + Capability API 契约、协议能力、apiProviders
+P2.2           已批准，未开始：Provider Role（config/model/manager/entry/...）与模块组合
+P2.3           已批准，未开始：ArchMap 自身 config/model/manager 目录重构
+类焦点页       不再计划：类只作为 Provider，不展示类内方法图
+P3             未开始：继承/实现边、继承 API、多态 candidates、类型关系
+P4             未开始：角色感知关系、API/type/surface impact、user surface、DSM
 ```
 
 当前代码事实：
 
 - `ModuleGraph.nodes` 已包含类节点，方法摘要归属类节点；
-- `moduleGraphs[].providedApis` 已提供模块能力契约投影；
+- `moduleGraphs[].providedApis` / `apiProviders` 已提供模块能力契约投影；
+- `classNode.usage` / `providedApis` 已提供类的构造签名与公开能力；
 - 项目页使用 `layout.mode = "module-cards"`，默认不绘制依赖线；
+- 类焦点页与类内方法图明确不在产品计划中；
+- P2.2 将增加 config/model/manager/entry/adapter/component/contract/utility 角色，config/model 展示为类型卡片，不再把序列化方法当模块 API；
+- 主模块将使用 user surface 表达用户交互面；
 - `ModuleGraph.methodEdges` 已包含方法级调用边；
 - `FunctionDetail` 已包含源码、备注、callers/callees 和 `sourceHash`；
 - `app.js` 目前只有项目页、模块页和方法详情页路由；

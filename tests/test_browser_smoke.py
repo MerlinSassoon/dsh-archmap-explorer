@@ -129,8 +129,9 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.function-node').length") == 1
         execute("document.querySelector('.class-node[data-uid=\"cls:app.worker.EchoWorker\"]').click(); return true")
         time.sleep(.2)
-        assert execute("return document.querySelectorAll('.class-method-row').length") == 2
-        execute("document.querySelector('.class-method-row').click(); return true")
+        assert execute("return document.querySelectorAll('.class-usage').length") == 2
+        assert execute("return document.querySelectorAll('.detail-api-row').length") >= 1
+        execute("document.querySelector('.detail-api-row').click(); return true")
         time.sleep(.3)
         assert execute("return document.querySelectorAll('.method-page').length") == 1
         assert execute("return document.querySelectorAll('.method-source-line').length") > 0

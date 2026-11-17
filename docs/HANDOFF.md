@@ -4,6 +4,8 @@
 >
 > **仍可参考**：第 1 节工作区约束（不读 Projects/v2、无插件、零第三方运行时依赖、自包含 HTML 等）仍然有效。
 >
+> **当前契约更新**：当前 API 契约以 [`archmap-api-contract-model.md`](archmap-api-contract-model.md) 为准；P2.2 Provider Role（config/model/manager/entry/...）与 P2.3 ArchMap 自身分层重构已批准，详见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
+>
 > **当前权威文档**：[`README.md`](../README.md)、[`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)、[`archmap-v3-design.md`](archmap-v3-design.md)、[`function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md)、[文档索引](README.md)。
 >
 > 原文交接时间：2026-11-15 21:16 CST。原工作区根目录：`/home/sasson/桌面/Project/dsh_project/架构图_v3`。

@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "3.1"
+      "const": "3.2"
     },
     "kind": {
       "const": "archmap.bundle"
@@ -224,20 +224,22 @@
         }
       }
     },
-    "providedApi": {
+    "apiCapability": {
       "type": "object",
       "additionalProperties": true,
       "required": [
         "id",
         "kind",
-        "name",
-        "qualifiedName",
-        "ownerKind",
-        "ownerName",
-        "moduleId",
-        "functionId",
+        "display",
         "signature",
-        "isAbstract",
+        "providerId",
+        "providerKind",
+        "providerName",
+        "moduleId",
+        "exposure",
+        "exposureSource",
+        "exposureConfidence",
+        "evidenceFunctionIds",
         "isEntry"
       ],
       "properties": {
@@ -246,61 +248,82 @@
         },
         "kind": {
           "enum": [
+            "function",
             "method",
-            "abstract_method",
+            "context_manager",
+            "async_context_manager",
+            "callable",
+            "iterable"
+          ]
+        },
+        "display": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        },
+        "providerId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "providerKind": {
+          "enum": [
+            "class",
             "function"
           ]
         },
-        "name": {
-          "type": "string"
-        },
-        "qualifiedName": {
-          "type": "string"
-        },
-        "ownerId": {
-          "type": "string"
-        },
-        "ownerName": {
-          "type": "string"
-        },
-        "ownerKind": {
-          "enum": [
-            "class",
-            "module"
-          ]
-        },
-        "ownerClassKind": {
+        "providerName": {
           "type": "string"
         },
         "moduleId": {
           "$ref": "#/$defs/identifier"
         },
-        "moduleName": {
-          "type": "string"
+        "exposure": {
+          "enum": [
+            "public",
+            "internal"
+          ]
+        },
+        "exposureSource": {
+          "enum": [
+            "docstring",
+            "comment",
+            "decorator",
+            "config",
+            "entrypoint",
+            "protocol",
+            "naming"
+          ]
+        },
+        "exposureConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
         },
         "functionId": {
-          "$ref": "#/$defs/identifier"
+          "type": [
+            "string",
+            "null"
+          ]
         },
-        "functionDetailId": {
-          "$ref": "#/$defs/identifier"
+        "evidenceFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
-        "signature": {
-          "type": "string"
-        },
-        "note": {
-          "type": "string"
-        },
-        "methodKind": {
-          "type": "string"
-        },
-        "visibility": {
-          "type": "string"
-        },
-        "isAbstract": {
-          "type": "boolean"
+        "constructorFunctionId": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "isEntry": {
           "type": "boolean"
+        },
+        "note": {
+          "type": "string"
         },
         "file": {
           "type": "string"
@@ -310,6 +333,81 @@
         },
         "endLine": {
           "type": "integer"
+        }
+      }
+    },
+    "apiProvider": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "providerId",
+        "providerKind",
+        "providerName",
+        "moduleId",
+        "apiCount",
+        "apis"
+      ],
+      "properties": {
+        "providerId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "providerKind": {
+          "enum": [
+            "class",
+            "function"
+          ]
+        },
+        "providerName": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "apiCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "apis": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/apiCapability"
+          }
+        }
+      }
+    },
+    "classUsage": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "constructor",
+        "protocols"
+      ],
+      "properties": {
+        "constructor": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "functionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "signature": {
+              "type": "string"
+            }
+          }
+        },
+        "protocols": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "context_manager",
+              "async_context_manager",
+              "callable",
+              "iterable"
+            ]
+          }
         }
       }
     },
@@ -542,12 +640,18 @@
         "providedApis": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/providedApi"
+            "$ref": "#/$defs/apiCapability"
           }
         },
         "providedApiCount": {
           "type": "integer",
           "minimum": 0
+        },
+        "apiProviders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/apiProvider"
+          }
         },
         "classCount": {
           "type": "integer",
@@ -645,6 +749,33 @@
         },
         "visibility": {
           "type": "string"
+        },
+        "apiExposure": {
+          "enum": [
+            "public",
+            "internal"
+          ]
+        },
+        "apiExposureSource": {
+          "enum": [
+            "docstring",
+            "comment",
+            "decorator",
+            "config",
+            "entrypoint",
+            "protocol",
+            "naming"
+          ]
+        },
+        "apiExposureConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "isEntry": {
+          "type": "boolean"
         },
         "isAbstract": {
           "type": "boolean"

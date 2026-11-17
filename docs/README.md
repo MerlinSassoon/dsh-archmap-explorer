@@ -1,7 +1,7 @@
 # ArchMap 文档索引
 
 > 最后更新：2026-11-17<br>
-> 对应版本：ArchMap 1.1.0 / bundle schema 3.1
+> 对应版本：ArchMap 1.2.0 / bundle schema 3.2
 
 本索引用于区分**当前权威文档**与**历史归档文档**。新会话或后续维护应优先阅读当前权威文档；历史文档只用于追溯需求演进和旧版实现，不应作为当前契约。
 
@@ -10,10 +10,11 @@
 | 文档 | 内容 |
 |---|---|
 | [`../README.md`](../README.md) | 产品定位、快速开始、配置、CLI、已知边界 |
-| [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) | 最新交接文档：当前状态、代码地图、数据契约、P2–P4 规划与风险 |
-| [`archmap-v3-design.md`](archmap-v3-design.md) | v3.1 数据契约、三层投影、CallSite、布局覆盖与语言前端边界 |
+| [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) | 最新交接文档：当前状态、代码地图、数据契约、P2.2–P4 规划与风险 |
+| [`archmap-v3-design.md`](archmap-v3-design.md) | v3.2 数据契约、三层投影、CallSite、布局覆盖与语言前端边界 |
+| [`archmap-api-contract-model.md`](archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、延期项与 ArkTS 映射 |
 | [`function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md) | P1.5 决策与验收：移除 FunctionFlow，引入 FunctionDetail + Source View + Call Graph |
-| [`archmap-class-layer-plan.md`](archmap-class-layer-plan.md) | 类语义层设计来源与 P0–P4 路线；其中 Phase 0/1、P1.5 与 P2.0 已完成，P2.1–P4 尚未开始 |
+| [`archmap-class-layer-plan.md`](archmap-class-layer-plan.md) | 类语义层设计来源与历史路线；类焦点页已不再计划，当前契约以 API 契约模型为准 |
 | [`schema/archmap-v3-bundle.schema.json`](schema/archmap-v3-bundle.schema.json) | 当前 bundle JSON Schema |
 
 ## 2. 当前状态摘要
@@ -23,20 +24,25 @@ P0    类语义数据模型                         已完成
 P1    模块页类组件化与模块边界修复           已完成
 P1.5  FunctionDetail + Source View + CallGraph 已完成
 P2.0  项目页/模块页能力契约重构             已完成
-P2.1  类焦点页与类内方法图                   未开始
-P3    继承、接口、多态与类层次               未开始
-P4    类关系、影响分析与架构查询             未开始
+P2.1  API 契约建模与展示                    已完成
+P2.2  Provider Role 与模块组合               已批准，未开始
+P2.3  ArchMap 自身 config/model/manager 重构 已批准，未开始
+P3    继承、接口、多态与继承 API             未开始
+P4    类关系、API impact/user surface/DSM    未开始
 ```
 
 当前默认产品形态：
 
 ```text
-项目页（模块能力卡片 + 提供接口）
-  └─ 模块页（提供接口 + 类节点 + 模块级自由函数）
-       └─ 方法详情页（源码 + 备注 + LLM 语义 + callers/callees）
+项目页（模块能力卡片 + Provider/Capability）
+  └─ 模块页（按 Provider 分组的提供接口 + 类/自由函数）
+       └─ 类卡片（构造签名 + 提供接口，不展开内部方法图）
+            └─ 方法详情页（源码 + 备注 + LLM 语义 + callers/callees）
 ```
 
-当前**没有**类焦点页路由，也**没有**语句级 FunctionFlow。项目页默认不绘制模块依赖线；依赖证据保留在 `projectGraph.edges` 中。
+当前**没有**类焦点页路由，也**没有**语句级 FunctionFlow。类焦点页与类内方法图不在产品计划中。项目页默认不绘制模块依赖线；依赖证据保留在 `projectGraph.edges` 中。
+
+下一步已批准：P2.2 Provider Role（config/model/manager/entry/adapter/component/contract/utility）与模块组合；P2.3 再进行 ArchMap 自身的目录分层重构。主模块用户交互面与角色感知关系/影响分析分别在 P4 完成。
 
 ## 3. 历史归档文档
 
@@ -58,5 +64,5 @@ P4    类关系、影响分析与架构查询             未开始
 1. 当前产品状态只写入 `README.md`、`HANDOFF-P2-P4.md` 和本索引；旧文档只追加归档说明，不反向修改为“当前设计”。
 2. 数据契约以 `archmap-v3-design.md` 和 `schema/archmap-v3-bundle.schema.json` 为准。
 3. P1.5 之后的实现页统一称 **Method Detail**；不要再把 FunctionFlow 写回主产品路径。
-4. 新增 P2–P4 能力时，先更新数据契约和交接文档，再更新 README 的使用说明。
+4. 新增 P3–P4 能力时，先更新数据契约和交接文档，再更新 README 的使用说明。
 5. 文档中的示例命令若引用自举配置，应同时核对 `examples/archmap_v3.archmap.json` 是否仍与源码模块一致。
