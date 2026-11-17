@@ -1,0 +1,120 @@
+{
+  "projectName": "gomoku",
+  "language": "python",
+  "include": [
+    "main.py",
+    "gomoku/*.py"
+  ],
+  "exclude": [
+    "**/__pycache__/**",
+    "**/.pytest_cache/**",
+    "**/.git/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "tests/**"
+  ],
+  "mainModule": "main",
+  "entrypoints": [
+    "gomoku.cli:main"
+  ],
+  "modules": [
+    {
+      "id": "main",
+      "name": "程序入口与终端交互",
+      "kind": "main",
+      "include": [
+        "main.py",
+        "gomoku/__init__.py",
+        "gomoku/__main__.py",
+        "gomoku/cli.py",
+        "gomoku/input_parser.py",
+        "gomoku/renderer.py"
+      ],
+      "note": "脚本入口、python -m 入口、菜单与对局循环、输入解析、终端棋盘渲染和退出码边界。",
+      "color": "#f59e0b",
+      "role": "main"
+    },
+    {
+      "id": "application",
+      "name": "对局应用层",
+      "kind": "functional",
+      "include": [
+        "gomoku/game.py"
+      ],
+      "note": "组织完整对局用例：执子方推进、合法落子、终局判定、重开和电脑回合衔接。",
+      "color": "#60a5fa",
+      "role": "service"
+    },
+    {
+      "id": "domain",
+      "name": "棋盘领域模型",
+      "kind": "functional",
+      "include": [
+        "gomoku/board.py",
+        "gomoku/models.py"
+      ],
+      "note": "棋盘状态与胜负判定的唯一事实来源，以及坐标、棋子、落子结果和错误契约。",
+      "color": "#22d3ee",
+      "role": "service"
+    },
+    {
+      "id": "ai-adapter",
+      "name": "电脑对手适配器",
+      "kind": "functional",
+      "include": [
+        "gomoku/ai.py"
+      ],
+      "note": "本地启发式电脑落点选择适配器，通过 MoveSelector 协议接入对局用例。",
+      "color": "#a78bfa",
+      "role": "adapter"
+    },
+    {
+      "id": "game-config",
+      "name": "游戏配置",
+      "kind": "functional",
+      "include": [
+        "gomoku/config.py"
+      ],
+      "note": "棋盘尺寸、获胜连子数和可选对局模式的静态配置与校验。",
+      "color": "#8bdc64",
+      "role": "service"
+    }
+  ],
+  "contract": {
+    "providerRoles": {
+      "gomoku.cli.GameCli": "entry",
+      "gomoku.game.GomokuGame": "manager",
+      "gomoku.game.MoveSelector": "contract",
+      "gomoku.game.TurnOutcome": "model",
+      "gomoku.board.Board": "manager",
+      "gomoku.models.Stone": "config",
+      "gomoku.models.Position": "model",
+      "gomoku.models.MoveResult": "model",
+      "gomoku.models.ValidationError": "model",
+      "gomoku.input_parser.ParsedCommand": "model",
+      "gomoku.input_parser.column_letters": "utility",
+      "gomoku.input_parser.format_position": "utility",
+      "gomoku.input_parser.parse_position": "utility",
+      "gomoku.input_parser.parse_input": "utility",
+      "gomoku.renderer.BoardRenderer": "component",
+      "gomoku.renderer.terminal_width": "utility",
+      "gomoku.renderer.describe_stone": "utility",
+      "gomoku.renderer.format_move_hint": "utility",
+      "gomoku.config.GameConfig": "config",
+      "gomoku.ai.SimpleAiPlayer": "adapter"
+    }
+  },
+  "userSurface": {
+    "overrides": [
+      {
+        "function": "gomoku.cli:GameCli.run",
+        "kind": "tui_menu",
+        "display": "五子棋终端主菜单与对局交互循环",
+        "audiences": [
+          "end_user"
+        ],
+        "confidence": "high"
+      }
+    ]
+  }
+}
