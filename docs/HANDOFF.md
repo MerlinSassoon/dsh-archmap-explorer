@@ -6,6 +6,7 @@
 > 当前执行策略：普通开发工作不需要再向用户确认；按本文档与最新用户要求直接推进。  
 > v1 验收记录：见 [`docs/v1-acceptance-report.md`](v1-acceptance-report.md)。
 > 2026-11-16 更新：已完成类语义层 Phase 0 + Phase 1，并完成 P1.5（FunctionDetail + Source View + Call Graph，移除默认 FunctionFlow）；详见 [`docs/archmap-class-layer-plan.md`](archmap-class-layer-plan.md) 与 [`docs/function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md)。
+> 新会话接手 P2–P4：请先阅读 [`docs/HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
 
 ---
 

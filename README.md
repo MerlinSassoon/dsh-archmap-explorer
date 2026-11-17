@@ -164,6 +164,7 @@ python -m pytest -q
 - ArkTS 阶段新增 `frontends/arkts`，可使用可选解析器依赖；Python v1 仍保持标准库零依赖。
 
 详见 [docs/archmap-v3-design.md](docs/archmap-v3-design.md) 与 [docs/function-detail-p1.5-plan.md](function-detail-p1.5-plan.md)。
+新会话接手 P2–P4 请阅读 [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)。
 
 ## 已知边界
 
