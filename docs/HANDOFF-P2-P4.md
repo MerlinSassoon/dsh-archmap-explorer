@@ -1,8 +1,13 @@
-# ArchMap P2–P4 交接文档
+# ArchMap P2–P4 交接文档（历史快照）
 
+> **归档状态（2026-11-18）**：本文是 P2.2–P2.4 阶段的历史交接快照，不包含
+> `fix/p2.4-ui-migration-finalize` 分支后续完成的 P2.3 shim 清理、UI 修复、
+> context-manager capability 投影、主流程布局与卡片内容修复。当前交接请阅读
+> [`HANDOFF-P2.4-CLEANUP.md`](HANDOFF-P2.4-CLEANUP.md)。
+>
 > 日期：2026-11-16；最后核对：2026-11-18<br>
 > 适用版本：ArchMap 1.6.0 / bundle schema 3.6<br>
-> 当前阶段：P0、P1、P1.5、P2.0、P2.1、P2.2、P2.3、P2.4 已完成；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中。
+> 当前阶段（历史快照）：P0、P1、P1.5、P2.0、P2.1、P2.2、P2.3、P2.4 已完成；P3、P4 在本快照时尚未开始。P3/P4 后续已在独立分支完成，当前交接见 [`HANDOFF-P2.4-CLEANUP.md`](HANDOFF-P2.4-CLEANUP.md)。
 >
 > 本文用于新会话接手项目，包含项目现状、代码地图、数据契约、后续规划、设计来源和风险。文档归档边界见 [`docs/README.md`](README.md)；旧 FunctionFlow 文档不再代表当前契约。
 

@@ -21,13 +21,19 @@ P2.1 API 契约建模与展示         已完成
 P2.2 Provider Role 与模块组合   已完成
 P2.3 ArchMap 自身分层重构       已完成（含旧 import shim 清理）
 P2.4 主模块/功能模块/主流程     已完成
-P3 继承/接口/多态/继承 API      未开始
-P4 类关系/API impact/user surface 未开始
+P2.4 清理分支 UI/布局/协议能力  已完成
+P3 继承/接口/多态/继承 API      独立分支已完成，未合入当前分支
+P4 类关系/API impact/user surface 独立分支已完成，未合入当前分支
+P5 尚未定义
 ```
+
+当前开发分支：`fix/p2.4-ui-migration-finalize`，基于 `p2.4-main-flow` 的 `008d3c6`。
+P3 位于 `p3-inheritance-polymorphism`，P4 位于 `p4-impact-trace-surfaces`；当前清理分支不包含 P3/P4 新增能力，后续需要分支整合。
 
 当前方法入口是 **Method Detail** 页面；语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
 P2.4 起，每个项目恰好有一个主模块；主模块展示函数级主流程，功能模块只暴露 Provider/Capability，不再拥有输入输出端口。
-文档权威性与历史归档说明见 [docs/README.md](docs/README.md)。
+当前主流程还支持 context-manager capability 投影（例如 `with Spinner(...)`），但仍是函数级调用/模块组合图，不是语句级执行顺序图。
+文档权威性与历史归档说明见 [docs/README.md](docs/README.md)，当前交接见 [docs/HANDOFF-P2.4-CLEANUP.md](docs/HANDOFF-P2.4-CLEANUP.md)。
 
 ## 快速开始
 
@@ -332,7 +338,7 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`61 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：`71 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 
@@ -367,7 +373,8 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - [docs/archmap-api-contract-model.md](docs/archmap-api-contract-model.md)：Provider + Capability API 契约模型。
 - [docs/function-detail-p1.5-plan.md](docs/function-detail-p1.5-plan.md)：P1.5 实现记录。
 - [docs/p2.4-main-module-flow.md](docs/p2.4-main-module-flow.md)：主模块、功能模块、主流程 DAG 与 dispatch 契约。
-- [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：P2.2–P4 最新交接文档。
+- [docs/HANDOFF-P2.4-CLEANUP.md](docs/HANDOFF-P2.4-CLEANUP.md)：当前分支交接：P2.3 最终清理、主流程协议能力、布局/卡片修复、P3/P4 整合注意事项。
+- [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：已归档的 P2.2–P2.4 历史交接快照。
 
 ## 已知边界
 
@@ -377,8 +384,11 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 宏布局的局部重叠和边界启发式仍需要持续校验。
 - P2.1 只合成 context manager、async context manager、callable、iterable；序列协议延期。
 - 类焦点页和类内方法图不在当前产品计划中。
-- 用户交互面（user surface）尚未建模；主模块仍按普通模块展示 developer API。P2.2 已提供 Provider Role 与模块组合，但 user surface 仍属于 P4。
+- 当前清理分支不包含 P3/P4 的继承、User Surface、Impact/Trace、DSM 能力；这些能力存在于独立 P3/P4 分支，尚未合入。
 - 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。主流程只表达函数级调用与模块组合，不表达 `if/while/try/with` 内部的逐语句执行顺序。
-- P3 继承/实现关系、继承 API、多态 candidates，以及 P4 的角色感知关系、API/type/surface impact、user surface 传播仍未实现；P2.4 已完成，下一步进入 P3。
+- `with` / `async with` 只识别 AST 中真实的 context expression；通过变量持有的上下文管理器不会追溯构造调用，动态 context manager 仍可能 unresolved。
+- 同一类 Provider 当前只生成一个主流程边界节点；普通实例化与协议用法混合时不拆成多个节点。
+- 本地保存的旧布局覆盖可能保留旧坐标；查看新默认主流程布局前可点击“重置布局”。
+- 旧 Python import 兼容路径已删除，外部脚本需要改用 `archmap.managers.*`、`archmap.frontends.*`、`archmap.model.*`、`archmap.utility.*` 或 `archmap.entry.*`。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
 - 旧 `docs/archmap-2.0-design.md` 和旧 `docs/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。
