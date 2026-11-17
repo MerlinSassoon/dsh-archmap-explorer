@@ -1,6 +1,6 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档冻结 v3.8 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md)、[`HANDOFF-P4.md`](HANDOFF-P4.md) 为准。
+> 本文档冻结 v3.8 数据契约，并作为实现和后续 ArkTS 扩展的依据。历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)；发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
 >
 > **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
 
@@ -15,7 +15,6 @@
 - 模块不再拥有输入/输出端口，`boundaryNodes` 与 module_input/module_output 边已移除。
 - 模块卡片同时展示 Provider Role 数量；模块间依赖证据仍不默认绘制。
 - `providedApis` 来自 Provider + Capability 契约投影，包含公开方法、抽象契约方法和协议能力。
-- 项目边界节点保留在数据中，但默认不以画布节点渲染。
 - 项目页默认不绘制 `projectGraph.edges`；模块间调用/数据证据保留，供可选“关系”模式与后续查询使用。
 - 默认几何由 Python 以能力卡片网格生成（`layout.mode = "module-cards"`），前端只负责渲染与用户拖拽覆盖。
 - `projectGraph.mainFlows` 保存按 entrypoint 生成的主流程 DAG；`primaryFlowId` 指向默认流程。
@@ -288,11 +287,11 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ## 7. 语言前端接口
 
-`archmap/frontends/base.py` 定义 `LanguageFrontend`：
+`archmap/model/frontend_contract.py` 定义 `LanguageFrontend`：
 
 - 负责源码发现、解析、符号解析、模块投影、CallSite 提取、FunctionDetail 和 ContractModel 构建。
-- `graph.py`、`validate.py`、`render.py` 不依赖 Python AST。
-- 注册使用显式 `FRONTENDS` 字典，不是插件系统。
+- `archmap/utility/graph_utility.py`、`archmap/utility/validate_utility.py`、`archmap/utility/render_utility.py` 及对应 Manager 不依赖 Python AST。
+- 注册由 `FrontendManager` 显式持有，不是插件系统。
 - Python 前端使用标准库 `ast`，v1 运行时零第三方依赖。
 
 ### ArkTS 接入要求

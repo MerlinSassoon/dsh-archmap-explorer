@@ -1,7 +1,7 @@
 # ArchMap API 契约模型
 
 > 状态：P2.1 / P2.2 / P2.3 / P2.4 / P3 / P4 已实现（bundle schema 3.8）<br>
-> 日期：2026-11-17<br>
+> 日期：2026-11-18<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 
 ## 1. 产品边界
@@ -216,7 +216,7 @@ ArkTS 的 length / index signature
 - 静态分析难以确认对象是否真的作为序列契约使用；
 - 容易产生低置信度噪声。
 
-后续可在 P3/P4 或独立 protocol 阶段增加，但必须有明确证据、置信度和配置入口。
+后续如需支持，应在独立 protocol 扩展阶段增加，并具备明确证据、置信度和配置入口。
 
 ## 6. 构造签名
 
@@ -331,7 +331,7 @@ ArkTS 没有 Python 的 `__enter__` / `__exit__`，因此不伪造 `context_mana
 
 ## 11. 防过拟合原则
 
-1. 不在 `graph.py` 硬编码具体项目类名。
+1. 不在 `graph_utility.py` 硬编码具体项目类名。
 2. Exposure 规则基于通用标签、命名、配置和 entrypoint。
 3. 语言差异在 frontend 内消化，neutral graph 只消费 canonical capability。
 4. 测试以通用 `contracts_demo` fixture 为主，`student_system` 只做集成验收。

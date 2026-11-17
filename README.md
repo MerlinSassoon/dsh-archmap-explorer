@@ -1,5 +1,8 @@
 # ArchMap v3.8
 
+> 版本：ArchMap 1.8.0 / bundle schema 3.8<br>
+> 最后更新：2026-11-18
+
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
 
 ```text
@@ -15,21 +18,28 @@ ArchMap 负责“结构和关系”，源码负责“实现细节”，LLM 负�
 ## 当前状态
 
 ```text
-P0 / P1 / P1.5  已完成
-P2.0 项目页/模块页能力契约重构  已完成
-P2.1 API 契约建模与展示         已完成
-P2.2 Provider Role 与模块组合   已完成
-P2.3 ArchMap 自身分层重构       已完成
-P2.4 主模块/功能模块/主流程     已完成
-P3 继承/接口/多态/继承 API      已完成
-P4 结构关系/User Surface/Impact/Trace/DSM 已完成
+P0    类语义数据模型                          已完成
+P1    模块页类组件化与模块边界修复            已完成
+P1.5  FunctionDetail + Source View + CallGraph 已完成
+P2.0  项目页/模块页能力契约重构              已完成
+P2.1  API 契约建模与展示                     已完成
+P2.2  Provider Role 与模块组合                已完成
+P2.3  架构规范、自身代码迁移、旧 shim 清理    已完成
+P2.4  主模块/功能模块/主流程 DAG              已完成
+P3    继承、接口、多态与继承 API              已完成
+P4    结构关系、User Surface、Impact/Trace/DSM 已完成
+P5    尚未定义
 ```
 
-当前方法入口是 **Method Detail** 页面；语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
-P2.4 起，每个项目恰好有一个主模块；主模块展示函数级主流程，功能模块只暴露 Provider/Capability，不再拥有输入输出端口。
-P3 增加解析后的 `inherits` / `implements` 类型关系、继承 API、override 来源和抽象/Protocol 调用的多态 candidates；多态候选在主流程中仍使用低置信度虚线 composition。
-P4 增加 `instantiates` / `uses` / `aggregates` / `composes` 结构关系、User Surface 投影、impact/trace 查询与 DSM，同时保持主流程边界、类 Provider 展示和自包含 HTML 约束。
-文档权威性与历史归档说明见 [docs/README.md](docs/README.md)，P4 交接见 [docs/HANDOFF-P4.md](docs/HANDOFF-P4.md)。
+当前产品边界：
+
+- 每个项目恰好一个主模块，功能模块数量为 0..N。
+- 主模块展示函数级主流程 DAG；功能模块只暴露 Provider/Capability，不再拥有输入输出端口。
+- 主流程只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止。
+- 主流程是函数级调用/模块组合视图，不是语句级执行顺序图。
+- 类焦点页和类内方法图不在当前产品计划中。
+- 旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
+- 旧 Python import 兼容 shim 已删除；源码只使用 canonical 目录。
 
 ## 快速开始
 
@@ -71,13 +81,13 @@ yield/student_system/
 
 ## 三层视图
 
-- **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。
-- **主模块页**：默认展示 entry → orchestrator/provider/interface 的主流程 DAG；可切换到能力视图查看类与自由函数。
+- **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。P4 User Surface 也在项目页/模块契约区展示。
+- **主模块页**：默认展示 entry → orchestrator/provider/interface 的主流程 DAG；可切换到能力视图查看类与自由函数。上下文管理器等协议用法会在 Provider 边界节点上携带 `capabilityKind`、`protocols` 与 `usageKind`，例如显示 `with Spinner(...)`。
 - **功能模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示类节点、模块级自由函数节点；不再有模块输入/输出端口。config/model Provider 以类型卡片展示字段摘要。
-- **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；内部方法只显示数量，不展开类内方法图。点击方法/函数接口进入方法详情页。
-- **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees；点击调用者可继续下钻。
+- **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
+- **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
-- 项目页与模块页节点支持拖拽；布局默认坐标由 Python 生成，浏览器只保存项目页/模块页的用户覆盖。
+- 项目页与模块页节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存项目页/模块页的用户覆盖；可用“适应画布”或“重置布局”找回节点。
 - 不再生成或渲染函数内部语句级执行流图；函数实现以源码为最终事实来源。
 
 ## 配置
@@ -115,6 +125,13 @@ yield/student_system/
 
 模块识别优先级：显式配置 → 包/命名空间 → 单模块兜底。文件仅作为源码证据，不直接作为页面模块。
 
+主模块解析顺序：
+
+1. 显式配置 `mainModule`；
+2. 拥有主 entrypoint 的模块；
+3. 兼容字段 `role=main`；
+4. 第一个模块作为 fallback，并产生诊断。
+
 ## 模块能力契约
 
 模块配置支持可选的 `role`：
@@ -127,13 +144,14 @@ yield/student_system/
 }
 ```
 
-当前角色：`main` / `service` / `adapter` / `test` / `other`。显式配置优先；未配置时，包含入口函数的模块视为 `main`，其余为 `service`。
+当前模块角色：`main` / `service` / `adapter` / `test` / `other`。显式配置优先；未配置时，包含入口函数的模块视为 `main`，其余为 `service`。
 
 每个 `moduleGraph` 会从已有事实派生 `providedApis` 和按 Provider 分组的 `apiProviders`：
 
 - 公开类方法（含抽象契约方法）；
 - 公开模块级自由函数；
 - `context_manager` / `async_context_manager` / `callable` / `iterable` 协议能力；
+- P3 继承/实现能力会以 inherited capability 进入子类 `providedApis`；
 - 构造函数、dunder 和下划线内部方法不进入普通方法 API；
 - `__init__` 只作为构造签名，`__enter__` / `__exit__` 合成上下文管理器能力。
 
@@ -141,7 +159,7 @@ yield/student_system/
 
 详细契约模型见 [docs/archmap-api-contract-model.md](docs/archmap-api-contract-model.md)。
 
-**延期项**：`__len__`、`__getitem__`、`__contains__`、切片、ArkTS index signature 等序列协议不在 P2.1 实现，避免启发式误报。
+**延期项**：`__len__`、`__getitem__`、`__contains__`、切片、ArkTS index signature 等序列协议不在当前实现范围，避免启发式误报。
 
 ## Provider Role 与模块组合
 
@@ -173,7 +191,9 @@ contract.providerRoles 显式覆盖
 {
   "providerRole": "manager",
   "roleSource": "structure",
-  "roleConfidence": "high"
+  "roleConfidence": "high",
+  "providerVisibility": "public",
+  "ownerProviderId": null
 }
 ```
 
@@ -209,7 +229,7 @@ contract.providerRoles 显式覆盖
 - `manager` / `entry` / `component` / `contract`：展示方法/协议能力；
 - `config` / `model`：展示类型卡片、字段摘要和默认值，不把 `as_dict()` 等序列化方法当作模块 API；
 - `adapter`：展示适配器入口能力；
-- `utility`：展示函数签名。
+- `utility`：展示函数签名，但默认 internal，不进入项目页/模块页默认视图。
 
 显式角色覆盖示例：
 
@@ -237,9 +257,9 @@ P3 把类名基类字符串解析为项目内 canonical 类型关系：
 - 多态候选进入主流程时使用 `candidateSource=polymorphic` 的 dispatch 节点和低置信度 composition 虚线；
 - `projectGraph.typeRelations` 与 `moduleGraphs[].typeRelations` 提供结构关系数据，类详情展示 hierarchy 与 inherited API。
 
-P3 仍不新增类焦点页，不把类放进主流程，也不让主流程穿透功能模块内部实现。
+P3 不新增类焦点页，不把类放进主流程，也不让主流程穿透功能模块内部实现。
 
-## P4：结构关系、User Surface、Impact/Trace 与 DSM
+## 结构关系、User Surface、Impact/Trace 与 DSM（P4）
 
 P4 在 P3 canonical 类型关系之上继续增加：
 
@@ -253,16 +273,9 @@ P4 在 P3 canonical 类型关系之上继续增加：
 - `trace` 支持出向/入向、静态调用和多态候选；
 - `dsm` 输出 module/provider 级依赖结构矩阵。
 
-新增 CLI：
+User Surface 识别线索包括 `input()` / `print()` / 文件 IO / socket / HTTP / keyboard event / 配置显式覆盖。它是静态启发式投影，不等同于完整运行时 UX 分析。
 
-```bash
-python3 -m archmap impact before.json after.json --json
-python3 -m archmap trace architecture.json --from fn:app.main.main
-python3 -m archmap surfaces architecture.json --module main --json
-python3 -m archmap dsm architecture.json --level module --json
-```
-
-Impact/Trace/DSM 是按需查询结果，不写入默认 architecture.json；bundle 只保存静态事实与 User Surface 投影。
+Impact/Trace/DSM 是按需查询结果，不写入默认 `architecture.json`；bundle 只保存静态事实与 User Surface 投影。
 
 ## 代码架构规范
 
@@ -290,9 +303,9 @@ config / model / manager / entry / adapter / component / contract / utility
 - `utility` 是无状态内部实现，默认 `providerVisibility = "internal"`，不进入项目页/模块页；
 - utility 仍保留在 `functionDetails`、`callSites` 和 impact/trace 事实层中；
 - 项目页角色计数只使用 `publicProviderRoleCounts`；
-- 每个领域只暴露少量 facade manager；例如 Python 前端的 `analyze_project`、`collect_call_sites` 等阶段函数是 `PythonFrontend` 的内部 utility。
-- 内部 utility 通过 `ownerProviderId` 归属到 facade manager，不生成独立卡片。
-- 依赖方向为 `config ← model ← manager`，`utility ← manager`，`entry → manager`。
+- 每个领域只暴露少量 facade manager；Python 前端的 `analyze_project`、`collect_call_sites` 等阶段函数是 `PythonFrontend` 的内部 utility；
+- 内部 utility 通过 `ownerProviderId` 归属到 facade manager，不生成独立卡片；
+- 依赖方向为 `config ← model ← manager`、`utility ← manager`、`entry → manager`。
 
 当前目录：
 
@@ -307,9 +320,17 @@ archmap/
 └── render/assets/
 ```
 
-旧模块路径保留为 import shim，兼容既有测试和外部调用；自举图默认排除 shim 文件。
+旧模块路径的 import shim 已在 P2.3 最终清理中删除。外部脚本需要使用 canonical 路径：
 
-详细规范见 [docs/archmap-architecture-spec.md](docs/archmap-architecture-spec.md)，迁移记录见 [docs/p2.3-migration-plan.md](docs/p2.3-migration-plan.md)。
+```text
+archmap.managers.*
+archmap.frontends.*
+archmap.model.*
+archmap.utility.*
+archmap.entry.*
+```
+
+详细规范见 [docs/archmap-architecture-spec.md](docs/archmap-architecture-spec.md)。
 
 ## 人工备注与 LLM 注解
 
@@ -335,11 +356,13 @@ archmap/
 
 函数/方法级调用统一由独立 CallSite 提取，不再依赖语句级执行流：
 
-- `callSites`：每次调用的文件、行、列、调用文本、解析状态、外部/未解析标记。
+- `callSites`：每次调用的文件、行、列、调用文本、`usageKind`、解析状态、外部/未解析标记和多态 candidate 信息。
 - `functionDetails[].callers` / `callees`：函数级入/出调用邻域。
 - `moduleGraphs[].methodEdges`：类内和模块内的方法级调用关系。
 - `moduleGraphs[].edges`：类/函数组件级聚合边。
 - `projectGraph.edges`：模块级聚合边。
+- `projectGraph.typeRelations`：继承/实现/组合/聚合/使用/实例化关系。
+- `projectGraph.userSurfaces`：用户交互面投影。
 
 宏观边包含：
 
@@ -379,7 +402,12 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`78 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：
+
+```text
+pytest:         88 passed, 1 skipped
+browser smoke:  1 passed（显式开启）
+```
 
 测试覆盖：
 
@@ -400,29 +428,99 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 自包含 HTML、方法详情页和 LLM 注解嵌入。
 - CLI build/check/method 闭环。
 
-浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页、模块页、方法详情页、类方法详情、Hash 刷新恢复和无运行时错误。
+浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页、模块页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
+
+### 当前验收数据
+
+ArchMap 自举：
+
+```text
+modules:              6
+classes:              26
+functions:            229
+methods:              48
+callSites:            3230
+resolvedCalls:        522
+typeRelations:        45
+structuralRelations:  45
+userSurfaces:         0
+diagnostics:          0
+self build/check:     OK
+```
+
+student_system：
+
+```text
+modules:              7
+classes:              7
+functions:            52
+methods:              40
+callSites:            265
+resolvedCalls:        50
+typeRelations:        4
+structuralRelations:  4
+userSurfaces:         14
+diagnostics:          0
+build/check:          OK
+```
+
+P3/P4 fixtures：
+
+```text
+inheritance_demo:     4 typeRelations / 2 polymorphicCalls / diagnostics 0
+p4_demo:              9 structuralRelations / 2 userSurfaces / diagnostics 0
+```
 
 ## ArkTS 扩展
 
 `archmap/frontends/` 提供语言适配层：
 
+- `archmap/model/frontend_contract.py` 定义 `LanguageFrontend` 契约。
 - `LanguageFrontend` 负责发现、解析、符号解析、CallSite 提取、FunctionDetail 和 API 契约能力构建。
-- `graph.py`、`validate.py`、`render.py` 与语言无关。
-- 语言注册使用显式 `FRONTENDS` 字典，不是插件系统。
+- `archmap/utility/graph_utility.py`、`archmap/utility/validate_utility.py`、`archmap/utility/render_utility.py` 及对应 Manager 与语言无关。
+- 语言实例由 `FrontendManager` 显式注册，不是插件系统。
 - ArkTS 阶段新增 `frontends/arkts`，可使用可选解析器依赖；当前 Python 后端仍保持标准库零依赖。
 
-当前文档入口：
+ArkTS 接入时需要：
 
-- [docs/README.md](docs/README.md)：文档索引与当前/历史文档边界。
-- [docs/archmap-architecture-spec.md](docs/archmap-architecture-spec.md)：物理代码单元、八角色语义、依赖方向与迁移规范。
-- [docs/archmap-v3-design.md](docs/archmap-v3-design.md)：v3.6 数据契约。
-- [docs/archmap-api-contract-model.md](docs/archmap-api-contract-model.md)：Provider + Capability API 契约模型。
-- [docs/function-detail-p1.5-plan.md](docs/function-detail-p1.5-plan.md)：P1.5 实现记录。
-- [docs/p2.4-main-module-flow.md](docs/p2.4-main-module-flow.md)：主模块、功能模块、主流程 DAG 与 dispatch 契约。
-- [docs/HANDOFF-P4.md](docs/HANDOFF-P4.md)：P4 最新交接文档：结构关系、User Surface、Impact/Trace 与 DSM。
-- [docs/HANDOFF-P3.md](docs/HANDOFF-P3.md)：P3 历史交接：继承、实现、继承 API 与多态。
-- [docs/BRANCHES.md](docs/BRANCHES.md)：P2.4/P3/P4 分支的返回/恢复指引。
-- [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：P2.2–P4 历史交接文档。
+- 将文件、类、函数、调用和注释转换为与 Python 相同的 canonical IR；
+- 实现 `build_contracts`：`export`、`public` / `private` / `protected`、JSDoc `@public` / `@internal`、getter/setter、`Symbol.iterator` 等映射为 canonical capability；
+- 实现 Provider Role 映射：`interface` / `type` / `enum` / const object → config；data class → model；有公开方法的 class → manager；`@Entry` / `@Component` → entry/component；
+- 把 `@Entry` / `@Component` / `@Builder` / `TextInput` / `Button` / router / network API 映射为 User Surface；
+- `@Entry` / `@Component` 作为 entrypoint，不默认当作公开 API；
+- ArkTS 没有 Python 的 `__enter__` / `__exit__`，不伪造 context manager；
+- 序列协议（length / index signature）与 Python 一起延期；
+- 不要求修改布局、校验、渲染或路由核心。
+
+## 文档导航
+
+### 当前权威文档
+
+| 文档 | 内容 |
+|---|---|
+| [`README.md`](README.md) | 产品定位、快速开始、配置、CLI、验收数据和已知边界 |
+| [`docs/archmap-v3-design.md`](docs/archmap-v3-design.md) | v3.8 数据契约：三层投影、P3 类型关系、P4 结构关系/Surface/Impact/Trace、CallSite、布局和语言前端边界 |
+| [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、八角色语义、依赖方向、主模块/主流程边界与可见性规范 |
+| [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
+| [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | 唯一主模块、功能模块、主流程 DAG、dispatch 候选与 composition 契约 |
+| [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 当前 bundle JSON Schema 3.8 |
+
+### 历史归档
+
+P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设计、旧原型和旧 schema 已封存到：
+
+- [`docs/旧文档/README.md`](docs/旧文档/README.md)
+
+历史文档只用于追溯需求演进，不代表当前契约。
+
+## 文档维护规则
+
+1. 当前产品状态只写入根 `README.md` 和 `docs/` 下的当前权威文档；历史材料只进入 `docs/旧文档/`，不反向修改为“当前设计”。
+2. 数据契约以 `docs/archmap-v3-design.md`、`docs/p2.4-main-module-flow.md` 和 `docs/schema/archmap-v3-bundle.schema.json` 为准。
+3. P1.5 之后的实现页统一称 **Method Detail**；不要再把 FunctionFlow 写回主产品路径。
+4. 新增 P5 及以后能力时，先更新数据契约和当前文档，再更新根 README 的使用说明与验收数据。
+5. 文档中的示例命令若引用自举配置，应同时核对 `examples/archmap_v3.archmap.json` 是否仍与源码模块一致。
+6. 文档总入口统一为根 `README.md`，不再维护独立的 docs 索引文件。
 
 ## 已知边界
 
@@ -440,4 +538,5 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 继承解析只覆盖项目内 canonical class；第三方、条件导入和结构性 Protocol 实现不伪造关系。
 - 多态 candidates 只覆盖项目内已解析后代，`candidateSetComplete=false`。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
-- 旧 `docs/archmap-2.0-design.md` 和旧 `docs/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。
+- ArkTS 前端尚未实现。
+- 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

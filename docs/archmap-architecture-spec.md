@@ -1,9 +1,9 @@
 # ArchMap 架构与编码规范
 
-> 状态：P2.3 已落盘并完成 ArchMap 自身代码迁移<br>
+> 状态：P2.3 规范已落盘，P2.4/P3/P4 已按该规范完成<br>
 > 版本：ArchMap 1.8.0 / bundle schema 3.8<br>
-> 日期：2026-11-17<br>
-> 适用范围：ArchMap 自身源码、P3/P4 扩展和后续 ArchMap 分析的规范项目。
+> 日期：2026-11-18<br>
+> 适用范围：ArchMap 自身源码、后续语言前端和架构分析扩展。
 
 ## 1. 两层分类：物理代码单元与逻辑 Provider Role
 
@@ -388,4 +388,4 @@ visibility → default presentation
 - CLI、bundle schema、HTML 行为保持稳定；
 - utility 默认不进入主视图；
 - 迁移完成后更新自举配置和文档；
-- P3/P4 只在完成 P2.3 验收后开始。
+- P3/P4 已在 P2.3 验收后完成，并继续遵守本规范。
