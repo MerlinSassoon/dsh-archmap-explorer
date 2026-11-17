@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from archmap.pipeline import build_architecture
+from archmap.managers.pipeline_manager import PipelineManager
+
+build_architecture = PipelineManager().build_architecture
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 
@@ -26,10 +28,10 @@ def test_macro_layout_has_valid_geometry() -> None:
         for index, first in enumerate(rects):
             for second in rects[index + 1:]:
                 assert not _overlap(first, second)
+        if layout.get("mode") == "module-cards":
+            assert layout["edges"] == {}
+            continue
         for edge in graph["edges"]:
-            # The project page is a capability-card board; it intentionally
-            # omits dependency paths from the default projection layout.  Any
-            # edge whose endpoints are laid out must still have a valid path.
             if edge["from"] not in layout["nodes"] or edge["to"] not in layout["nodes"]:
                 continue
             path = layout["edges"][edge["id"]]["d"]

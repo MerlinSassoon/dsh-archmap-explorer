@@ -1,11 +1,12 @@
-# ArchMap v3.5
+# ArchMap v3.8
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
 
 ```text
-项目页（模块能力卡片 + 提供接口 + 项目输入/输出）
-  └─ 模块页（模块输入/输出 + 提供接口 + 类节点 + 模块级自由函数）
-       └─ 方法详情页（源码 + 人类备注 + LLM 语义 + callers/callees）
+项目页（主模块 + 功能模块能力卡片）
+  └─ 主模块页（入口 → 编排函数 → 功能模块接口的主流程 DAG）
+       └─ 功能模块页（提供接口 + 类节点 + 模块级自由函数）
+            └─ 方法详情页（源码 + 人类备注 + LLM 语义 + callers/callees）
 ```
 
 ArchMap 负责“结构和关系”，源码负责“实现细节”，LLM 负责“高层语义”。
@@ -19,12 +20,16 @@ P2.0 项目页/模块页能力契约重构  已完成
 P2.1 API 契约建模与展示         已完成
 P2.2 Provider Role 与模块组合   已完成
 P2.3 ArchMap 自身分层重构       已完成
-P3 继承/接口/多态/继承 API      未开始
-P4 类关系/API impact/user surface 未开始
+P2.4 主模块/功能模块/主流程     已完成
+P3 继承/接口/多态/继承 API      已完成
+P4 结构关系/User Surface/Impact/Trace/DSM 已完成
 ```
 
 当前方法入口是 **Method Detail** 页面；语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
-文档权威性与历史归档说明见 [docs/README.md](docs/README.md)。
+P2.4 起，每个项目恰好有一个主模块；主模块展示函数级主流程，功能模块只暴露 Provider/Capability，不再拥有输入输出端口。
+P3 增加解析后的 `inherits` / `implements` 类型关系、继承 API、override 来源和抽象/Protocol 调用的多态 candidates；多态候选在主流程中仍使用低置信度虚线 composition。
+P4 增加 `instantiates` / `uses` / `aggregates` / `composes` 结构关系、User Surface 投影、impact/trace 查询与 DSM，同时保持主流程边界、类 Provider 展示和自包含 HTML 约束。
+文档权威性与历史归档说明见 [docs/README.md](docs/README.md)，P4 交接见 [docs/HANDOFF-P4.md](docs/HANDOFF-P4.md)。
 
 ## 快速开始
 
@@ -43,19 +48,21 @@ python3 -m archmap build . \
   --out .archmap/self
 
 # 校验产物
-python -m archmap check .archmap/student_system/architecture.json
+python -m archmap check yield/student_system/architecture.json
 
 # 查看单个函数/方法详情
-python -m archmap method . --file menu_system.py --function run
+python -m archmap method Projects/student_system \
+  --file student_system/managers/menu_manager.py \
+  --function run
 
 # 本地预览
-python -m archmap serve .archmap/student_system
+python -m archmap serve yield/student_system
 ```
 
 产物：
 
 ```text
-.archmap/student_system/
+yield/student_system/
 ├── architecture.json       # projectGraph + moduleGraphs + functionDetails + callSites
 ├── architecture.html       # 自包含交互页面
 ├── llm-annotations.json    # 可选输入
@@ -65,7 +72,8 @@ python -m archmap serve .archmap/student_system
 ## 三层视图
 
 - **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。
-- **模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示模块输入/输出、类节点、模块级自由函数节点；类方法归属类节点，不直接平铺。config/model Provider 以类型卡片展示字段摘要。
+- **主模块页**：默认展示 entry → orchestrator/provider/interface 的主流程 DAG；可切换到能力视图查看类与自由函数。
+- **功能模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示类节点、模块级自由函数节点；不再有模块输入/输出端口。config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；内部方法只显示数量，不展开类内方法图。点击方法/函数接口进入方法详情页。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees；点击调用者可继续下钻。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
@@ -80,21 +88,26 @@ python -m archmap serve .archmap/student_system
   "language": "python",
   "include": ["src/**/*.py"],
   "exclude": ["**/__pycache__/**"],
-  "project": {
-    "inputs": ["用户请求"],
-    "outputs": ["处理结果"]
-  },
+  "mainModule": "orders",
   "entrypoints": ["app.main:main"],
   "modules": [
     {
       "id": "orders",
       "name": "订单与结算",
+      "kind": "main",
       "include": ["src/orders/**"],
-      "note": "订单主流程",
-      "inputs": ["用户下单请求"],
-      "outputs": ["订单结果"],
+      "note": "订单主流程组合根",
       "color": "#f59e0b",
       "role": "main"
+    },
+    {
+      "id": "payments",
+      "name": "支付能力",
+      "kind": "functional",
+      "include": ["src/payments/**"],
+      "note": "支付 Provider 与公开接口",
+      "color": "#60a5fa",
+      "role": "service"
     }
   ]
 }
@@ -211,6 +224,46 @@ contract.providerRoles 显式覆盖
 }
 ```
 
+## 继承、实现与多态（P3）
+
+P3 把类名基类字符串解析为项目内 canonical 类型关系：
+
+- `inherits`：具体类基类；
+- `implements`：抽象类 / Protocol / interface 目标；
+- `baseClassIds` / `subclassIds` / `mroClassIds` / `abstractMethodNames` 进入类节点；
+- 子类 `providedApis` 可以包含 inherited capability，并以 `declaredInProviderId`、`inheritedFromProviderId` 保留来源；
+- 子类覆盖方法以 `overridesCapabilityId` 记录 override；
+- 抽象/Protocol 方法调用生成 `polymorphic=true` 的 CallSite candidates，不伪造唯一 `toFunctionId`；
+- 多态候选进入主流程时使用 `candidateSource=polymorphic` 的 dispatch 节点和低置信度 composition 虚线；
+- `projectGraph.typeRelations` 与 `moduleGraphs[].typeRelations` 提供结构关系数据，类详情展示 hierarchy 与 inherited API。
+
+P3 仍不新增类焦点页，不把类放进主流程，也不让主流程穿透功能模块内部实现。
+
+## P4：结构关系、User Surface、Impact/Trace 与 DSM
+
+P4 在 P3 canonical 类型关系之上继续增加：
+
+- `instantiates`：构造调用证据；
+- `uses`：参数、返回值和字段类型注解证据；
+- `aggregates`：构造注入或字段持有关系；
+- `composes`：构造函数内实例化并赋给实例字段的所有权关系；
+- 每条结构关系携带 `source`、Provider Role、可见性和 `evidenceFunctionIds`；
+- `userSurfaces` 从 entrypoint 调用路径与 IO/事件 primitive 识别，并支持配置覆盖；
+- `impact` 对两个 bundle 做反向影响传播；
+- `trace` 支持出向/入向、静态调用和多态候选；
+- `dsm` 输出 module/provider 级依赖结构矩阵。
+
+新增 CLI：
+
+```bash
+python3 -m archmap impact before.json after.json --json
+python3 -m archmap trace architecture.json --from fn:app.main.main
+python3 -m archmap surfaces architecture.json --module main --json
+python3 -m archmap dsm architecture.json --level module --json
+```
+
+Impact/Trace/DSM 是按需查询结果，不写入默认 architecture.json；bundle 只保存静态事实与 User Surface 投影。
+
 ## 代码架构规范
 
 P2.3 起，ArchMap 自身源码遵循“物理代码单元 + 逻辑 Provider Role”两层规范。
@@ -292,7 +345,9 @@ archmap/
 
 - `primaryType`：`call` / `data` / `control`。
 - `relations`：同一对节点可同时具有调用和数据证据。
-- `role`：普通内部关系、项目/模块输入输出边界。
+- `role`：普通内部关系；不再生成模块输入输出边界边。
+- 主流程边使用 `call` / `call_path` / `composition`，其中 composition 只能是低置信度虚线。
+- 主流程只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止，不穿透其内部 utility。
 - `evidence`：具体函数、文件和行号。
 - `confidence`：解析置信度。
 
@@ -306,6 +361,12 @@ python -m archmap check <architecture.json>
 python -m archmap method <project> [--file FILE] [--function NAME] [--json]
 python -m archmap serve <directory> [--port 8765]
 python -m archmap diff <before.json> <after.json>
+
+# P4 查询
+python -m archmap impact <before.json> <after.json> [--json]
+python -m archmap trace <architecture.json> --from <function-id> [--direction inbound]
+python -m archmap surfaces <architecture.json> [--module ID] [--json]
+python -m archmap dsm <architecture.json> [--level module|provider] [--json]
 ```
 
 ## 测试
@@ -318,11 +379,18 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`48 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：`78 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 
 - 三层 bundle 契约和交叉引用。
+- 唯一主模块、0..N 功能模块与无 I/O 端口不变量。
+- 主流程 DAG、分支、dispatch 候选和 composition 虚线语义。
+- 继承/实现结构边、C3 MRO、有效抽象性、继承 API、override 和多态 candidates。
+- 类型关系 validator 不变量与 polymorphic dispatch 低置信度 composition。
+- `instantiates/uses/aggregates/composes` 结构关系与角色元数据。
+- User Surface 识别、entrypoint 传播和配置覆盖。
+- Impact / Trace / DSM 查询、CLI JSON 输出与截断边界。
 - 类节点、方法归属、抽象类边界。
 - FunctionDetail、源码切片、sourceHash。
 - CallSite 提取、callers/callees、模块级聚合边。
@@ -347,10 +415,14 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 
 - [docs/README.md](docs/README.md)：文档索引与当前/历史文档边界。
 - [docs/archmap-architecture-spec.md](docs/archmap-architecture-spec.md)：物理代码单元、八角色语义、依赖方向与迁移规范。
-- [docs/archmap-v3-design.md](docs/archmap-v3-design.md)：v3.5 数据契约。
+- [docs/archmap-v3-design.md](docs/archmap-v3-design.md)：v3.6 数据契约。
 - [docs/archmap-api-contract-model.md](docs/archmap-api-contract-model.md)：Provider + Capability API 契约模型。
 - [docs/function-detail-p1.5-plan.md](docs/function-detail-p1.5-plan.md)：P1.5 实现记录。
-- [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：P2.2–P4 最新交接文档。
+- [docs/p2.4-main-module-flow.md](docs/p2.4-main-module-flow.md)：主模块、功能模块、主流程 DAG 与 dispatch 契约。
+- [docs/HANDOFF-P4.md](docs/HANDOFF-P4.md)：P4 最新交接文档：结构关系、User Surface、Impact/Trace 与 DSM。
+- [docs/HANDOFF-P3.md](docs/HANDOFF-P3.md)：P3 历史交接：继承、实现、继承 API 与多态。
+- [docs/BRANCHES.md](docs/BRANCHES.md)：P2.4/P3/P4 分支的返回/恢复指引。
+- [docs/HANDOFF-P2-P4.md](docs/HANDOFF-P2-P4.md)：P2.2–P4 历史交接文档。
 
 ## 已知边界
 
@@ -360,8 +432,12 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 宏布局的局部重叠和边界启发式仍需要持续校验。
 - P2.1 只合成 context manager、async context manager、callable、iterable；序列协议延期。
 - 类焦点页和类内方法图不在当前产品计划中。
-- 用户交互面（user surface）尚未建模；主模块仍按普通模块展示 developer API。P2.2 已提供 Provider Role 与模块组合，但 user surface 仍属于 P4。
+- User Surface 已建模为独立投影，但当前是静态 primitive + entrypoint 可达性启发式，配置覆盖优先。
 - 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
-- P3 继承/实现关系、继承 API、多态 candidates，以及 P4 的角色感知关系、API/type/surface impact、user surface 传播仍未实现；P2.3 已完成，下一步进入 P3。
+- P4 的结构关系仍以静态证据为边界；复杂泛型、字符串注解别名和运行时注入可能产生低置信度或遗漏。
+- User Surface 为启发式投影，不等同于完整 UX/运行时交互分析。
+- Impact/Trace 受 `maxDepth` / `maxNodes` 限制，必须关注 `truncated`。
+- 继承解析只覆盖项目内 canonical class；第三方、条件导入和结构性 Protocol 实现不伪造关系。
+- 多态 candidates 只覆盖项目内已解析后代，`candidateSetComplete=false`。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
 - 旧 `docs/archmap-2.0-design.md` 和旧 `docs/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

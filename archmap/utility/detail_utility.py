@@ -72,7 +72,10 @@ def _caller_entry(analysis: AnalysisResult, site: CallSite) -> dict[str, Any]:
         "column": site.column,
         "calleeText": site.callee_text,
         "callText": site.call_text,
+        "usageKind": site.usage_kind,
         "confidence": site.confidence,
+        "polymorphic": site.polymorphic,
+        "dispatchKind": site.dispatch_kind,
     }
 
 
@@ -88,9 +91,12 @@ def _callee_entry(analysis: AnalysisResult, site: CallSite) -> dict[str, Any]:
         "column": site.column,
         "calleeText": site.callee_text,
         "callText": site.call_text,
+        "usageKind": site.usage_kind,
         "resolved": site.resolved,
         "external": site.external,
         "recursive": site.recursive,
         "confidence": site.confidence,
         "candidates": list(site.candidates),
+        "polymorphic": site.polymorphic,
+        "dispatchKind": site.dispatch_kind,
     }

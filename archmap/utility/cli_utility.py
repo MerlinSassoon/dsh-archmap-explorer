@@ -8,9 +8,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .. import __version__
 from ..managers.pipeline_manager import PipelineManager
 from ..managers.render_manager import RenderManager
 from ..managers.validate_manager import ValidationManager
+from .query_utility import build_dsm, build_impact, build_trace
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -198,9 +200,100 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_impact(args: argparse.Namespace) -> int:
+    before = _read_json(Path(args.before).resolve())
+    after = _read_json(Path(args.after).resolve())
+    result = build_impact(
+        before,
+        after,
+        max_depth=max(1, int(args.max_depth)),
+        max_nodes=max(1, int(args.max_nodes)),
+    )
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    summary = result["summary"]
+    print(f"before: {result['beforeFingerprint']}")
+    print(f"after:  {result['afterFingerprint']}")
+    print(f"seeds:  {len(result['seeds'])}")
+    print(
+        "impact: "
+        f"functions={summary['functions']} providers={summary['providers']} "
+        f"apis={summary['apis']} surfaces={summary['surfaces']} total={summary['total']}"
+    )
+    for item in result["impacts"][:40]:
+        print(f"{item['nodeKind']:9} {item['change']:26} {item['nodeId']}")
+    if result["truncated"]:
+        print("warning: impact result truncated", file=sys.stderr)
+    return 0
+
+
+def cmd_trace(args: argparse.Namespace) -> int:
+    bundle = _read_json(Path(args.bundle).resolve())
+    try:
+        result = build_trace(
+            bundle,
+            args.start,
+            direction=args.direction,
+            max_depth=max(1, int(args.max_depth)),
+            max_nodes=max(1, int(args.max_nodes)),
+            include_internal=bool(args.include_internal),
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    print(f"trace: {result['startId']} ({result['direction']})")
+    print(f"nodes: {len(result['nodes'])} paths: {len(result['paths'])}")
+    for path in result["paths"][:40]:
+        kinds = " -> ".join(edge["kind"] for edge in path["edges"])
+        print(f"depth={path['depth']} {path['to']} [{kinds}]")
+    if result["truncated"]:
+        print("warning: trace result truncated", file=sys.stderr)
+    return 0
+
+
+def cmd_surfaces(args: argparse.Namespace) -> int:
+    bundle = _read_json(Path(args.bundle).resolve())
+    surfaces = bundle.get("projectGraph", {}).get("userSurfaces", [])
+    if args.module:
+        surfaces = [item for item in surfaces if item.get("moduleId") == args.module]
+    if args.json:
+        print(json.dumps(surfaces, ensure_ascii=False, indent=2))
+        return 0
+    for item in surfaces:
+        entrypoints = ", ".join(item.get("entrypointIds") or []) or "—"
+        print(
+            f"{item.get('kind', 'surface'):18} {item.get('moduleId', '—'):14} "
+            f"{item.get('display', item.get('id'))} -> {entrypoints}"
+        )
+    print(f"total: {len(surfaces)}")
+    return 0
+
+
+def cmd_dsm(args: argparse.Namespace) -> int:
+    bundle = _read_json(Path(args.bundle).resolve())
+    try:
+        result = build_dsm(bundle, level=args.level, include_internal=bool(args.include_internal))
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    for source, targets in result["matrix"].items():
+        for target, payload in targets.items():
+            kinds = ", ".join(f"{kind}:{count}" for kind, count in payload["kinds"].items())
+            print(f"{source} -> {target}: {payload['count']} ({kinds})")
+    print(f"nodes: {result['stats']['nodes']} edges: {result['stats']['edges']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="archmap", description="ArchMap v3 module-first architecture analysis")
-    parser.add_argument("--version", action="version", version="archmap 1.2.0")
+    parser.add_argument("--version", action="version", version=f"archmap {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build", help="analyze a Python project and write architecture.json/html")
@@ -233,4 +326,36 @@ def build_parser() -> argparse.ArgumentParser:
     diff.add_argument("before")
     diff.add_argument("after")
     diff.set_defaults(func=cmd_diff)
+
+    impact = sub.add_parser("impact", help="compute reverse impact between two bundles")
+    impact.add_argument("before")
+    impact.add_argument("after")
+    impact.add_argument("--json", action="store_true")
+    impact.add_argument("--max-depth", type=int, default=6)
+    impact.add_argument("--max-nodes", type=int, default=200)
+    impact.set_defaults(func=cmd_impact)
+
+    trace = sub.add_parser("trace", help="trace call and polymorphic paths from one symbol")
+    trace.add_argument("bundle")
+    trace.add_argument("--from", dest="start", required=True)
+    trace.add_argument("--direction", choices=["outbound", "inbound"], default="outbound")
+    trace.add_argument("--max-depth", type=int, default=8)
+    trace.add_argument("--max-nodes", type=int, default=200)
+    trace.add_argument("--include-internal", action="store_true", default=True)
+    trace.add_argument("--exclude-internal", action="store_false", dest="include_internal")
+    trace.add_argument("--json", action="store_true")
+    trace.set_defaults(func=cmd_trace)
+
+    surfaces = sub.add_parser("surfaces", help="list user surface records")
+    surfaces.add_argument("bundle")
+    surfaces.add_argument("--module")
+    surfaces.add_argument("--json", action="store_true")
+    surfaces.set_defaults(func=cmd_surfaces)
+
+    dsm = sub.add_parser("dsm", help="build a module/provider dependency structure matrix")
+    dsm.add_argument("bundle")
+    dsm.add_argument("--level", choices=["module", "provider"], default="module")
+    dsm.add_argument("--include-internal", action="store_true")
+    dsm.add_argument("--json", action="store_true")
+    dsm.set_defaults(func=cmd_dsm)
     return parser

@@ -54,6 +54,8 @@
     sizes: new Map(),
     moduleId: null,
     functionId: null,
+    flowId: null,
+    mainView: "flow",
   };
 
   let override = loadOverrides();
@@ -62,7 +64,7 @@
     return {
       version: OVERRIDE_VERSION,
       geometryVersion: GEOMETRY_VERSION,
-      project: { nodes: {}, miniNodes: {}, expanded: {}, singleModule: false },
+      project: { nodes: {}, singleModule: false },
       modules: {},
       functions: {},
     };
@@ -73,8 +75,6 @@
     if (!value || typeof value !== "object") return base;
     if (Number(value.version) !== OVERRIDE_VERSION) return base;
     base.project.nodes = value.project?.nodes && typeof value.project.nodes === "object" ? value.project.nodes : {};
-    base.project.miniNodes = value.project?.miniNodes && typeof value.project.miniNodes === "object" ? value.project.miniNodes : {};
-    base.project.expanded = value.project?.expanded && typeof value.project.expanded === "object" ? value.project.expanded : {};
     base.project.singleModule = Boolean(value.project?.singleModule);
     base.modules = value.modules && typeof value.modules === "object" ? value.modules : {};
     base.functions = value.functions && typeof value.functions === "object" ? value.functions : {};
@@ -176,7 +176,6 @@
     if (!focusUid) {
       nodes.forEach(node => node.classList.remove("is-dim", "is-highlight"));
       edges.forEach(edge => edge.classList.remove("is-dim", "is-highlight"));
-      world.querySelectorAll(".mini-node").forEach(node => node.classList.remove("is-dim", "is-selected"));
       return;
     }
     // Capability cards are siblings, not a dependency neighbourhood.  Without
@@ -186,6 +185,7 @@
       edges.forEach(edge => edge.classList.remove("is-dim", "is-highlight"));
       return;
     }
+    const isFlowPage = Boolean(world.querySelector(".main-flow-node"));
     const neighborUids = new Set([focusUid]);
     state.pageEdges.forEach(edge => {
       if (edge.from === focusUid || edge.to === focusUid) {
@@ -201,10 +201,8 @@
     edges.forEach(edge => {
       const highlighted = edge.dataset.from === focusUid || edge.dataset.to === focusUid;
       edge.classList.toggle("is-highlight", highlighted);
-      edge.classList.toggle("is-dim", !highlighted);
-    });
-    world.querySelectorAll(".mini-node").forEach(node => {
-      node.classList.toggle("is-dim", node.dataset.uid !== focusUid && ![...neighborUids].includes(node.dataset.uid));
+      if (isFlowPage) edge.classList.remove("is-dim");
+      else edge.classList.toggle("is-dim", !highlighted);
     });
   }
 
@@ -233,28 +231,72 @@
     zoomValue.textContent = `${Math.round(state.scale * 100)}%`;
   }
 
+  function contentBounds() {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    if (state.positions) {
+      state.positions.forEach((position, nodeId) => {
+        const size = state.sizes?.get(nodeId) || { w: position.w || 190, h: position.h || 96 };
+        const x = Number(position.x) || 0;
+        const y = Number(position.y) || 0;
+        const w = Number(size.w) || 190;
+        const h = Number(size.h) || 96;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x + w);
+        maxY = Math.max(maxY, y + h);
+      });
+    }
+    if (!Number.isFinite(minX)) {
+      return { minX: 0, minY: 0, maxX: 900, maxY: 640, width: 900, height: 640 };
+    }
+    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+  }
+
+  function updateWorldExtent(minWidth = 900, minHeight = 640, pad = 90) {
+    const bounds = contentBounds();
+    const width = Math.max(minWidth, bounds.maxX + pad);
+    const height = Math.max(minHeight, bounds.maxY + pad);
+    const svgX = bounds.minX - pad;
+    const svgY = bounds.minY - pad;
+    const svgWidth = Math.max(1, bounds.width + pad * 2);
+    const svgHeight = Math.max(1, bounds.height + pad * 2);
+    world.style.width = `${width}px`;
+    world.style.height = `${height}px`;
+    const svg = world.querySelector(".world-edges");
+    if (svg) {
+      svg.style.left = `${svgX}px`;
+      svg.style.top = `${svgY}px`;
+      svg.setAttribute("width", String(svgWidth));
+      svg.setAttribute("height", String(svgHeight));
+      svg.setAttribute("viewBox", `${svgX} ${svgY} ${svgWidth} ${svgHeight}`);
+    }
+    return { width, height, ...bounds };
+  }
+
   function fitView(animate = false) {
-    const width = world.offsetWidth || Number(world.style.width.replace("px", "")) || 900;
-    const height = world.offsetHeight || Number(world.style.height.replace("px", "")) || 700;
+    const bounds = contentBounds();
     const rect = viewport.getBoundingClientRect();
     const padX = 58;
     const padTop = state.pageKind === "module" ? 122 : state.pageKind === "method" ? 26 : 64;
     const padBottom = 46;
+    const availableW = rect.width - padX * 2;
+    const availableH = rect.height - padTop - padBottom;
     const scale = Math.min(
-      (rect.width - padX * 2) / Math.max(1, width),
-      (rect.height - padTop - padBottom) / Math.max(1, height),
+      availableW / Math.max(1, bounds.width),
+      availableH / Math.max(1, bounds.height),
       1
     );
     const minScale = state.pageKind === "method" ? .5 : .2;
     state.scale = Math.max(minScale, Math.min(1, scale));
-    const availableW = rect.width - padX * 2;
-    const availableH = rect.height - padTop - padBottom;
-    state.x = width * state.scale <= availableW
-      ? (rect.width - width * state.scale) / 2
-      : padX;
-    state.y = height * state.scale <= availableH
-      ? padTop + (availableH - height * state.scale) / 2
-      : padTop;
+    state.x = bounds.width * state.scale <= availableW
+      ? (rect.width - bounds.width * state.scale) / 2 - bounds.minX * state.scale
+      : padX - bounds.minX * state.scale;
+    state.y = bounds.height * state.scale <= availableH
+      ? padTop + (availableH - bounds.height * state.scale) / 2 - bounds.minY * state.scale
+      : padTop - bounds.minY * state.scale;
     applyTransform();
   }
 
@@ -327,9 +369,8 @@
       const dy = (event.clientY - start.y) / state.scale;
       if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
       moved = true;
-      const bounds = options.bounds ? options.bounds() : { w: 2200, h: 1600 };
-      const x = Math.max(0, Math.min(bounds.w, origin.x + dx));
-      const y = Math.max(0, Math.min(bounds.h, origin.y + dy));
+      const x = origin.x + dx;
+      const y = origin.y + dy;
       options.setPosition(x, y);
       element.style.left = `${x}px`;
       element.style.top = `${y}px`;
@@ -351,10 +392,12 @@
   }
 
   function legendItem(kind, text) {
-    if (kind === "input") return `<span class="legend-item"><span class="legend-swatch"></span>${escapeHtml(text)}</span>`;
-    if (kind === "output") return `<span class="legend-item"><span class="legend-swatch out"></span>${escapeHtml(text)}</span>`;
     if (kind === "card") return `<span class="legend-item"><span class="legend-swatch"></span>${escapeHtml(text)}</span>`;
     if (kind === "dashed") return `<span class="legend-item"><span class="legend-line dashed"></span>${escapeHtml(text)}</span>`;
+    if (kind === "entry") return `<span class="legend-item"><span class="legend-swatch entry"></span>${escapeHtml(text)}</span>`;
+    if (kind === "function") return `<span class="legend-item"><span class="legend-swatch function"></span>${escapeHtml(text)}</span>`;
+    if (kind === "interface") return `<span class="legend-item"><span class="legend-swatch interface"></span>${escapeHtml(text)}</span>`;
+    if (kind === "dispatch") return `<span class="legend-item"><span class="legend-swatch dispatch"></span>${escapeHtml(text)}</span>`;
     return `<span class="legend-item"><span class="legend-line"></span>${escapeHtml(text)}</span>`;
   }
 
@@ -466,10 +509,95 @@
 
   function apiExposureBadge(api) {
     if (!api) return "";
+    if (api.inherited) return `inherited · ${api.declaredInProviderId ? String(api.declaredInProviderId).split(".").pop() : "base"}`;
+    if (api.overridesCapabilityId) return "override";
     if (api.isEntry) return "entry";
     if (api.exposureSource === "protocol") return "protocol";
     if (api.exposureSource === "naming") return "inferred";
     return api.exposure || "public";
+  }
+
+  function typeRelationLabel(kind) {
+    return ({
+      inherits: "inherits",
+      implements: "implements",
+      instantiates: "instantiates",
+      uses: "uses",
+      aggregates: "aggregates",
+      composes: "composes",
+    }[kind] || kind || "relation");
+  }
+
+  function surfaceKindLabel(kind) {
+    return ({
+      cli_input: "CLI 输入",
+      cli_output: "CLI 输出",
+      file_io: "文件 IO",
+      network_endpoint: "网络监听",
+      network_client: "网络连接",
+      keyboard_event: "键盘事件",
+      http_endpoint: "HTTP",
+      tui_menu: "TUI 菜单",
+      ui_component: "UI 组件",
+    }[kind] || kind || "surface");
+  }
+
+  function userSurfaceChips(surfaces, limit = 8) {
+    const items = (surfaces || []).slice(0, limit);
+    if (!items.length) return `<span class="contracts-empty">暂无用户交互面</span>`;
+    return items.map(surface => `<span class="user-surface-chip kind-${escapeHtml(surface.kind)}" title="${escapeHtml(surface.display || surface.id)}">
+      <b>${escapeHtml(surfaceKindLabel(surface.kind))}</b><span>${escapeHtml(surface.moduleId || "")}</span>
+    </span>`).join("") + ((surfaces || []).length > limit ? `<span class="user-surface-chip more">+${surfaces.length - limit}</span>` : "");
+  }
+
+  function structuralRelationsBlock(node, graph) {
+    const relations = (graph?.typeRelations || []).filter(relation =>
+      relation.fromClassId === node.id || relation.toClassId === node.id
+    );
+    if (!relations.length) return `<div class="class-method-empty">暂无结构关系</div>`;
+    const short = id => String(id || "").split(".").pop();
+    return `<div class="structural-relations">${relations.map(relation => `<div class="structural-relation-row">
+      <span>${escapeHtml(short(relation.fromClassId))}</span><em>${escapeHtml(typeRelationLabel(relation.kind))}</em><span>${escapeHtml(short(relation.toClassId))}</span>
+      <i>${escapeHtml(relation.source || "")}</i>
+    </div>`).join("")}</div>`;
+  }
+
+  function classHierarchyBlock(node) {
+    const bases = node.baseClassIds || [];
+    const subclasses = node.subclassIds || [];
+    const unresolved = node.unresolvedBases || [];
+    if (!bases.length && !subclasses.length && !unresolved.length) {
+      return `<div class="class-method-empty">无已解析的继承/实现关系</div>`;
+    }
+    const list = (ids, empty) => ids.length ? ids.map(id => `<code>${escapeHtml(String(id).split(".").pop())}</code>`).join("") : `<span class="class-hierarchy-empty">${empty}</span>`;
+    return `<div class="class-hierarchy">
+      <div class="hierarchy-row"><span>BASES</span><div>${list(bases, "—")}</div></div>
+      <div class="hierarchy-row"><span>SUBCLASSES</span><div>${list(subclasses, "—")}</div></div>
+      ${unresolved.length ? `<div class="hierarchy-row is-unresolved"><span>UNRESOLVED</span><div>${unresolved.map(item => `<code>${escapeHtml(item)}</code>`).join("")}</div></div>` : ""}
+    </div>`;
+  }
+
+  function typeRelationChips(graph, limit = 8) {
+    const relations = graph?.typeRelations || [];
+    if (!relations.length) return `<span class="contracts-empty">暂无继承/实现关系</span>`;
+    const short = id => String(id || "").split(".").pop();
+    return relations.slice(0, limit).map(relation => `<span class="type-relation-chip kind-${escapeHtml(relation.kind)}" title="${escapeHtml(`${relation.fromClassId} ${typeRelationLabel(relation.kind)} ${relation.toClassId}`)}">
+      <b>${escapeHtml(short(relation.fromClassId))}</b><em>${escapeHtml(typeRelationLabel(relation.kind))}</em><span>${escapeHtml(short(relation.toClassId))}</span>
+    </span>`).join("") + (relations.length > limit ? `<span class="type-relation-chip more">+${relations.length - limit}</span>` : "");
+  }
+
+  function polymorphicCallList(entries, emptyText) {
+    if (!entries || !entries.length) return `<div class="method-call-empty">${escapeHtml(emptyText)}</div>`;
+    return entries.map(entry => {
+      const candidates = entry.candidates || [];
+      const targetNames = candidates.map(id => String(id).split(".").slice(-2).join("."));
+      return `<div class="method-call-item is-polymorphic">
+        <span class="method-call-name">${escapeHtml(entry.calleeText || entry.qualifiedName || "polymorphic call")}</span>
+        <span class="method-call-meta">${escapeHtml(entry.file || "")}:${entry.line || "—"} · ${candidates.length} candidate${candidates.length === 1 ? "" : "s"}</span>
+        <span class="method-call-kind">polymorphic</span>
+        ${targetNames.length ? `<span class="method-call-candidates">${targetNames.map(name => `<code>${escapeHtml(name)}</code>`).join("")}</span>` : ""}
+      </div>`;
+    }).join("");
   }
 
   function apiButtonAttrs(api) {
@@ -504,7 +632,7 @@
     return apis.map(api => `<button class="detail-api-row" type="button" ${apiButtonAttrs(api)}>
         <span class="detail-api-kind">${escapeHtml(api.kind)}</span>
         <span class="detail-api-name">${escapeHtml(apiDisplayName(api))}</span>
-        <span class="detail-api-badge">${escapeHtml(apiExposureBadge(api))}</span>
+        <span class="detail-api-badge${api.inherited ? " is-inherited" : api.overridesCapabilityId ? " is-override" : ""}">${escapeHtml(apiExposureBadge(api))}</span>
       </button>`).join("");
   }
 
@@ -529,7 +657,7 @@
         <div class="api-provider-head">
           <span class="api-provider-kind">${escapeHtml(provider.providerKind || "provider")}</span>
           <b>${escapeHtml(provider.providerName || provider.providerId)}</b>
-          <em>${provider.apiCount || (provider.apis || []).length}</em>
+          <em>${provider.apiCount || (provider.apis || []).length}${Number(provider.inheritedApiCount || 0) ? ` · ${Number(provider.inheritedApiCount)} inherited` : ""}</em>
         </div>
         ${apiDetailList(provider.apis || [])}
       </div>`).join("")}
@@ -584,15 +712,15 @@
 
   function renderDefaultDetail() {
     if (state.route.kind === "project") {
-      const inputs = projectGraph.boundaryNodes.filter(node => node.kind === "input").map(node => node.label);
-      const outputs = projectGraph.boundaryNodes.filter(node => node.kind === "output").map(node => node.label);
-      const mainCount = projectGraph.modules.filter(node => node.role === "main").length;
-      detailScroll.innerHTML = `<div class="eyebrow">Project capability map</div>
+      const mainModule = projectGraph.modules.find(node => node.moduleKind === "main");
+      const functionalCount = projectGraph.modules.filter(node => node.moduleKind === "functional").length;
+      const flow = currentMainFlow();
+      detailScroll.innerHTML = `<div class="eyebrow">Project composition map</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(DATA.project.name)}</h2>
-        <div class="detail-note">项目页展示模块能力与对外接口，不绘制模块依赖线。依赖证据仍保留在 bundle 中，可通过“关系”模式或后续影响分析查看。</div>
-        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>主模块 <b>${mainCount}</b></span><span>项目输入 <b>${escapeHtml(inputs.join(" / ") || "—")}</b></span><span>项目输出 <b>${escapeHtml(outputs.join(" / ") || "—")}</b></span></div>
+        <div class="detail-note">项目页展示主模块与功能模块能力。主模块承载程序主流程；功能模块只暴露能力，不再拥有僵硬的输入输出端口。</div>
+        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>主模块 <b>${escapeHtml(mainModule?.name || "—")}</b></span><span>功能模块 <b>${functionalCount}</b></span><span>类型关系 <b>${(projectGraph.typeRelations || []).length}</b></span><span>主流程节点 <b>${flow?.nodeCount || 0}</b></span></div>
         ${annotationBlock(DATA.project.name)}
-        <div class="empty-hint">单击模块查看职责与提供接口；双击模块或点击 ↗ 进入独立模块页面。</div>`;
+        <div class="empty-hint">双击主模块查看主流程；双击功能模块查看 Provider 与提供接口。</div>`;
       return;
     }
     if (state.route.kind === "module") {
@@ -600,15 +728,18 @@
       if (!module) return;
       const apis = module.providedApis || [];
       const providers = module.apiProviders || [];
+      const flow = currentMainFlow();
+      const isMain = module.moduleKind === "main";
       detailScroll.innerHTML = `<div class="detail-head" style="--mc:${module.color}"><div class="detail-color"></div><div>
-          <div class="eyebrow">Module capability</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
+          <div class="eyebrow">${isMain ? "Main flow" : "Module capability"}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
           <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
-        <div class="port-detail"><span>输入 <b>${escapeHtml(module.inputs.map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml(module.outputs.map(item => item.label).join(" / "))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+        <div class="port-detail"><span>类型 <b>${isMain ? "主模块" : "功能模块"}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span><span>流程节点 <b>${isMain ? (flow?.nodeCount || 0) : "—"}</b></span></div>
         <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(module)}</div>
         <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
+        ${isMain ? `<div class="class-method-section"><div class="class-method-heading">User surfaces</div><div class="user-surface-track">${userSurfaceChips(projectGraph.userSurfaces || [])}</div></div>` : ""}
         ${annotationBlock(module.moduleId)}
-        <div class="empty-hint">双击自由函数进入方法详情；类节点右栏展示其提供接口。</div>`;
+        <div class="empty-hint">${isMain ? "主流程节点可点击查看语义，双击进入方法详情。" : "双击自由函数进入方法详情；类节点右栏展示其提供接口。"}</div>`;
       bindApiNavigation(detailScroll);
       return;
     }
@@ -627,12 +758,27 @@
   function renderSelectionDetail(uid) {
     const macroNode = state.nodes.get(uid);
     if (macroNode) {
-      if (macroNode.kind === "input" || macroNode.kind === "output") {
-        detailScroll.innerHTML = `<div class="eyebrow">Boundary node</div>
-          <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.label)}</h2>
-          <div class="detail-note">${escapeHtml(macroNode.note || "")}</div>
-          <div class="port-detail"><span>类型 <b>${macroNode.kind === "input" ? "输入" : "输出"}</b></span></div>
-          ${annotationBlock(uid)}`;
+      if (macroNode.flowRole) {
+        const isDispatch = macroNode.kind === "dispatch";
+        const module = projectModuleById.get(macroNode.moduleId);
+        const functionId = macroNode.functionId;
+        const detail = functionId ? functionDetailById.get(functionId) : null;
+        detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || module?.color || "#60a5fa"}"><div class="detail-color"></div><div>
+            <div class="eyebrow">Main flow · ${escapeHtml(String(macroNode.flowRole || macroNode.kind).toUpperCase())}</div>
+            <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.label || macroNode.providerName || macroNode.id)}</h2>
+            <div class="detail-module">${escapeHtml(module?.name || macroNode.moduleName || macroNode.moduleId)}${macroNode.providerName ? ` · ${escapeHtml(macroNode.providerName)}` : ""}</div></div></div>
+          <div class="detail-note">${escapeHtml(macroNode.note || "主流程组合节点")}</div>
+          <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId)}</b></span><span>边界 <b>${macroNode.flowBoundary ? "功能模块接口" : "主模块编排"}</b></span>${macroNode.signature ? `<span>签名 <b>${escapeHtml(macroNode.signature)}</b></span>` : ""}</div>
+          ${isDispatch ? `<div class="llm-stale">${macroNode.candidateSource === "polymorphic" ? "多态分发边界：按已解析的本地实现候选生成低置信度 composition 连线。" : "动态分发边界：候选连线使用低置信度 composition 语义"}，${macroNode.candidateSetComplete ? "候选集已声明完整" : "候选集未声明完整"}。</div>
+            <div class="source-line">表达式：${escapeHtml(macroNode.expression || macroNode.label || "")} · 候选：${Number(macroNode.candidateCount || 0)} · 来源：${escapeHtml(macroNode.candidateSource || "unknown")}</div>` : ""}
+          ${detail ? `<div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>` : ""}
+          ${annotationBlock(functionId || uid, detail?.sourceHash)}
+          <div class="detail-actions">${functionId ? `<button class="detail-action" type="button" data-open-flow-method="${escapeHtml(functionId)}">打开方法详情</button>` : ""}${module ? `<button class="detail-action" type="button" data-open-flow-module="${escapeHtml(module.id)}">打开模块页面</button>` : ""}</div>`;
+        detailScroll.querySelector("[data-open-flow-method]")?.addEventListener("click", () => {
+          const target = functionDetailById.get(functionId);
+          if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
+        });
+        detailScroll.querySelector("[data-open-flow-module]")?.addEventListener("click", () => navigate({ kind: "module", moduleId: module.id }));
         return;
       }
       if (macroNode.kind === "module") {
@@ -643,7 +789,7 @@
             <div class="eyebrow">Module capability · ${escapeHtml(moduleRoleLabel(macroNode.role))}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">module://${escapeHtml(uid)}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
-          <div class="port-detail"><span>输入 <b>${escapeHtml((macroNode.inputs || []).map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml((macroNode.outputs || []).map(item => item.label).join(" / "))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+          <div class="port-detail"><span>类型 <b>${escapeHtml(macroNode.moduleKind === "main" ? "主模块" : "功能模块")}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
           <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(graph)}</div>
           <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>
@@ -670,7 +816,10 @@
           <div class="source-line">角色来源：${escapeHtml(macroNode.roleSource || "structure")} · ${escapeHtml(macroNode.roleConfidence || "medium")}</div>
           ${isTypeCard ? "" : `<div class="source-line">用法：${escapeHtml(constructorSignature)}</div>`}
           <div class="source-line">${escapeHtml(macroNode.file || "")}:${macroNode.line || "—"}</div>
-          ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不接入模块输入输出。</div>` : ""}
+          <div class="port-detail"><span>声明接口 <b>${Number(macroNode.declaredApiCount || apis.filter(api => !api.inherited).length)}</b></span><span>继承接口 <b>${Number(macroNode.inheritedApiCount || apis.filter(api => api.inherited).length)}</b></span></div>
+          ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不进入主流程执行节点。</div>` : ""}
+          <div class="class-method-section"><div class="class-method-heading">Type hierarchy</div>${classHierarchyBlock(macroNode)}</div>
+          <div class="class-method-section"><div class="class-method-heading">Structural relations</div>${structuralRelationsBlock(macroNode, moduleGraphById.get(state.moduleId))}</div>
           ${isTypeCard ? `<div class="class-method-section"><div class="class-method-heading">Type fields · ${Number(typeSummary?.fieldCount || 0)}</div>${typeFieldList(typeSummary)}</div>` : `<div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>`}
           <div class="class-method-section"><div class="class-method-heading">内部实现</div><div class="class-method-empty">${internalCount} 个内部方法，不在契约视图展示。</div></div>`;
         bindApiNavigation(detailScroll);
@@ -697,6 +846,13 @@
     renderDefaultDetail();
   }
 
+  function currentMainFlow() {
+    const flows = projectGraph.mainFlows || [];
+    if (!flows.length) return null;
+    const wanted = state.flowId || projectGraph.primaryFlowId;
+    return flows.find(flow => flow.id === wanted) || flows[0];
+  }
+
   function renderModuleContracts(moduleId) {
     if (!moduleContracts) return;
     const graph = moduleGraphById.get(moduleId);
@@ -706,15 +862,40 @@
       moduleContracts.classList.remove("is-visible");
       return;
     }
+    const flows = projectGraph.mainFlows || [];
+    const flowSwitcher = graph.moduleKind === "main"
+      ? `<div class="flow-switcher"><span>MAIN MODULE</span>
+          <button type="button" data-main-view="flow" class="${state.mainView === "flow" ? "is-active" : ""}">主流程</button>
+          <button type="button" data-main-view="capabilities" class="${state.mainView === "capabilities" ? "is-active" : ""}">能力视图</button>
+          ${flows.map(flow => `<button type="button" data-flow-id="${escapeHtml(flow.id)}" class="${state.mainView === "flow" && flow.id === currentMainFlow()?.id ? "is-active" : ""}">${escapeHtml(flow.name || flow.entrypointId)}</button>`).join("")}
+        </div>`
+      : "";
     moduleContracts.style.setProperty("--mc-rgb", rgbFromHex(graph.color || "#60a5fa"));
-    moduleContracts.innerHTML = `<div class="contracts-main">
+    moduleContracts.innerHTML = `${flowSwitcher}<div class="contracts-main">
         <div class="contracts-label">PROVIDED API</div>
         <div class="contracts-track">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
         <div class="contracts-count">${apis.length} apis</div>
       </div>
-      <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>`;
+      <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>
+      <div class="contracts-types"><div class="contracts-label">TYPE RELATIONS</div><div class="type-relation-track">${typeRelationChips(graph)}</div><div class="contracts-count">${(graph.typeRelations || []).length} relations</div></div>
+      <div class="contracts-types"><div class="contracts-label">USER SURFACES</div><div class="user-surface-track">${userSurfaceChips(graph.userSurfaces || [])}</div><div class="contracts-count">${(graph.userSurfaces || []).length} surfaces</div></div>`;
     moduleContracts.classList.add("is-visible");
     bindApiNavigation(moduleContracts);
+    moduleContracts.querySelectorAll("[data-main-view]").forEach(button => {
+      button.addEventListener("click", event => {
+        event.stopPropagation();
+        state.mainView = button.dataset.mainView === "capabilities" ? "capabilities" : "flow";
+        renderModulePage(moduleId);
+      });
+    });
+    moduleContracts.querySelectorAll("[data-flow-id]").forEach(button => {
+      button.addEventListener("click", event => {
+        event.stopPropagation();
+        state.flowId = button.dataset.flowId;
+        state.mainView = "flow";
+        renderModulePage(moduleId);
+      });
+    });
   }
 
   function updateChrome(kind) {
@@ -724,19 +905,24 @@
     relationModeBtn.setAttribute("aria-pressed", String(state.showProjectRelations));
     relationModeBtn.textContent = state.showProjectRelations ? "隐藏关系" : "关系";
     if (kind === "project") {
-      canvasKicker.textContent = "Project capability map";
+      canvasKicker.textContent = "Project composition map";
       canvasTitle.textContent = DATA.project.name;
-      canvasSub.textContent = "模块能力卡片 · 提供接口 · 双击进入模块页面";
+      canvasSub.textContent = "主模块 + 功能模块能力卡片 · 双击进入模块页面";
       breadcrumb.innerHTML = `<b>${escapeHtml(DATA.project.name)}</b>`;
       legend.innerHTML = state.showProjectRelations
-        ? legendItem("line", "模块调用/数据关系") + legendItem("input", "项目输入") + legendItem("output", "项目输出")
-        : legendItem("card", "模块能力卡片") + legendItem("input", "项目输入") + legendItem("output", "项目输出");
+        ? legendItem("line", "模块调用/数据关系") + legendItem("card", "模块能力卡片")
+        : legendItem("card", "模块能力卡片") + legendItem("entry", "主模块");
     } else if (kind === "module") {
-      canvasKicker.textContent = "Module capability";
+      const isMain = module?.moduleKind === "main";
+      canvasKicker.textContent = isMain ? "Main flow" : "Module capability";
       canvasTitle.textContent = module?.name || state.route.moduleId;
-      canvasSub.textContent = "顶部为模块提供接口 · 画布为类/自由函数与内部调用 · 双击进入详情";
+      canvasSub.textContent = isMain
+        ? "入口 → 主模块编排 → 功能模块接口 · 实线 call · 虚线 composition"
+        : "提供接口 · 类/自由函数 · 内部调用 · 双击进入详情";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>${escapeHtml(module?.name || state.route.moduleId)}</b>`;
-      legend.innerHTML = legendItem("line", "模块内部调用关系") + legendItem("input", "模块输入") + legendItem("output", "模块输出");
+      legend.innerHTML = isMain
+        ? legendItem("entry", "入口") + legendItem("function", "主模块编排") + legendItem("interface", "功能接口") + legendItem("dashed", "composition / low")
+        : legendItem("line", "模块内部调用关系");
     } else {
       const ownerClass = detail?.ownerClassId
         ? (moduleGraphById.get(detail.moduleId)?.nodes || []).find(node => node.id === detail.ownerClassId)
@@ -760,18 +946,9 @@
     backBtn.disabled = kind === "project" && history.length <= 1;
   }
 
-  function projectNodeExpanded(moduleId) {
-    if (Object.prototype.hasOwnProperty.call(override.project.expanded, moduleId)) {
-      return Boolean(override.project.expanded[moduleId]);
-    }
-    return false;
-  }
-
   function projectNodeSize(node) {
     if (node.kind === "module") {
-      return projectNodeExpanded(node.id)
-        ? { w: node.expandedW || 560, h: node.expandedH || 360 }
-        : { w: node.w || 270, h: node.h || 140 };
+      return { w: node.w || 270, h: node.h || 140 };
     }
     return { w: node.w || 190, h: node.h || 96 };
   }
@@ -791,22 +968,7 @@
   }
 
   function updateProjectWorldSize() {
-    let width = 900, height = 640;
-    state.nodes.forEach((node, nodeId) => {
-      const position = getProjectPosition(nodeId);
-      const size = state.sizes.get(nodeId) || projectNodeSize(node);
-      width = Math.max(width, position.x + size.w + 90);
-      height = Math.max(height, position.y + size.h + 100);
-    });
-    world.style.width = `${width}px`;
-    world.style.height = `${height}px`;
-    const svg = world.querySelector(".world-edges");
-    if (svg) {
-      svg.setAttribute("width", String(width));
-      svg.setAttribute("height", String(height));
-      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    }
-    return { width, height };
+    return updateWorldExtent(900, 640);
   }
 
   function refreshProjectEdges() {
@@ -840,9 +1002,9 @@
       ? [projectGraph.modules[0].id]
       : projectGraph.modules.map(item => item.id);
     state.nodes = new Map();
-    // P2.0: the project page is a module capability board.  Project boundary
-    // nodes and dependency paths are not rendered by default; their data stays
-    // in the bundle for optional relation views and later impact queries.
+    // The project page is a module capability board.  Main-flow and dependency
+    // evidence stay in the bundle; the main module page renders the curated
+    // composition flow.
     projectGraph.modules.forEach(module => {
       if (visibleModuleIds.includes(module.id)) {
         state.nodes.set(module.id, { ...module, kind: "module" });
@@ -891,37 +1053,8 @@
     });
   }
 
-  function renderProjectBoundary(nodeId, node) {
-    const position = state.positions.get(nodeId);
-    const element = document.createElement("article");
-    element.className = `node-card boundary-node ${node.kind === "output" ? "output" : "input"}`;
-    element.dataset.uid = nodeId;
-    element.style.left = `${position.x}px`;
-    element.style.top = `${position.y}px`;
-    element.style.width = `${position.w}px`;
-    element.style.height = `${position.h}px`;
-    element.innerHTML = `<div class="boundary-kicker">${node.kind === "input" ? "USER INPUT / PROJECT INPUT" : "USER OUTPUT / PROJECT OUTPUT"}</div>
-      <div class="boundary-name">${escapeHtml(node.label)}</div>
-      <div class="boundary-note">${escapeHtml(node.note || "")}</div>`;
-    world.appendChild(element);
-    bindNodeHover(element, nodeId);
-    element.addEventListener("click", () => selectUid(nodeId));
-    attachDrag(element, element, {
-      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
-      setPosition: (x, y) => {
-        const pos = state.positions.get(nodeId);
-        pos.x = x; pos.y = y;
-        setProjectPosition(nodeId, x, y);
-      },
-      bounds: () => ({ w: 2600, h: 1800 }),
-      onMove: refreshProjectEdges,
-      onEnd: () => { persistOverride(); updateProjectWorldSize(); },
-    });
-  }
-
   function renderProjectModule(nodeId, module) {
     const position = state.positions.get(nodeId);
-    const expanded = projectNodeExpanded(nodeId);
     const size = state.sizes.get(nodeId);
     const graph = moduleGraphById.get(nodeId);
     const apis = graph?.providedApis || [];
@@ -932,7 +1065,7 @@
     const providerCount = Number((graph?.apiProviders || []).length);
     const apiCount = Number(module.providedApiCount ?? apis.length);
     const element = document.createElement("article");
-    element.className = `node-card module-node${expanded ? " is-expanded" : ""}${isMain ? " is-main" : ""}`;
+    element.className = `node-card module-node${isMain ? " is-main" : ""}`;
     element.dataset.uid = nodeId;
     element.style.left = `${position.x}px`;
     element.style.top = `${position.y}px`;
@@ -945,7 +1078,6 @@
           <span class="module-dot"></span><span class="module-kind">${escapeHtml(moduleRoleLabel(role))}</span>
           <span class="module-title">${escapeHtml(module.name)}</span>
           <div class="module-actions">
-            <button class="mini-action" type="button" data-expand="${escapeHtml(nodeId)}" aria-label="${expanded ? "收起模块" : "展开模块"}" title="${expanded ? "收起" : "展开"}">${expanded ? "−" : "+"}</button>
             <button class="mini-action" type="button" data-open-module="${escapeHtml(nodeId)}" aria-label="打开模块页面" title="打开独立模块页面">↗</button>
           </div>
         </div>
@@ -959,15 +1091,9 @@
           <span>${classCount} class${classCount === 1 ? "" : "es"}</span>
           <span>${providerCount} provider${providerCount === 1 ? "" : "s"}</span>
           <span class="${apiCount ? "has-apis" : ""}">${apiCount} api${apiCount === 1 ? "" : "s"}</span>
+          ${module.moduleKind === "main" ? `<span class="has-apis">main flow${module.mainFlowId ? "" : " · empty"}</span>` : ""}
         </div>
-        <div class="module-ports">${(module.inputs || []).map(port => `<span class="port-pill in"><i></i>IN <b>${escapeHtml(port.label)}</b></span>`).join("")}${(module.outputs || []).map(port => `<span class="port-pill out"><i></i>OUT <b>${escapeHtml(port.label)}</b></span>`).join("")}</div>
       </header>`;
-    if (expanded) {
-      const mini = document.createElement("div");
-      mini.className = "module-mini";
-      mini.dataset.moduleId = nodeId;
-      element.appendChild(mini);
-    }
     world.appendChild(element);
     bindNodeHover(element, nodeId);
     bindApiNavigation(element);
@@ -984,12 +1110,6 @@
       event.stopPropagation();
       navigate({ kind: "module", moduleId: nodeId });
     });
-    element.querySelector("[data-expand]")?.addEventListener("click", event => {
-      event.stopPropagation();
-      override.project.expanded[nodeId] = !expanded;
-      persistOverride();
-      renderProjectPage();
-    });
     attachDrag(header, element, {
       getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
       setPosition: (x, y) => {
@@ -997,136 +1117,8 @@
         pos.x = x; pos.y = y;
         setProjectPosition(nodeId, x, y);
       },
-      bounds: () => ({ w: 2600, h: 1800 }),
-      onMove: refreshProjectEdges,
+      onMove: () => { updateProjectWorldSize(); refreshProjectEdges(); },
       onEnd: () => { persistOverride(); updateProjectWorldSize(); },
-    });
-    if (expanded) renderModuleMini(element.querySelector(".module-mini"), nodeId);
-  }
-
-  function miniDefaultPositions(moduleId) {
-    const graph = moduleGraphById.get(moduleId);
-    if (!graph) return new Map();
-    const functions = visibleProviderNodes(graph);
-    if (!functions.length) return new Map();
-    const layout = graph.layout?.nodes || {};
-    const rects = functions.map(node => {
-      const rect = layout[node.id] || { x: 0, y: 0, w: node.w || 210, h: node.h || 98 };
-      return { id: node.id, x: Number(rect.x || 0), y: Number(rect.y || 0) };
-    });
-    const minX = Math.min(...rects.map(item => item.x));
-    const maxX = Math.max(...rects.map(item => item.x));
-    const minY = Math.min(...rects.map(item => item.y));
-    const maxY = Math.max(...rects.map(item => item.y));
-    const areaW = 540, areaH = 218, nodeW = 176, nodeH = 76;
-    const spanX = Math.max(1, maxX - minX + 210);
-    const spanY = Math.max(1, maxY - minY + 98);
-    const scale = Math.min((areaW - nodeW - 20) / spanX, (areaH - nodeH - 18) / spanY, 1);
-    const offsetX = (areaW - spanX * scale) / 2;
-    const offsetY = (areaH - spanY * scale) / 2;
-    const result = new Map();
-    rects.forEach(item => {
-      result.set(item.id, {
-        x: Math.max(8, Math.min(areaW - nodeW - 8, offsetX + (item.x - minX) * scale)),
-        y: Math.max(8, Math.min(areaH - nodeH - 8, offsetY + (item.y - minY) * scale)),
-      });
-    });
-    return result;
-  }
-
-  function getMiniPosition(moduleId, functionId, defaults) {
-    const custom = override.project.miniNodes?.[moduleId]?.[functionId];
-    const base = defaults.get(functionId) || { x: 16, y: 20 };
-    return { x: Number(custom?.x ?? base.x), y: Number(custom?.y ?? base.y) };
-  }
-
-  function setMiniPosition(moduleId, functionId, x, y) {
-    if (!override.project.miniNodes[moduleId]) override.project.miniNodes[moduleId] = {};
-    override.project.miniNodes[moduleId][functionId] = { x: Math.round(x), y: Math.round(y) };
-  }
-
-  function refreshMiniEdges(moduleId) {
-    const host = world.querySelector(`.module-mini[data-module-id="${cssEscape(moduleId)}"]`);
-    if (!host) return;
-    const svg = host.querySelector(".mini-edges");
-    if (!svg) return;
-    const graph = moduleGraphById.get(moduleId);
-    const defaults = miniDefaultPositions(moduleId);
-    const positionMap = new Map();
-    visibleProviderNodes(graph).forEach(node => {
-      const element = host.querySelector(`.mini-node[data-uid="${cssEscape(node.id)}"]`);
-      if (!element) return;
-      positionMap.set(node.id, {
-        x: parseFloat(element.style.left),
-        y: parseFloat(element.style.top),
-        w: 176,
-        h: 76,
-      });
-    });
-    svg.querySelectorAll(".graph-edge").forEach(path => {
-      const from = positionMap.get(path.dataset.from);
-      const to = positionMap.get(path.dataset.to);
-      if (from && to) path.setAttribute("d", curvePath(from, to));
-    });
-  }
-
-  function renderModuleMini(host, moduleId) {
-    const graph = moduleGraphById.get(moduleId);
-    if (!host || !graph) return;
-    const defaults = miniDefaultPositions(moduleId);
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("class", "mini-edges");
-    svg.setAttribute("width", "540");
-    svg.setAttribute("height", "218");
-    svg.setAttribute("viewBox", "0 0 540 218");
-    host.appendChild(svg);
-    const visibleIds = new Set(visibleProviderNodes(graph).map(node => node.id));
-    const edges = graph.edges.filter(edge => edge.role === "internal" && visibleIds.has(edge.from) && visibleIds.has(edge.to));
-    edges.forEach(edge => {
-      const fromPos = getMiniPosition(moduleId, edge.from, defaults);
-      const toPos = getMiniPosition(moduleId, edge.to, defaults);
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("class", "graph-edge");
-      path.setAttribute("data-from", edge.from);
-      path.setAttribute("data-to", edge.to);
-      path.setAttribute("d", curvePath({ ...fromPos, w: 176, h: 76 }, { ...toPos, w: 176, h: 76 }));
-      path.setAttribute("stroke", graph.color || "#f59e0b");
-      path.setAttribute("opacity", ".42");
-      svg.appendChild(path);
-    });
-    visibleProviderNodes(graph).forEach(node => {
-      const pos = getMiniPosition(moduleId, node.id, defaults);
-      const element = document.createElement("article");
-      element.className = `mini-node node-card${node.kind === "class" ? " mini-class" : ""}`;
-      element.dataset.uid = node.id;
-      element.style.left = `${pos.x}px`;
-      element.style.top = `${pos.y}px`;
-      element.style.width = "176px";
-      element.style.height = "76px";
-      const prefix = node.kind === "class" ? "C · " : "";
-      element.innerHTML = `<div class="mini-title">${escapeHtml(prefix + node.name)}</div><div class="mini-note">${escapeHtml(node.note || (node.kind === "class" ? `${node.methodCount || 0} methods` : "暂无备注"))}</div>`;
-      host.appendChild(element);
-      bindNodeHover(element, node.id);
-      element.addEventListener("click", event => {
-        event.stopPropagation();
-        state.nodes.set(node.id, { ...node, kind: node.kind, color: graph.color });
-        selectUid(node.id);
-      });
-      element.addEventListener("dblclick", event => {
-        event.stopPropagation();
-        if (node.kind === "class") {
-          navigate({ kind: "module", moduleId });
-          return;
-        }
-        navigate({ kind: "function", moduleId, functionId: node.id });
-      });
-      attachDrag(element, element, {
-        getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
-        setPosition: (x, y) => setMiniPosition(moduleId, node.id, x, y),
-        bounds: () => ({ w: 540 - 176, h: 218 - 76 }),
-        onMove: () => refreshMiniEdges(moduleId),
-        onEnd: persistOverride,
-      });
     });
   }
 
@@ -1153,21 +1145,7 @@
   }
 
   function updateModuleWorldSize(moduleId) {
-    let width = 860, height = 640;
-    state.nodes.forEach((node, nodeId) => {
-      const pos = state.positions.get(nodeId);
-      const size = state.sizes.get(nodeId);
-      width = Math.max(width, pos.x + size.w + 90);
-      height = Math.max(height, pos.y + size.h + 100);
-    });
-    world.style.width = `${width}px`;
-    world.style.height = `${height}px`;
-    const svg = world.querySelector(".world-edges");
-    if (svg) {
-      svg.setAttribute("width", String(width));
-      svg.setAttribute("height", String(height));
-      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    }
+    return updateWorldExtent(860, 640);
   }
 
   function refreshModuleEdges() {
@@ -1175,6 +1153,137 @@
       const from = state.positions.get(path.dataset.from);
       const to = state.positions.get(path.dataset.to);
       if (from && to) path.setAttribute("d", curvePath(from, to));
+    });
+  }
+
+  function flowEdgeClass(edge) {
+    const kind = edge.kind || "call";
+    return `macro-edge graph-edge flow-edge kind-${escapeHtml(kind)}${edge.confidence === "low" ? " is-low" : ""}`;
+  }
+
+  function getFlowPosition(moduleId, nodeId, flow) {
+    const custom = override.modules?.[moduleId]?.nodes?.[nodeId];
+    const base = flow?.layout?.nodes?.[nodeId] || { x: 80, y: 100 };
+    return { x: Number(custom?.x ?? base.x ?? 0), y: Number(custom?.y ?? base.y ?? 0) };
+  }
+
+  function renderMainFlowNode(moduleId, nodeId, node) {
+    const pos = state.positions.get(nodeId);
+    const element = document.createElement("article");
+    const kind = node.kind || "orchestrator";
+    const badges = [
+      kind === "dispatch" ? `${Number(node.candidateCount || 0)} candidates` : "",
+      kind === "dispatch" && node.candidateSetComplete ? "complete" : "",
+      kind === "dispatch" && !node.candidateSetComplete ? "partial" : "",
+      node.usageKind === "context_manager" ? "with" : node.usageKind === "async_context_manager" ? "async with" : "",
+      node.capabilityKind || "",
+      ...((functionDetailById.get(node.functionId)?.userSurfaceKinds || []).map(kind => `surface:${kind}`)),
+      node.flowBoundary ? "module boundary" : "",
+    ].filter(Boolean);
+    element.className = `node-card main-flow-node flow-${escapeHtml(kind)}${kind === "dispatch" ? " is-dispatch" : ""}`;
+    element.dataset.uid = nodeId;
+    element.style.left = `${pos.x}px`;
+    element.style.top = `${pos.y}px`;
+    element.style.width = `${pos.w}px`;
+    element.style.height = `${pos.h}px`;
+    element.style.setProperty("--mc", node.color || "#60a5fa");
+    element.style.setProperty("--mc-rgb", rgbFromHex(node.color || "#60a5fa"));
+    const icon = kind === "entry" ? "▶" : kind === "dispatch" ? "⑂" : kind === "provider" ? "C" : kind === "interface" ? "I" : "ƒ";
+    const labelText = node.label || node.providerName || node.id;
+    const noteText = node.note || "";
+    element.innerHTML = `<div class="flow-node-top">
+        <span class="flow-node-icon">${icon}</span>
+        <span class="flow-node-kind">${escapeHtml(kind.toUpperCase())}</span>
+        <span class="flow-node-module">${escapeHtml(node.moduleName || node.moduleId || "")}</span>
+      </div>
+      <div class="flow-node-label" title="${escapeHtml(labelText)}">${escapeHtml(labelText)}</div>
+      ${noteText ? `<div class="flow-node-note" title="${escapeHtml(noteText)}">${escapeHtml(noteText)}</div>` : ""}
+      ${badges.length ? `<div class="flow-node-badges">${badges.map(item => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}`;
+    world.appendChild(element);
+    bindNodeHover(element, nodeId);
+    element.addEventListener("click", event => {
+      event.stopPropagation();
+      selectUid(nodeId);
+    });
+    element.addEventListener("dblclick", event => {
+      event.stopPropagation();
+      if (node.functionId && functionDetailById.has(node.functionId)) {
+        const detail = functionDetailById.get(node.functionId);
+        navigate({ kind: "function", moduleId: detail.moduleId, functionId: detail.id });
+      }
+    });
+    attachDrag(element, element, {
+      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
+      setPosition: (x, y) => {
+        const item = state.positions.get(nodeId);
+        item.x = x; item.y = y;
+        setModulePagePosition(moduleId, nodeId, x, y);
+      },
+      onMove: () => { updateModuleWorldSize(moduleId); refreshModuleEdges(); },
+      onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
+    });
+  }
+
+  function renderMainFlowPage(moduleId, graph) {
+    const flow = currentMainFlow();
+    world.innerHTML = "";
+    world.classList.remove("page-enter");
+    state.nodes = new Map();
+    state.sizes = new Map();
+    state.positions = new Map();
+    if (!flow) {
+      world.style.width = "760px";
+      world.style.height = "420px";
+      world.innerHTML = `<div class="main-flow-empty"><div class="eyebrow">Main flow</div><h2>暂无可解析入口</h2><p>主模块已建立，但当前项目没有可用的 entrypoint 或主流程入口。</p></div>`;
+      updateModuleWorldSize(moduleId);
+      requestAnimationFrame(() => { applyTransform(); fitView(); renderDefaultDetail(); });
+      return;
+    }
+    state.flowId = flow.id;
+    flow.nodes.forEach(node => {
+      state.nodes.set(node.id, { ...node, color: node.color || graph.color });
+      state.sizes.set(node.id, { w: Number(node.w || 244), h: Number(node.h || 140) });
+      const pos = getFlowPosition(moduleId, node.id, flow);
+      state.positions.set(node.id, { x: pos.x, y: pos.y, w: Number(node.w || 244), h: Number(node.h || 140) });
+    });
+    const canvas = flow.layout?.canvas || { width: 1200, height: 800 };
+    const svg = makeSvg(Number(canvas.width || 1200), Number(canvas.height || 800), "world-edges");
+    world.appendChild(svg);
+    state.pageEdges = flow.edges || [];
+    state.pageEdges.forEach(edge => {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("class", flowEdgeClass(edge));
+      path.setAttribute("data-from", edge.from);
+      path.setAttribute("data-to", edge.to);
+      path.setAttribute("data-edge-id", edge.id);
+      path.setAttribute("data-edge-kind", edge.kind || "call");
+      const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+      const firstEvidence = (edge.evidence || [])[0] || {};
+      const callText = firstEvidence.callText || "";
+      const usagePrefix = firstEvidence.usageKind === "context_manager"
+        ? "with "
+        : firstEvidence.usageKind === "async_context_manager"
+          ? "async with "
+          : "";
+      title.textContent = `${usagePrefix}${callText || edge.kind || "call"} · ${edge.confidence || "medium"}${edge.branchLabel ? ` · ${edge.branchLabel}` : ""}`;
+      path.appendChild(title);
+      const from = state.positions.get(edge.from);
+      const to = state.positions.get(edge.to);
+      if (from && to) path.setAttribute("d", curvePath(from, to));
+      svg.appendChild(path);
+    });
+    state.nodes.forEach((node, nodeId) => renderMainFlowNode(moduleId, nodeId, node));
+    updateModuleWorldSize(moduleId);
+    refreshModuleEdges();
+    world.classList.add("page-enter");
+    requestAnimationFrame(() => {
+      applyTransform();
+      fitView();
+      renderDefaultDetail();
+      const pendingUid = state.pendingSelectUid;
+      state.pendingSelectUid = null;
+      if (pendingUid && state.nodes.has(pendingUid)) selectUid(pendingUid);
+      if (state.search) applySearch();
     });
   }
 
@@ -1192,6 +1301,10 @@
     setGraphChromeVisible(true);
     updateChrome("module");
     renderModuleContracts(moduleId);
+    if (graph.moduleKind === "main" && state.mainView !== "capabilities") {
+      renderMainFlowPage(moduleId, graph);
+      return;
+    }
     world.innerHTML = "";
     world.classList.remove("page-enter");
     state.nodes = new Map();
@@ -1203,8 +1316,6 @@
         state.nodes.set(node.id, { ...node, kind: "class", color: graph.color });
       } else if (node.kind === "function") {
         state.nodes.set(node.id, { ...node, kind: "function", color: graph.color });
-      } else {
-        state.nodes.set(node.id, { ...node, kind: node.kind === "input" ? "input" : "output" });
       }
     });
     state.sizes = new Map();
@@ -1232,7 +1343,6 @@
     state.nodes.forEach((node, nodeId) => {
       if (node.kind === "function") renderModuleFunctionNode(moduleId, nodeId, node);
       else if (node.kind === "class") renderModuleClassNode(moduleId, nodeId, node);
-      else renderModuleBoundary(moduleId, nodeId, node);
     });
     updateModuleWorldSize(moduleId);
     refreshModuleEdges();
@@ -1245,34 +1355,6 @@
       state.pendingSelectUid = null;
       if (pendingUid && state.nodes.has(pendingUid)) selectUid(pendingUid);
       if (state.search) applySearch();
-    });
-  }
-
-  function renderModuleBoundary(moduleId, nodeId, node) {
-    const pos = state.positions.get(nodeId);
-    const element = document.createElement("article");
-    element.className = `node-card boundary-node ${node.kind === "output" ? "output" : "input"}`;
-    element.dataset.uid = nodeId;
-    element.style.left = `${pos.x}px`;
-    element.style.top = `${pos.y}px`;
-    element.style.width = `${pos.w}px`;
-    element.style.height = `${pos.h}px`;
-    element.innerHTML = `<div class="boundary-kicker">${node.kind === "input" ? "MODULE INPUT" : "MODULE OUTPUT"}</div>
-      <div class="boundary-name">${node.kind === "input" ? "模块输入" : "模块输出"}</div>
-      <div class="boundary-note">${escapeHtml(node.label)}</div>`;
-    world.appendChild(element);
-    bindNodeHover(element, nodeId);
-    element.addEventListener("click", () => selectUid(nodeId));
-    attachDrag(element, element, {
-      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
-      setPosition: (x, y) => {
-        const item = state.positions.get(nodeId);
-        item.x = x; item.y = y;
-        setModulePagePosition(moduleId, nodeId, x, y);
-      },
-      bounds: () => ({ w: 2200, h: 1600 }),
-      onMove: refreshModuleEdges,
-      onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
 
@@ -1302,8 +1384,7 @@
         item.x = x; item.y = y;
         setModulePagePosition(moduleId, nodeId, x, y);
       },
-      bounds: () => ({ w: 2200, h: 1600 }),
-      onMove: refreshModuleEdges,
+      onMove: () => { updateModuleWorldSize(moduleId); refreshModuleEdges(); },
       onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
@@ -1317,9 +1398,11 @@
     const typeSummary = node.typeSummary || usage.typeSummary || null;
     const isTypeCard = node.providerRole === "config" || node.providerRole === "model";
     const constructorSignature = usage.constructor?.signature || `${node.name}()`;
+    const inheritanceText = (node.baseClassIds || []).length ? ` · ${node.baseClassIds.length} base` : "";
+    const inheritedText = Number(node.inheritedApiCount || 0) ? ` · ${Number(node.inheritedApiCount)} inherited` : "";
     const bodySummary = isTypeCard
-      ? `<div class="class-usage">${Number(typeSummary?.fieldCount || 0)} fields · type contract</div>`
-      : `<div class="class-usage">${escapeHtml(constructorSignature)}</div>`;
+      ? `<div class="class-usage">${Number(typeSummary?.fieldCount || 0)} fields · type contract${inheritanceText}</div>`
+      : `<div class="class-usage">${escapeHtml(constructorSignature)}${escapeHtml(inheritanceText + inheritedText)}</div>`;
     const chips = isTypeCard
       ? `<div class="class-method-chips type-fields">${typeFieldChips(typeSummary, 2)}</div>`
       : `<div class="class-method-chips">${apiChips(apis, 2)}</div>`;
@@ -1353,8 +1436,7 @@
         item.x = x; item.y = y;
         setModulePagePosition(moduleId, nodeId, x, y);
       },
-      bounds: () => ({ w: 2200, h: 1600 }),
-      onMove: refreshModuleEdges,
+      onMove: () => { updateModuleWorldSize(moduleId); refreshModuleEdges(); },
       onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
@@ -1375,7 +1457,7 @@
       const clickable = Boolean(entry.functionId && functionDetailById.has(entry.functionId));
       const content = `<span class="method-call-name">${escapeHtml(name)}</span>
         <span class="method-call-meta">${escapeHtml(meta)}</span>
-        <span class="method-call-kind">${entry.resolved === false ? (entry.external ? "external" : "unresolved") : "detail ↗"}</span>`;
+        <span class="method-call-kind">${entry.polymorphic ? `polymorphic ×${(entry.candidates || []).length}` : entry.resolved === false ? (entry.external ? "external" : "unresolved") : "detail ↗"}</span>`;
       return clickable
         ? `<button class="method-call-item" type="button" data-goto-method="${escapeHtml(entry.functionId)}">${content}</button>`
         : `<div class="method-call-item is-static">${content}</div>`;
@@ -1428,6 +1510,9 @@
       detail.apiExposureSource ? `source:${detail.apiExposureSource}` : "",
       detail.isAsync ? "async" : "",
       detail.isAbstract ? "abstract" : "",
+      detail.overrideOfFunctionId ? "override" : "",
+      ...(detail.userSurfaceKinds || []).map(kind => `surface:${kind}`),
+      Number(detail.polymorphicCallerCount || 0) ? `poly-callers:${detail.polymorphicCallerCount}` : "",
     ].filter(Boolean);
 
     world.innerHTML = `<div class="method-page">
@@ -1452,6 +1537,14 @@
             <div class="method-panel-heading"><span>Callees</span><em>${detail.calleeCount || 0}</em></div>
             ${methodCallList(detail.callees || [], "暂无被调用者")}
           </section>
+          ${(detail.polymorphicCallers || []).length ? `<section>
+            <div class="method-panel-heading"><span>Polymorphic callers</span><em>${detail.polymorphicCallerCount || 0}</em></div>
+            ${polymorphicCallList(detail.polymorphicCallers, "暂无多态调用者")}
+          </section>` : ""}
+          ${(detail.polymorphicCallees || []).length ? `<section>
+            <div class="method-panel-heading"><span>Polymorphic callees</span><em>${detail.polymorphicCalleeCount || 0}</em></div>
+            ${polymorphicCallList(detail.polymorphicCallees, "暂无多态候选")}
+          </section>` : ""}
         </aside>
       </div>
     </div>`;
@@ -1471,6 +1564,8 @@
       <div class="detail-note">${escapeHtml(detail.note || "暂无函数备注")}</div>
       <div class="port-detail"><span>API <b>${escapeHtml(detail.apiExposure || "public")}</b></span><span>来源 <b>${escapeHtml(detail.apiExposureSource || "naming")}</b></span><span>返回 <b>${escapeHtml(detail.returns || "—")}</b></span><span>异常 <b>${escapeHtml((detail.raises || []).join(" / ") || "—")}</b></span></div>
       ${ownerLine}
+      ${detail.overrideOfFunctionId ? `<div class="source-line">override of <code>${escapeHtml(detail.overrideOfFunctionId)}</code></div>` : ""}
+      ${(detail.overriddenByFunctionIds || []).length ? `<div class="source-line">overridden by ${detail.overriddenByFunctionIds.map(id => `<code>${escapeHtml(id)}</code>`).join(" ")}</div>` : ""}
       <div class="source-line">${escapeHtml(detail.file)}:${detail.line}</div>
       ${annotationBlock(detail.id, detail.sourceHash)}`;
 
@@ -1497,7 +1592,7 @@
   function applySearch() {
     const query = state.search.trim().toLowerCase();
     if (!query || state.pageKind === "method") {
-      world.querySelectorAll(".node-card, .mini-node").forEach(node => node.classList.remove("is-search-dim"));
+      world.querySelectorAll(".node-card").forEach(node => node.classList.remove("is-search-dim"));
       world.querySelectorAll(".macro-edge").forEach(edge => edge.classList.remove("is-search-dim"));
       return;
     }
@@ -1506,7 +1601,7 @@
         if (node.kind !== "module") return;
         const graph = moduleGraphById.get(uid);
         const haystack = [
-          node.name, node.note, ...(node.inputs || []).map(item => item.label), ...(node.outputs || []).map(item => item.label),
+          node.name, node.note,
           ...(graph?.nodes || []).flatMap(item => {
             if (item.kind === "class") return [item.name, item.note, ...(item.methods || []).flatMap(method => [method.name, method.note])];
             if (item.kind === "function") return [item.name, item.note];
@@ -1516,9 +1611,14 @@
         ].join(" ").toLowerCase();
         world.querySelector(`.module-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
       });
-      world.querySelectorAll(".boundary-node").forEach(node => node.classList.remove("is-search-dim"));
     } else if (state.pageKind === "module") {
       state.nodes.forEach((node, uid) => {
+        if (node.flowRole) {
+          const haystack = [node.label, node.note, node.providerName, node.moduleName, node.capabilityKind, node.expression]
+            .filter(Boolean).join(" ").toLowerCase();
+          world.querySelector(`.main-flow-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
+          return;
+        }
         if (node.kind !== "function" && node.kind !== "class") return;
         const haystack = node.kind === "class"
           ? [node.name, node.note, ...(node.providedApis || []).flatMap(api => [api.display, api.kind, api.signature])].join(" ").toLowerCase()

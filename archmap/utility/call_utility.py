@@ -60,3 +60,41 @@ def _calls_in_function(fn: FunctionInfo) -> list[ast.Call]:
     for stmt in body:
         visitor.visit(stmt)
     return visitor.calls
+
+
+def _context_manager_usage(fn: FunctionInfo) -> dict[int, str]:
+    """Map context-manager call nodes to their usage kind.
+
+    Only the outermost call expression of a ``with`` item is marked. A call
+    nested inside that expression is an argument, not the context manager
+    itself, so it must retain its normal call/instantiate classification.
+    """
+
+    usage: dict[int, str] = {}
+
+    class _Visitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            return
+
+        def visit_With(self, node: ast.With) -> None:
+            for item in node.items:
+                if isinstance(item.context_expr, ast.Call):
+                    usage[id(item.context_expr)] = "context_manager"
+            self.generic_visit(node)
+
+        def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+            for item in node.items:
+                if isinstance(item.context_expr, ast.Call):
+                    usage[id(item.context_expr)] = "async_context_manager"
+            self.generic_visit(node)
+
+    visitor = _Visitor()
+    for stmt in getattr(fn.node, "body", []):
+        visitor.visit(stmt)
+    return usage

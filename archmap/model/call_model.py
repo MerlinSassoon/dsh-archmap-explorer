@@ -16,6 +16,8 @@ class ResolvedCall:
     recursive: bool = False
     confidence: str = "low"
     candidates: list[str] = field(default_factory=list)
+    polymorphic: bool = False
+    dispatch_kind: str = "static"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -27,6 +29,8 @@ class ResolvedCall:
             "recursive": self.recursive,
             "confidence": self.confidence,
             "candidates": list(self.candidates),
+            "polymorphic": self.polymorphic,
+            "dispatchKind": self.dispatch_kind,
         }
 @dataclass
 class CallSite:
@@ -49,6 +53,9 @@ class CallSite:
     confidence: str
     candidates: list[str] = field(default_factory=list)
     argument_count: int = 0
+    polymorphic: bool = False
+    dispatch_kind: str = "static"
+    usage_kind: str = "call"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -69,4 +76,7 @@ class CallSite:
             "confidence": self.confidence,
             "candidates": list(self.candidates),
             "argumentCount": self.argument_count,
+            "polymorphic": self.polymorphic,
+            "dispatchKind": self.dispatch_kind,
+            "usageKind": self.usage_kind,
         }

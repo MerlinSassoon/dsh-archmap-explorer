@@ -7,6 +7,54 @@ from typing import Any
 
 
 @dataclass
+class ClassRelation:
+    """A resolved structural type relationship between two local classes."""
+
+    id: str
+    kind: str
+    from_class_id: str
+    to_class_id: str
+    to_class_name: str
+    module_id: str
+    target_module_id: str
+    confidence: str = "high"
+    evidence_file: str = ""
+    evidence_line: int = 0
+    from_provider_id: str | None = None
+    to_provider_id: str | None = None
+    source: str = "base_class"
+    from_provider_role: str | None = None
+    to_provider_role: str | None = None
+    from_visibility: str | None = None
+    to_visibility: str | None = None
+    evidence_function_ids: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "fromClassId": self.from_class_id,
+            "toClassId": self.to_class_id,
+            "toClassName": self.to_class_name,
+            "fromProviderId": self.from_provider_id or self.from_class_id,
+            "toProviderId": self.to_provider_id or self.to_class_id,
+            "moduleId": self.module_id,
+            "targetModuleId": self.target_module_id,
+            "confidence": self.confidence,
+            "source": self.source,
+            "fromProviderRole": self.from_provider_role,
+            "toProviderRole": self.to_provider_role,
+            "fromVisibility": self.from_visibility,
+            "toVisibility": self.to_visibility,
+            "evidenceFunctionIds": list(self.evidence_function_ids),
+            "evidence": {
+                "file": self.evidence_file,
+                "line": self.evidence_line,
+            },
+        }
+
+
+@dataclass
 class ProviderRoleInfo:
     """Resolved responsibility for a class or module-level function provider."""
 
@@ -20,6 +68,10 @@ class ProviderRoleInfo:
     provider_visibility: str = "public"
     owner_provider_id: str | None = None
     type_summary: dict[str, Any] | None = None
+    base_class_ids: list[str] = field(default_factory=list)
+    subclass_ids: list[str] = field(default_factory=list)
+    mro_class_ids: list[str] = field(default_factory=list)
+    abstract_method_names: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -29,6 +81,10 @@ class ProviderRoleInfo:
             "providerVisibility": self.provider_visibility,
             "ownerProviderId": self.owner_provider_id,
             "typeSummary": self.type_summary,
+            "baseClassIds": list(self.base_class_ids),
+            "subclassIds": list(self.subclass_ids),
+            "mroClassIds": list(self.mro_class_ids),
+            "abstractMethodNames": list(self.abstract_method_names),
         }
 
 
@@ -66,6 +122,11 @@ class ApiCapability:
     role_confidence: str = "medium"
     provider_visibility: str = "internal"
     owner_provider_id: str | None = None
+    inherited: bool = False
+    declared_in_provider_id: str | None = None
+    inherited_from_provider_id: str | None = None
+    overrides_capability_id: str | None = None
+    inherited_from_class_ids: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -93,6 +154,11 @@ class ApiCapability:
             "file": self.file,
             "line": self.line,
             "endLine": self.end_line,
+            "inherited": self.inherited,
+            "declaredInProviderId": self.declared_in_provider_id or self.provider_id,
+            "inheritedFromProviderId": self.inherited_from_provider_id,
+            "overridesCapabilityId": self.overrides_capability_id,
+            "inheritedFromClassIds": list(self.inherited_from_class_ids),
         }
 
 
@@ -111,6 +177,10 @@ class ClassUsage:
     provider_visibility: str = "public"
     owner_provider_id: str | None = None
     type_summary: dict[str, Any] | None = None
+    base_class_ids: list[str] = field(default_factory=list)
+    subclass_ids: list[str] = field(default_factory=list)
+    mro_class_ids: list[str] = field(default_factory=list)
+    abstract_method_names: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -125,6 +195,10 @@ class ClassUsage:
             "providerVisibility": self.provider_visibility,
             "ownerProviderId": self.owner_provider_id,
             "typeSummary": self.type_summary,
+            "baseClassIds": list(self.base_class_ids),
+            "subclassIds": list(self.subclass_ids),
+            "mroClassIds": list(self.mro_class_ids),
+            "abstractMethodNames": list(self.abstract_method_names),
         }
 
 
@@ -135,6 +209,7 @@ class ContractModel:
     capabilities: list[ApiCapability] = field(default_factory=list)
     class_usage: dict[str, ClassUsage] = field(default_factory=dict)
     provider_roles: dict[str, ProviderRoleInfo] = field(default_factory=dict)
+    class_relations: list[ClassRelation] = field(default_factory=list)
 
     def capabilities_by_provider(self) -> dict[str, list[ApiCapability]]:
         grouped: dict[str, list[ApiCapability]] = {}

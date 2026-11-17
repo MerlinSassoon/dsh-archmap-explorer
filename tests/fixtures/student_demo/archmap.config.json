@@ -7,14 +7,6 @@
   "exclude": [
     "**/__pycache__/**"
   ],
-  "project": {
-    "inputs": [
-      "用户请求"
-    ],
-    "outputs": [
-      "处理结果"
-    ]
-  },
   "entrypoints": [
     "main:main"
   ],
@@ -26,14 +18,9 @@
         "app/main.py"
       ],
       "note": "程序入口模块",
-      "inputs": [
-        "用户请求"
-      ],
-      "outputs": [
-        "处理结果"
-      ],
       "color": "#f59e0b",
-      "role": "main"
+      "role": "main",
+      "kind": "main"
     },
     {
       "id": "service",
@@ -42,14 +29,9 @@
         "app/service.py"
       ],
       "note": "业务编排模块",
-      "inputs": [
-        "入口参数"
-      ],
-      "outputs": [
-        "服务结果"
-      ],
       "color": "#60a5fa",
-      "role": "service"
+      "role": "service",
+      "kind": "functional"
     },
     {
       "id": "repo",
@@ -58,14 +40,10 @@
         "app/repo.py"
       ],
       "note": "数据读写模块",
-      "inputs": [
-        "查询条件"
-      ],
-      "outputs": [
-        "存储结果"
-      ],
       "color": "#8bdc64",
-      "role": "service"
+      "role": "service",
+      "kind": "functional"
     }
-  ]
+  ],
+  "mainModule": "entry"
 }

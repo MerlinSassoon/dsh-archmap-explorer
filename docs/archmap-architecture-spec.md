@@ -1,7 +1,7 @@
 # ArchMap 架构与编码规范
 
 > 状态：P2.3 已落盘并完成 ArchMap 自身代码迁移<br>
-> 版本：ArchMap 1.5.0 / bundle schema 3.5<br>
+> 版本：ArchMap 1.8.0 / bundle schema 3.8<br>
 > 日期：2026-11-17<br>
 > 适用范围：ArchMap 自身源码、P3/P4 扩展和后续 ArchMap 分析的规范项目。
 
@@ -252,9 +252,29 @@ adapter → contract
 - manager 之间通过明确接口或上层编排协作，禁止循环依赖；
 - adapter 通过 contract 被 manager 使用。
 
-## 4. 模块与子模块
+## 4. 主模块、功能模块与主流程
 
-项目页只展示顶层模块。模块页可展示子模块。
+项目必须区分两类模块：
+
+```text
+主模块      唯一组合根，承载入口与顶层编排；主模块页默认展示主流程
+功能模块    暴露 Provider/Capability；数量允许为 0..N
+```
+
+约束：
+
+- 恰好一个 `moduleKind=main`。
+- 不为了满足模块数量虚造功能模块。
+- 模块不拥有输入/输出端口；依赖和能力分别由调用证据与 `providedApis` 表达。
+- 主流程 `flowRole` 独立于 Provider Role，不得因主流程分析改变功能模块 API 分类。
+- 主流程节点：entry / orchestrator / provider / interface / dispatch。
+- 主流程边：call / call_path / composition；composition 只能低置信度虚线。
+- dispatch 候选需要显式完整性标记，无法推断时保留 unresolved。
+- **主流程边界**：遍历只在主模块内部继续；跨入功能模块时只物化 canonical interface/provider，不穿透其实现。
+- 功能模块边界节点 `flowBoundary=true`、`expandable=false`，无出边；内部 utility 不进入主流程。
+- 主流程是组合视图，全量跨模块调用与内部实现分别由模块关系视图、Method Detail 和 P4 trace 承担。
+
+项目页只展示顶层模块。功能模块页展示 Provider；主模块页默认展示主流程，并保留能力视图。
 
 ```text
 Project
@@ -364,7 +384,7 @@ visibility → default presentation
 
 - 先冻结契约，再迁移代码；
 - 先 config/model，再 utility，再 manager，最后 entry；
-- 保留旧 import shim，逐步移除；
+- 旧 import shim 最终已删除，所有内部引用使用新目录；
 - CLI、bundle schema、HTML 行为保持稳定；
 - utility 默认不进入主视图；
 - 迁移完成后更新自举配置和文档；

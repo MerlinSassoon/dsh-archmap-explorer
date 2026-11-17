@@ -29,3 +29,15 @@ def test_cli_build_and_check(tmp_path: Path) -> None:
     )
     assert check.returncode == 0, check.stdout + check.stderr
 
+
+def test_cli_version_uses_package_version() -> None:
+    from archmap import __version__
+
+    result = subprocess.run(
+        [sys.executable, "-m", "archmap", "--version"],
+        cwd=Path(__file__).parent.parent,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == f"archmap {__version__}"

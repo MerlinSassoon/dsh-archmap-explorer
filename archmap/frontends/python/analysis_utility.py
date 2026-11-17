@@ -13,6 +13,7 @@ from ...model.analysis_model import (
     ModuleInfo,
     SourceFile,
 )
+from .type_utility import resolve_type_hierarchy
 from ...utility.analysis_utility import (
     _api_exposure,
     _class_kind,
@@ -101,7 +102,10 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
                     # Nested functions are indexed but not descended into for class methods.
                 elif isinstance(child, ast.ClassDef):
                     qualname = f"{qual_prefix}{child.name}"
-                    class_bases = [_unparse(base) for base in child.bases]
+                    class_bases = [
+                        _unparse(base).split("[", 1)[0].strip()
+                        for base in child.bases
+                    ]
                     cls = ClassInfo(
                         name=child.name,
                         qualname=qualname,
@@ -223,7 +227,7 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
             method_index[(f"{fn.module_name}.{fn.class_name}", fn.name)] = fn
             method_index[(fn.class_name, fn.name)] = fn
 
-    return AnalysisResult(
+    analysis = AnalysisResult(
         config=config,
         modules=modules,
         functions=functions,
@@ -235,3 +239,5 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
         function_by_qualname=function_by_qualname,
         method_index=method_index,
     )
+    resolve_type_hierarchy(analysis)
+    return analysis

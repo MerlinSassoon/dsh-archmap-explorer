@@ -10,6 +10,7 @@ from .contract_config import PROVIDER_ROLES
 
 
 MODULE_ROLES = {"main", "service", "adapter", "test", "other"}
+MODULE_KINDS = {"main", "functional"}
 
 DEFAULT_PUBLIC_API_TAGS = [
     "公开API",
@@ -39,14 +40,27 @@ DEFAULT_EXCLUDES = [
 
 @dataclass
 class ModuleConfig:
+    """A logical module in the project composition."""
+
     id: str
     name: str
     include: list[str] = field(default_factory=list)
     note: str = ""
-    inputs: list[str] = field(default_factory=list)
-    outputs: list[str] = field(default_factory=list)
     color: str = "#f59e0b"
     role: str = ""
+    kind: str = ""
+
+
+@dataclass
+class DispatchHint:
+    """Declared candidate set for one dynamic dispatch site."""
+
+    function: str
+    expression: str = ""
+    occurrence: int = 1
+    candidates: list[str] = field(default_factory=list)
+    complete: bool = False
+    reason: str = ""
 
 
 @dataclass
@@ -58,8 +72,8 @@ class ProjectConfig:
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDES))
     modules: list[ModuleConfig] = field(default_factory=list)
     entrypoints: list[str] = field(default_factory=list)
-    inputs: list[str] = field(default_factory=lambda: ["用户输入"])
-    outputs: list[str] = field(default_factory=lambda: ["用户输出"])
+    main_module_id: str = ""
+    dispatch_hints: list[DispatchHint] = field(default_factory=list)
     max_functions: int = 2000
     max_steps: int = 300
     max_data_deps: int = 200
@@ -68,4 +82,5 @@ class ProjectConfig:
     api_exposure_overrides: dict[str, str] = field(default_factory=dict)
     provider_role_overrides: dict[str, str] = field(default_factory=dict)
     module_exports: dict[str, list[str]] = field(default_factory=dict)
+    user_surface_overrides: list[dict[str, Any]] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
