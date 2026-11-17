@@ -1,13 +1,24 @@
 {
   "projectName": "archmap_v3",
   "language": "python",
-  "include": ["archmap/**/*.py"],
-  "exclude": ["**/__pycache__/**"],
+  "include": [
+    "archmap/**/*.py"
+  ],
+  "exclude": [
+    "**/__pycache__/**"
+  ],
   "project": {
-    "inputs": ["Python 项目路径与 archmap 配置"],
-    "outputs": ["architecture.json", "architecture.html"]
+    "inputs": [
+      "Python 项目路径与 archmap 配置"
+    ],
+    "outputs": [
+      "architecture.json",
+      "architecture.html"
+    ]
   },
-  "entrypoints": ["archmap.cli:main"],
+  "entrypoints": [
+    "archmap.cli:main"
+  ],
   "modules": [
     {
       "id": "cli-pipeline",
@@ -19,10 +30,15 @@
         "archmap/config.py",
         "archmap/pipeline.py"
       ],
-      "note": "命令行入口、配置加载与发现→分析→布局→构建的总流水线。",
-      "inputs": ["命令行参数与项目配置"],
-      "outputs": ["分析任务与构建产物"],
-      "color": "#f59e0b"
+      "note": "命令行入口、配置加载与发现→分析→调用事实→详情→构建的总流水线。",
+      "inputs": [
+        "命令行参数与项目配置"
+      ],
+      "outputs": [
+        "分析任务与构建产物"
+      ],
+      "color": "#f59e0b",
+      "role": "main"
     },
     {
       "id": "python-frontend",
@@ -31,39 +47,35 @@
         "archmap/discover.py",
         "archmap/analysis.py",
         "archmap/callresolver.py",
+        "archmap/callsites.py",
+        "archmap/details.py",
         "archmap/frontends/**/*.py"
       ],
       "note": "源码发现、AST 索引、符号解析、调用解析与语言前端适配层。",
-      "inputs": ["Python 源码与扫描配置"],
-      "outputs": ["模块、函数、调用目标与 canonical 分析结果"],
-      "color": "#60a5fa"
-    },
-    {
-      "id": "flow-build",
-      "name": "执行流构建",
-      "include": ["archmap/flow.py"],
-      "note": "把 Python 语句转换为 ENTRY/EXIT 执行流、结构化块和函数内数据依赖。",
-      "inputs": ["AST 语句与符号解析结果"],
-      "outputs": ["canonical FunctionFlow"],
-      "color": "#8bdc64"
+      "inputs": [
+        "Python 源码与扫描配置"
+      ],
+      "outputs": [
+        "模块、函数、调用目标与 canonical 分析结果"
+      ],
+      "color": "#60a5fa",
+      "role": "service"
     },
     {
       "id": "graph-projection",
       "name": "架构投影",
-      "include": ["archmap/graph.py"],
-      "note": "生成 ProjectGraph、ModuleGraph、宏观调用/数据边、入口与语义指纹。",
-      "inputs": ["函数流、调用记录与逻辑模块配置"],
-      "outputs": ["archmap.bundle 与三层架构投影"],
-      "color": "#a78bfa"
-    },
-    {
-      "id": "layout-routing",
-      "name": "布局与路由",
-      "include": ["archmap/layout.py"],
-      "note": "rank、结构树 x 布局、Merge 对齐、Lane 分配与正交 SVG 路径生成。",
-      "inputs": ["FunctionFlow 的节点、边与块结构"],
-      "outputs": ["确定性节点坐标与正交边路径"],
-      "color": "#22d3ee"
+      "include": [
+        "archmap/graph.py"
+      ],
+      "note": "生成 ProjectGraph、ModuleGraph、模块能力契约、宏观调用/数据边、入口与语义指纹。",
+      "inputs": [
+        "函数详情、调用记录与逻辑模块配置"
+      ],
+      "outputs": [
+        "archmap.bundle 与三层架构投影"
+      ],
+      "color": "#a78bfa",
+      "role": "service"
     },
     {
       "id": "validate-render",
@@ -73,9 +85,14 @@
         "archmap/render.py"
       ],
       "note": "三层 bundle 校验、跨引用检查以及自包含 HTML 模板渲染。",
-      "inputs": ["bundle、layout 与可选 LLM 注解"],
-      "outputs": ["校验报告与单文件 architecture.html"],
-      "color": "#f472b6"
+      "inputs": [
+        "bundle、layout 与可选 LLM 注解"
+      ],
+      "outputs": [
+        "校验报告与单文件 architecture.html"
+      ],
+      "color": "#f472b6",
+      "role": "service"
     }
   ]
 }

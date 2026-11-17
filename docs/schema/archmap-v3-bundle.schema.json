@@ -224,6 +224,95 @@
         }
       }
     },
+    "providedApi": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "qualifiedName",
+        "ownerKind",
+        "ownerName",
+        "moduleId",
+        "functionId",
+        "signature",
+        "isAbstract",
+        "isEntry"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "method",
+            "abstract_method",
+            "function"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "qualifiedName": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "ownerName": {
+          "type": "string"
+        },
+        "ownerKind": {
+          "enum": [
+            "class",
+            "module"
+          ]
+        },
+        "ownerClassKind": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "functionId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "functionDetailId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "signature": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "methodKind": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string"
+        },
+        "isAbstract": {
+          "type": "boolean"
+        },
+        "isEntry": {
+          "type": "boolean"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        }
+      }
+    },
     "macroNode": {
       "type": "object",
       "additionalProperties": true,
@@ -440,6 +529,25 @@
           "items": {
             "$ref": "#/$defs/macroEdge"
           }
+        },
+        "role": {
+          "enum": [
+            "main",
+            "service",
+            "adapter",
+            "test",
+            "other"
+          ]
+        },
+        "providedApis": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/providedApi"
+          }
+        },
+        "providedApiCount": {
+          "type": "integer",
+          "minimum": 0
         },
         "classCount": {
           "type": "integer",

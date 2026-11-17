@@ -29,7 +29,9 @@
   const canvasSub = $("canvasSub");
   const zoomValue = $("zoomValue");
   const saveState = $("saveState");
+  const relationModeBtn = $("relationModeBtn");
   const singleModeBtn = $("singleModeBtn");
+  const moduleContracts = $("moduleContracts");
   const projectNameEl = $("projectName");
   const projectLanguageEl = $("projectLanguage");
   const toastEl = $("toast");
@@ -43,6 +45,7 @@
     hoveredUid: null,
     search: "",
     singleModule: false,
+    showProjectRelations: false,
     suppressClickUntil: 0,
     pageKind: "project",
     pageEdges: [],
@@ -175,6 +178,13 @@
       world.querySelectorAll(".mini-node").forEach(node => node.classList.remove("is-dim", "is-selected"));
       return;
     }
+    // Capability cards are siblings, not a dependency neighbourhood.  Without
+    // the optional relation view, selecting one module must not dim the rest.
+    if (state.pageKind === "project" && !state.showProjectRelations) {
+      nodes.forEach(node => node.classList.remove("is-dim", "is-highlight"));
+      edges.forEach(edge => edge.classList.remove("is-dim", "is-highlight"));
+      return;
+    }
     const neighborUids = new Set([focusUid]);
     state.pageEdges.forEach(edge => {
       if (edge.from === focusUid || edge.to === focusUid) {
@@ -227,14 +237,14 @@
     const height = world.offsetHeight || Number(world.style.height.replace("px", "")) || 700;
     const rect = viewport.getBoundingClientRect();
     const padX = 58;
-    const padTop = state.pageKind === "function" ? 26 : 64;
+    const padTop = state.pageKind === "module" ? 122 : state.pageKind === "method" ? 26 : 64;
     const padBottom = 46;
     const scale = Math.min(
       (rect.width - padX * 2) / Math.max(1, width),
       (rect.height - padTop - padBottom) / Math.max(1, height),
       1
     );
-    const minScale = state.pageKind === "function" ? .5 : .2;
+    const minScale = state.pageKind === "method" ? .5 : .2;
     state.scale = Math.max(minScale, Math.min(1, scale));
     const availableW = rect.width - padX * 2;
     const availableH = rect.height - padTop - padBottom;
@@ -342,8 +352,61 @@
   function legendItem(kind, text) {
     if (kind === "input") return `<span class="legend-item"><span class="legend-swatch"></span>${escapeHtml(text)}</span>`;
     if (kind === "output") return `<span class="legend-item"><span class="legend-swatch out"></span>${escapeHtml(text)}</span>`;
+    if (kind === "card") return `<span class="legend-item"><span class="legend-swatch"></span>${escapeHtml(text)}</span>`;
     if (kind === "dashed") return `<span class="legend-item"><span class="legend-line dashed"></span>${escapeHtml(text)}</span>`;
     return `<span class="legend-item"><span class="legend-line"></span>${escapeHtml(text)}</span>`;
+  }
+
+  function moduleRoleLabel(role) {
+    return ({
+      main: "MAIN",
+      service: "SERVICE",
+      adapter: "ADAPTER",
+      test: "TEST",
+      other: "MODULE",
+    }[role] || "MODULE");
+  }
+
+  function apiDisplayName(api) {
+    if (!api) return "";
+    return api.ownerKind === "class"
+      ? `${api.ownerName || ""}.${api.name || ""}`.replace(/^\./, "")
+      : (api.name || api.qualifiedName || "");
+  }
+
+  function apiChips(apis, limit, options = {}) {
+    const items = (apis || []).slice(0, limit);
+    if (!items.length) {
+      return `<div class="module-api-empty">暂无公开接口</div>`;
+    }
+    const chips = items.map(api => {
+      const label = apiDisplayName(api) + (api.kind === "abstract_method" ? "()" : "()");
+      const classes = ["module-api-chip", api.isEntry ? "is-entry" : "", api.isAbstract ? "is-abstract" : ""].filter(Boolean).join(" ");
+      return `<button class="${classes}" type="button" data-open-api="${escapeHtml(api.functionId)}" title="${escapeHtml(api.signature || label)}">${escapeHtml(label)}</button>`;
+    }).join("");
+    const more = (apis || []).length > items.length && options.showMore !== false
+      ? `<span class="module-api-chip more">+${apis.length - items.length}</span>`
+      : "";
+    return chips + more;
+  }
+
+  function apiDetailList(apis) {
+    if (!apis || !apis.length) return `<div class="class-method-empty">暂无公开接口</div>`;
+    return apis.map(api => `<button class="detail-api-row" type="button" data-open-api="${escapeHtml(api.functionId)}">
+        <span class="detail-api-kind">${escapeHtml(api.kind === "abstract_method" ? "abstract" : api.kind)}</span>
+        <span class="detail-api-name">${escapeHtml(apiDisplayName(api))}()</span>
+        ${api.isEntry ? `<span class="detail-api-entry">entry</span>` : ""}
+      </button>`).join("");
+  }
+
+  function bindApiNavigation(root) {
+    root.querySelectorAll("[data-open-api]").forEach(button => {
+      button.addEventListener("click", event => {
+        event.stopPropagation();
+        const target = functionDetailById.get(button.dataset.openApi);
+        if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
+      });
+    });
   }
 
   function annotationBlock(uid, sourceHash) {
@@ -371,24 +434,28 @@
     if (state.route.kind === "project") {
       const inputs = projectGraph.boundaryNodes.filter(node => node.kind === "input").map(node => node.label);
       const outputs = projectGraph.boundaryNodes.filter(node => node.kind === "output").map(node => node.label);
-      detailScroll.innerHTML = `<div class="eyebrow">Project page</div>
+      const mainCount = projectGraph.modules.filter(node => node.role === "main").length;
+      detailScroll.innerHTML = `<div class="eyebrow">Project capability map</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(DATA.project.name)}</h2>
-        <div class="detail-note">项目页仅展示逻辑模块。模块保留人工备注、输入与输出；文件路径只作为函数节点的源码证据。</div>
-        <div class="port-detail"><span>项目输入 <b>${escapeHtml(inputs.join(" / ") || "—")}</b></span><span>项目输出 <b>${escapeHtml(outputs.join(" / ") || "—")}</b></span></div>
+        <div class="detail-note">项目页展示模块能力与对外接口，不绘制模块依赖线。依赖证据仍保留在 bundle 中，可通过“关系”模式或后续影响分析查看。</div>
+        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>主模块 <b>${mainCount}</b></span><span>项目输入 <b>${escapeHtml(inputs.join(" / ") || "—")}</b></span><span>项目输出 <b>${escapeHtml(outputs.join(" / ") || "—")}</b></span></div>
         ${annotationBlock(DATA.project.name)}
-        <div class="empty-hint">单击节点查看备注与 LLM 语义占位；双击模块或点击 ↗ 进入独立模块页面。</div>`;
+        <div class="empty-hint">单击模块查看职责与提供接口；双击模块或点击 ↗ 进入独立模块页面。</div>`;
       return;
     }
     if (state.route.kind === "module") {
       const module = moduleGraphById.get(state.route.moduleId);
       if (!module) return;
+      const apis = module.providedApis || [];
       detailScroll.innerHTML = `<div class="detail-head" style="--mc:${module.color}"><div class="detail-color"></div><div>
-          <div class="eyebrow">Module node</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
-          <div class="detail-module">module://${escapeHtml(module.moduleId)}</div></div></div>
+          <div class="eyebrow">Module capability</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
+          <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
-        <div class="port-detail"><span>输入 <b>${escapeHtml(module.inputs.map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml(module.outputs.map(item => item.label).join(" / "))}</b></span></div>
+        <div class="port-detail"><span>输入 <b>${escapeHtml(module.inputs.map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml(module.outputs.map(item => item.label).join(" / "))}</b></span><span>提供接口 <b>${apis.length}</b></span></div>
+        <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiDetailList(apis)}</div>
         ${annotationBlock(module.moduleId)}
         <div class="empty-hint">双击自由函数进入方法详情；类方法从类详情面板进入。</div>`;
+      bindApiNavigation(detailScroll);
       return;
     }
     const detail = functionDetailById.get(state.route.functionId);
@@ -416,14 +483,17 @@
       }
       if (macroNode.kind === "module") {
         const graph = moduleGraphById.get(uid);
+        const apis = graph?.providedApis || [];
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color}"><div class="detail-color"></div><div>
-            <div class="eyebrow">Module node</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
+            <div class="eyebrow">Module capability · ${escapeHtml(moduleRoleLabel(macroNode.role))}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">module://${escapeHtml(uid)}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
-          <div class="port-detail"><span>输入 <b>${escapeHtml((macroNode.inputs || []).map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml((macroNode.outputs || []).map(item => item.label).join(" / "))}</b></span></div>
+          <div class="port-detail"><span>输入 <b>${escapeHtml((macroNode.inputs || []).map(item => item.label).join(" / "))}</b></span><span>输出 <b>${escapeHtml((macroNode.outputs || []).map(item => item.label).join(" / "))}</b></span><span>提供接口 <b>${apis.length}</b></span></div>
+          <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiDetailList(apis)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>
           ${annotationBlock(uid)}
           <div class="detail-actions"><button class="detail-action" type="button" data-open-module-detail="${escapeHtml(uid)}">打开模块页面</button></div>`;
+        bindApiNavigation(detailScroll);
         detailScroll.querySelector("[data-open-module-detail]")?.addEventListener("click", () => navigate({ kind: "module", moduleId: uid }));
         return;
       }
@@ -477,21 +547,42 @@
     renderDefaultDetail();
   }
 
+  function renderModuleContracts(moduleId) {
+    if (!moduleContracts) return;
+    const graph = moduleGraphById.get(moduleId);
+    const apis = graph?.providedApis || [];
+    if (!graph) {
+      moduleContracts.innerHTML = "";
+      moduleContracts.classList.remove("is-visible");
+      return;
+    }
+    moduleContracts.innerHTML = `<div class="contracts-label">PROVIDED API</div>
+      <div class="contracts-track">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
+      <div class="contracts-count">${apis.length} apis</div>`;
+    moduleContracts.classList.add("is-visible");
+    bindApiNavigation(moduleContracts);
+  }
+
   function updateChrome(kind) {
     const module = state.route.moduleId ? projectModuleById.get(state.route.moduleId) : null;
     const detail = state.route.functionId ? functionDetailById.get(state.route.functionId) : null;
+    relationModeBtn.style.display = kind === "project" ? "" : "none";
+    relationModeBtn.setAttribute("aria-pressed", String(state.showProjectRelations));
+    relationModeBtn.textContent = state.showProjectRelations ? "隐藏关系" : "关系";
     if (kind === "project") {
-      canvasKicker.textContent = "Project topology";
+      canvasKicker.textContent = "Project capability map";
       canvasTitle.textContent = DATA.project.name;
-      canvasSub.textContent = "模块是项目页的节点 · 拖拽调整布局 · 双击进入模块页面";
+      canvasSub.textContent = "模块能力卡片 · 提供接口 · 双击进入模块页面";
       breadcrumb.innerHTML = `<b>${escapeHtml(DATA.project.name)}</b>`;
-      legend.innerHTML = legendItem("line", "模块调用/数据关系") + legendItem("input", "用户输入") + legendItem("output", "用户输出");
+      legend.innerHTML = state.showProjectRelations
+        ? legendItem("line", "模块调用/数据关系") + legendItem("input", "项目输入") + legendItem("output", "项目输出")
+        : legendItem("card", "模块能力卡片") + legendItem("input", "项目输入") + legendItem("output", "项目输出");
     } else if (kind === "module") {
-      canvasKicker.textContent = "Module topology";
+      canvasKicker.textContent = "Module capability";
       canvasTitle.textContent = module?.name || state.route.moduleId;
-      canvasSub.textContent = "类与自由函数是模块组件 · 单击类查看方法，双击自由函数打开方法详情";
+      canvasSub.textContent = "顶部为模块提供接口 · 画布为类/自由函数与内部调用 · 双击进入详情";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>${escapeHtml(module?.name || state.route.moduleId)}</b>`;
-      legend.innerHTML = legendItem("line", "组件依赖关系") + legendItem("input", "模块输入") + legendItem("output", "模块输出");
+      legend.innerHTML = legendItem("line", "模块内部调用关系") + legendItem("input", "模块输入") + legendItem("output", "模块输出");
     } else {
       const ownerClass = detail?.ownerClassId
         ? (moduleGraphById.get(detail.moduleId)?.nodes || []).find(node => node.id === detail.ownerClassId)
@@ -585,13 +676,19 @@
     viewport.classList.remove("is-detail");
     setGraphChromeVisible(true);
     updateChrome("project");
+    if (moduleContracts) {
+      moduleContracts.innerHTML = "";
+      moduleContracts.classList.remove("is-visible");
+    }
     world.innerHTML = "";
     world.classList.remove("page-enter");
     const visibleModuleIds = state.singleModule && projectGraph.modules.length
       ? [projectGraph.modules[0].id]
       : projectGraph.modules.map(item => item.id);
     state.nodes = new Map();
-    projectGraph.boundaryNodes.forEach(node => state.nodes.set(node.id, { ...node }));
+    // P2.0: the project page is a module capability board.  Project boundary
+    // nodes and dependency paths are not rendered by default; their data stays
+    // in the bundle for optional relation views and later impact queries.
     projectGraph.modules.forEach(module => {
       if (visibleModuleIds.includes(module.id)) {
         state.nodes.set(module.id, { ...module, kind: "module" });
@@ -608,24 +705,26 @@
     const width = 1200, height = 800;
     const svg = makeSvg(width, height, "world-edges");
     world.appendChild(svg);
-    state.pageEdges = projectGraph.edges.filter(edge => state.nodes.has(edge.from) && state.nodes.has(edge.to));
+    state.pageEdges = state.showProjectRelations
+      ? projectGraph.edges.filter(edge => edge.role === "internal" && state.nodes.has(edge.from) && state.nodes.has(edge.to))
+      : [];
     state.pageEdges.forEach(edge => {
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
       path.setAttribute("class", macroEdgeClass(edge));
       path.setAttribute("data-from", edge.from);
       path.setAttribute("data-to", edge.to);
       path.setAttribute("data-edge-id", edge.id);
+      path.setAttribute("data-edge-count", String((edge.evidence || []).length));
+      const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+      title.textContent = `${edge.primaryType} · ${(edge.evidence || []).length} evidence`;
+      path.appendChild(title);
       const from = state.positions.get(edge.from);
       const to = state.positions.get(edge.to);
       path.setAttribute("d", curvePath(from, to));
       svg.appendChild(path);
     });
     state.nodes.forEach((node, nodeId) => {
-      if (node.kind === "input" || node.kind === "output") {
-        renderProjectBoundary(nodeId, node);
-      } else {
-        renderProjectModule(nodeId, node);
-      }
+      renderProjectModule(nodeId, node);
     });
     updateProjectWorldSize();
     refreshProjectEdges();
@@ -670,8 +769,15 @@
     const position = state.positions.get(nodeId);
     const expanded = projectNodeExpanded(nodeId);
     const size = state.sizes.get(nodeId);
+    const graph = moduleGraphById.get(nodeId);
+    const apis = graph?.providedApis || [];
+    const role = module.role || graph?.role || "service";
+    const isMain = role === "main";
+    const classCount = Number(graph?.classCount ?? (module.classes || []).length);
+    const methodCount = Number(graph?.methodCount ?? (module.methods || []).length);
+    const apiCount = Number(module.providedApiCount ?? apis.length);
     const element = document.createElement("article");
-    element.className = `node-card module-node${expanded ? " is-expanded" : ""}`;
+    element.className = `node-card module-node${expanded ? " is-expanded" : ""}${isMain ? " is-main" : ""}`;
     element.dataset.uid = nodeId;
     element.style.left = `${position.x}px`;
     element.style.top = `${position.y}px`;
@@ -681,7 +787,7 @@
     element.style.setProperty("--mc-rgb", rgbFromHex(module.color || "#f59e0b"));
     element.innerHTML = `<header class="module-header">
         <div class="module-title-row">
-          <span class="module-dot"></span><span class="module-kind">MODULE</span>
+          <span class="module-dot"></span><span class="module-kind">${escapeHtml(moduleRoleLabel(role))}</span>
           <span class="module-title">${escapeHtml(module.name)}</span>
           <div class="module-actions">
             <button class="mini-action" type="button" data-expand="${escapeHtml(nodeId)}" aria-label="${expanded ? "收起模块" : "展开模块"}" title="${expanded ? "收起" : "展开"}">${expanded ? "−" : "+"}</button>
@@ -689,6 +795,15 @@
           </div>
         </div>
         <div class="module-note">${escapeHtml(module.note || "暂无模块备注")}</div>
+        <div class="module-api-section">
+          <div class="module-api-heading"><span>PROVIDED API</span><b>${apiCount}</b></div>
+          <div class="module-api-chips">${apiChips(apis, isMain ? 4 : 3)}</div>
+        </div>
+        <div class="module-metrics">
+          <span>${classCount} class${classCount === 1 ? "" : "es"}</span>
+          <span>${methodCount} method${methodCount === 1 ? "" : "s"}</span>
+          <span class="${apiCount ? "has-apis" : ""}">${apiCount} api${apiCount === 1 ? "" : "s"}</span>
+        </div>
         <div class="module-ports">${(module.inputs || []).map(port => `<span class="port-pill in"><i></i>IN <b>${escapeHtml(port.label)}</b></span>`).join("")}${(module.outputs || []).map(port => `<span class="port-pill out"><i></i>OUT <b>${escapeHtml(port.label)}</b></span>`).join("")}</div>
       </header>`;
     if (expanded) {
@@ -699,6 +814,7 @@
     }
     world.appendChild(element);
     bindNodeHover(element, nodeId);
+    bindApiNavigation(element);
     const header = element.querySelector(".module-header");
     header.addEventListener("click", event => {
       if (event.target.closest("button")) return;
@@ -918,6 +1034,7 @@
     viewport.classList.remove("is-detail");
     setGraphChromeVisible(true);
     updateChrome("module");
+    renderModuleContracts(moduleId);
     world.innerHTML = "";
     world.classList.remove("page-enter");
     state.nodes = new Map();
@@ -1112,6 +1229,10 @@
     viewport.classList.add("is-detail");
     updateChrome("method");
     setGraphChromeVisible(false);
+    if (moduleContracts) {
+      moduleContracts.innerHTML = "";
+      moduleContracts.classList.remove("is-visible");
+    }
 
     const source = detail.source || {};
     const sourceStart = Number(source.startLine || detail.line || 1);
@@ -1221,6 +1342,7 @@
             if (item.kind === "function") return [item.name, item.note];
             return [];
           }),
+          ...(graph?.providedApis || []).flatMap(api => [api.name, api.ownerName, api.signature, api.note]),
         ].join(" ").toLowerCase();
         world.querySelector(`.module-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
       });
@@ -1238,6 +1360,11 @@
   }
 
   // Global controls.
+  relationModeBtn.addEventListener("click", () => {
+    state.showProjectRelations = !state.showProjectRelations;
+    if (state.pageKind === "project") renderProjectPage();
+    else updateChrome(state.pageKind);
+  });
   $("saveBtn").addEventListener("click", () => { persistOverride(); showToast("布局已保存到浏览器"); });
   $("resetBtn").addEventListener("click", () => { resetOverride(); renderRoute(); showToast("已恢复默认布局"); });
   $("fitBtn").addEventListener("click", () => fitView());

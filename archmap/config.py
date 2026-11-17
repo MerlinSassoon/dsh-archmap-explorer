@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 
 
+MODULE_ROLES = {"main", "service", "adapter", "test", "other"}
+
+
 DEFAULT_EXCLUDES = [
     "**/__pycache__/**",
     "**/.git/**",
@@ -27,6 +30,7 @@ class ModuleConfig:
     inputs: list[str] = field(default_factory=list)
     outputs: list[str] = field(default_factory=list)
     color: str = "#f59e0b"
+    role: str = ""
 
 
 @dataclass
@@ -88,6 +92,7 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
                 inputs=_as_list(item.get("inputs"), []),
                 outputs=_as_list(item.get("outputs"), []),
                 color=str(item.get("color") or "#f59e0b"),
+                role=str(item.get("role") or "").strip().lower(),
             )
         )
 

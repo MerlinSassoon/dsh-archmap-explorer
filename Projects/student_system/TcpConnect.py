@@ -31,7 +31,7 @@ from thread_waiting import Spinner
 
 
 def init_connection(port=12345):
-    """初始化连接：让用户选择角色"""
+    """初始化连接：让用户选择角色并建立初始化套接字接口"""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(("8.8.8.8", 80))
     local_ip = s.getsockname()[0]
@@ -63,6 +63,7 @@ def init_connection(port=12345):
 
 
 def create_server(local_ip, port):
+    """创建客户端初始化套接字"""
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((local_ip, port))
@@ -75,6 +76,7 @@ def create_server(local_ip, port):
 
 
 def connect_to_server(local_ip, port):
+    """创建服务器端初始化套接字"""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(2)
 

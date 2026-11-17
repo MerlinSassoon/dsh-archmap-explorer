@@ -13,7 +13,7 @@
 | [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) | 最新交接文档：当前状态、代码地图、数据契约、P2–P4 规划与风险 |
 | [`archmap-v3-design.md`](archmap-v3-design.md) | v3.1 数据契约、三层投影、CallSite、布局覆盖与语言前端边界 |
 | [`function-detail-p1.5-plan.md`](function-detail-p1.5-plan.md) | P1.5 决策与验收：移除 FunctionFlow，引入 FunctionDetail + Source View + Call Graph |
-| [`archmap-class-layer-plan.md`](archmap-class-layer-plan.md) | 类语义层设计来源与 P0–P4 路线；其中 Phase 0/1 与 P1.5 已完成，P2–P4 尚未开始 |
+| [`archmap-class-layer-plan.md`](archmap-class-layer-plan.md) | 类语义层设计来源与 P0–P4 路线；其中 Phase 0/1、P1.5 与 P2.0 已完成，P2.1–P4 尚未开始 |
 | [`schema/archmap-v3-bundle.schema.json`](schema/archmap-v3-bundle.schema.json) | 当前 bundle JSON Schema |
 
 ## 2. 当前状态摘要
@@ -22,7 +22,8 @@
 P0    类语义数据模型                         已完成
 P1    模块页类组件化与模块边界修复           已完成
 P1.5  FunctionDetail + Source View + CallGraph 已完成
-P2    类焦点页与类内方法图                   未开始
+P2.0  项目页/模块页能力契约重构             已完成
+P2.1  类焦点页与类内方法图                   未开始
 P3    继承、接口、多态与类层次               未开始
 P4    类关系、影响分析与架构查询             未开始
 ```
@@ -30,12 +31,12 @@ P4    类关系、影响分析与架构查询             未开始
 当前默认产品形态：
 
 ```text
-项目页
-  └─ 模块页（类节点 + 模块级自由函数）
+项目页（模块能力卡片 + 提供接口）
+  └─ 模块页（提供接口 + 类节点 + 模块级自由函数）
        └─ 方法详情页（源码 + 备注 + LLM 语义 + callers/callees）
 ```
 
-当前**没有**类焦点页路由，也**没有**语句级 FunctionFlow。
+当前**没有**类焦点页路由，也**没有**语句级 FunctionFlow。项目页默认不绘制模块依赖线；依赖证据保留在 `projectGraph.edges` 中。
 
 ## 3. 历史归档文档
 

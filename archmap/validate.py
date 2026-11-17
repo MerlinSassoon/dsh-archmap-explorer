@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .config import MODULE_ROLES
+
 
 def _issue(severity: str, code: str, message: str, **extra: Any) -> dict[str, Any]:
     return {"severity": severity, "code": code, "message": message, **extra}
@@ -27,13 +29,35 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     if len(module_ids) != len(project_graph.get("modules", [])):
         issues.append(_issue("error", "DUPLICATE_MODULE", "duplicate module ids"))
 
-    class_ids: set[str] = set()
+    class_ids: set[str] = {
+        node.get("id")
+        for graph in module_graphs
+        for node in graph.get("nodes", [])
+        if node.get("kind") == "class"
+    }
+    seen_class_ids: set[str] = set()
+    module_graph_by_id = {graph.get("moduleId"): graph for graph in module_graphs}
     for graph in module_graphs:
+        module_id = graph.get("moduleId")
+        role = graph.get("role")
+        if role is not None and role not in MODULE_ROLES:
+            issues.append(_issue("error", "MODULE_ROLE", f"module {module_id} has invalid role: {role}"))
+        seen_apis: set[str] = set()
+        for api in graph.get("providedApis", []):
+            api_id = api.get("id")
+            if not api_id or api_id in seen_apis:
+                issues.append(_issue("error", "PROVIDED_API_DUPLICATE", f"module {module_id} has duplicate/missing provided API id"))
+            seen_apis.add(api_id)
+            function_id = api.get("functionId")
+            if function_id not in detail_by_id:
+                issues.append(_issue("error", "PROVIDED_API_FUNCTION_MISSING", f"module {module_id} provided API references missing function {function_id}"))
+            if api.get("ownerKind") == "class" and api.get("ownerId") not in class_ids:
+                issues.append(_issue("error", "PROVIDED_API_OWNER_MISSING", f"module {module_id} provided API owner missing: {api.get('ownerId')}"))
         for node in graph.get("nodes", []):
             if node.get("kind") == "class":
-                if node.get("id") in class_ids:
+                if node.get("id") in seen_class_ids:
                     issues.append(_issue("error", "DUPLICATE_CLASS", f"duplicate class node: {node.get('id')}"))
-                class_ids.add(node.get("id"))
+                seen_class_ids.add(node.get("id"))
                 for method in node.get("methods", []):
                     method_id = method.get("id")
                     if method.get("ownerClassId") != node.get("id"):
@@ -49,6 +73,12 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
             issues.append(_issue("error", "ENTRYPOINT_MISSING", f"entrypoint function missing: {entry.get('functionId')}"))
 
     for module in project_graph.get("modules", []):
+        role = module.get("role")
+        if role is not None and role not in MODULE_ROLES:
+            issues.append(_issue("error", "MODULE_ROLE", f"project module {module.get('id')} has invalid role: {role}"))
+        graph = module_graph_by_id.get(module.get("id"))
+        if graph is not None and module.get("providedApiCount") != len(graph.get("providedApis", [])):
+            issues.append(_issue("error", "PROVIDED_API_COUNT", f"project module {module.get('id')} providedApiCount does not match module graph"))
         for fn_id in module.get("functions", []):
             if fn_id not in detail_by_id:
                 issues.append(_issue("error", "MODULE_FUNCTION_MISSING", f"module {module.get('id')} references missing function {fn_id}"))

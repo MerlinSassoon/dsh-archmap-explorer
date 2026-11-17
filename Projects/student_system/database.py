@@ -11,6 +11,7 @@ class Database:
     EFFECTIVE_TABLES = ['student_python', ]
 
     def __init__(self, password):
+        """数据库初始化"""
         self.password = password
         self.database_name = Database.DATABASE_NAME
 
@@ -30,6 +31,7 @@ class Database:
         ]
 
     def __enter__(self):
+        """数据库上下文管理器入口：连接本地数据库，创建操作游标"""
         try:
             # 建立连接
             self.connection = pymysql.connect(
@@ -48,11 +50,13 @@ class Database:
             return None
 
     def __exit__(self, *args):
+        """数据库上下文管理器出口：关闭操作游标，关闭本地数据库连接"""
         # 关闭连接
         if self.cursor:
             self.cursor.close()
         if self.connection:
             self.connection.close()
+
 
     @staticmethod
     def decode_message(received: bytes) -> tuple:
@@ -78,6 +82,7 @@ class Database:
         return message['model'], message['args'], message['kwargs']
 
     def actions(self, client_input):
+        """公开API：接收操作指令，根据指令操作数据库"""
         model, args, kwargs = self.decode_message(client_input)
         _, action = self.menu_items[model]
         result = action(*args, **kwargs)
@@ -118,6 +123,7 @@ class Database:
 
     @error_detection
     def add_content(self, content, table_name) -> tuple:
+        """内部API，面向上层应用：添加信息"""
         placeholders = ", ".join(["%s"] * len(content))
         sql = f"INSERT INTO {table_name} VALUES ({placeholders})"
         self.cursor.execute(sql, content)
@@ -126,6 +132,7 @@ class Database:
 
     @error_detection
     def query_key_value(self, key, value, table_name) -> tuple:
+        """内部API，面向上层应用：查询信息"""
         columns = self.get_columns(table_name)
         if key not in columns:
             raise ValueError(f"无效的字段名: {key}")
@@ -138,6 +145,7 @@ class Database:
 
     @error_detection
     def delete_sno(self, sno, table_name) -> tuple:
+        """内部API，面向上层应用：删除信息"""
         placeholders = '%s'
         sql = f"DELETE FROM {table_name} WHERE sno = {placeholders}"
         self.cursor.execute(sql, sno)
@@ -146,6 +154,7 @@ class Database:
 
     @error_detection
     def modify_sno(self, sno, key, value, table_name) -> tuple:
+        """内部API，面向上层应用：更新信息"""
         columns = self.get_columns(table_name)
         if key not in columns:
             raise ValueError(f"无效的字段名: {key}")
@@ -157,6 +166,7 @@ class Database:
 
     @error_detection
     def sort_all(self, desc, table_name) -> tuple:
+        """内部API，面向上层应用：信息排序"""
         # 验证输入是否合法
         order = ""
         if desc == "倒序":
@@ -173,6 +183,7 @@ class Database:
 
     @error_detection
     def count_all(self, table_name) -> tuple:
+        """内部API，面向上层应用：信息计数"""
         sql = f"SELECT COUNT(*) FROM {table_name}"
         self.cursor.execute(sql)
         tables = self.cursor.fetchall()
@@ -180,6 +191,7 @@ class Database:
 
     @error_detection
     def query_all(self, table_name) -> tuple:
+        """内部API，面向上层应用：查询整表"""
         sql = f"SELECT * FROM {table_name}"
         self.cursor.execute(sql)
         tables = self.cursor.fetchall()

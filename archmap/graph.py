@@ -11,19 +11,26 @@ from typing import Any, Iterable
 
 from .analysis import AnalysisResult, ClassInfo, ENTRY_METHOD_NAMES, FunctionInfo
 from .callsites import CallSite
-from .config import ModuleConfig, ProjectConfig
+from .config import MODULE_ROLES, ModuleConfig, ProjectConfig
 
 
-MODULE_W = 270
-MODULE_H = 140
-MODULE_EXPANDED_W = 560
-MODULE_EXPANDED_H = 360
+MODULE_W = 320
+MODULE_H = 200
+MODULE_MAIN_W = 360
+MODULE_MAIN_H = 230
+MODULE_EXPANDED_W = 620
+MODULE_EXPANDED_H = 430
+MODULE_MAIN_EXPANDED_W = 660
+MODULE_MAIN_EXPANDED_H = 470
+MODULE_CARD_COLUMNS = 3
+MODULE_CARD_GAP_X = 80
+MODULE_CARD_GAP_Y = 70
 FUNCTION_W = 210
 FUNCTION_H = 98
 CLASS_W = 280
 CLASS_H = 150
-BOUNDARY_W = 190
-BOUNDARY_H = 96
+BOUNDARY_W = 170
+BOUNDARY_H = 78
 MACRO_X_GAP = 360
 MACRO_Y_GAP = 180
 MACRO_PAD = 70
@@ -110,6 +117,131 @@ def _class_entry_methods(
         if method.name in ENTRY_METHOD_NAMES | {"__call__", "__enter__"}
     ]
     return named or public
+
+
+def _module_role(module: ModuleConfig | None, module_id: str, entry_module_ids: set[str]) -> str:
+    """Resolve an explicit module role, falling back to a light heuristic.
+
+    The role is presentation metadata, not a structural fact.  Explicit config
+    always wins; otherwise the module that owns a configured/derived entrypoint
+    is treated as the main module.  Everything else is a service module.
+    """
+    if module is not None and module.role:
+        role = module.role.strip().lower()
+        if role in MODULE_ROLES:
+            return role
+    if module_id in entry_module_ids:
+        return "main"
+    return "service"
+
+
+def _provided_api_entry(
+    fn: FunctionInfo,
+    *,
+    module_id: str,
+    module_name: str,
+    owner_id: str,
+    owner_name: str,
+    owner_kind: str,
+    owner_class_kind: str,
+    entry_id_set: set[str],
+) -> dict[str, Any]:
+    is_abstract = bool(fn.is_abstract)
+    kind = "function"
+    if owner_kind == "class":
+        kind = "abstract_method" if is_abstract else "method"
+    return {
+        "id": f"api:{fn.id}",
+        "kind": kind,
+        "name": fn.name,
+        "qualifiedName": f"{fn.module_name}.{fn.qualname}",
+        "ownerId": owner_id,
+        "ownerName": owner_name,
+        "ownerKind": owner_kind,
+        "ownerClassKind": owner_class_kind,
+        "moduleId": module_id,
+        "moduleName": module_name,
+        "functionId": fn.id,
+        "functionDetailId": fn.id,
+        "signature": fn.signature,
+        "note": fn.note,
+        "methodKind": fn.method_kind,
+        "visibility": fn.visibility,
+        "isAbstract": is_abstract,
+        "isEntry": fn.id in entry_id_set,
+        "file": fn.file,
+        "line": fn.line,
+        "endLine": fn.end_line,
+    }
+
+
+def _module_provided_apis(
+    module_id: str,
+    module_name: str,
+    module_classes: list[ClassInfo],
+    class_method_meta: dict[str, list[FunctionInfo]],
+    free_function_ids: list[str],
+    fn_by_id: dict[str, FunctionInfo],
+    entry_id_set: set[str],
+) -> list[dict[str, Any]]:
+    """Derive the module's externally callable surface from existing facts.
+
+    ``providedApis`` is a projection, not a second source of truth.  It is
+    built from public class methods (including abstract contract methods) and
+    public module-level free functions.  Constructors, dunder methods and
+    underscore-prefixed internals stay out of the capability card.
+    """
+    entries: list[dict[str, Any]] = []
+    for cls in module_classes:
+        cls_id = _class_id(cls)
+        methods = class_method_meta.get(cls_id, [])
+        for method in methods:
+            if method.method_kind in {"constructor", "dunder", "internal"}:
+                continue
+            if method.visibility in {"constructor", "dunder", "internal"}:
+                continue
+            entries.append(
+                _provided_api_entry(
+                    method,
+                    module_id=module_id,
+                    module_name=module_name,
+                    owner_id=cls_id,
+                    owner_name=cls.name,
+                    owner_kind="class",
+                    owner_class_kind=cls.class_kind,
+                    entry_id_set=entry_id_set,
+                )
+            )
+    for fn_id in free_function_ids:
+        fn = fn_by_id.get(fn_id)
+        if fn is None:
+            continue
+        if fn.visibility != "public":
+            continue
+        if fn.name.startswith("_") and not fn.synthetic:
+            continue
+        entries.append(
+            _provided_api_entry(
+                fn,
+                module_id=module_id,
+                module_name=module_name,
+                owner_id=module_id,
+                owner_name=module_name,
+                owner_kind="module",
+                owner_class_kind="",
+                entry_id_set=entry_id_set,
+            )
+        )
+    entries.sort(
+        key=lambda item: (
+            0 if item["isEntry"] else 1,
+            0 if item["ownerKind"] == "class" else 1,
+            item["ownerName"],
+            item["line"],
+            item["id"],
+        )
+    )
+    return entries
 
 
 def find_entrypoints(analysis: AnalysisResult, call_sites: Iterable[CallSite]) -> list[dict[str, Any]]:
@@ -396,6 +528,54 @@ def _layout_macro(
     return {"canvas": canvas, "nodes": positions, "edges": layout_edges}
 
 
+def _layout_module_cards(modules: list[dict[str, Any]]) -> dict[str, Any]:
+    """Lay out project-page capability cards without implying dependency flow.
+
+    The main module occupies a dedicated left column; service/adapter/test
+    modules flow through a deterministic grid to its right.  This replaces the
+    old macro rank layout for the project page, where hiding dependency lines
+    would otherwise leave a meaningless single column.
+    """
+    main_modules = [module for module in modules if module.get("role") == "main"]
+    other_modules = [module for module in modules if module.get("role") != "main"]
+    positions: dict[str, dict[str, Any]] = {}
+
+    main_column_w = 0
+    y = MACRO_PAD
+    for module in main_modules:
+        w = int(module.get("w", MODULE_MAIN_W))
+        h = int(module.get("h", MODULE_MAIN_H))
+        positions[module["id"]] = {"x": round(float(MACRO_PAD), 2), "y": round(float(y), 2), "w": w, "h": h}
+        main_column_w = max(main_column_w, w)
+        y += h + MODULE_CARD_GAP_Y
+
+    grid_x = MACRO_PAD + (main_column_w + MODULE_CARD_GAP_X if main_modules else 0)
+    # Keep small capability boards readable in a typical viewport.  Two
+    # service columns scale better than one long row; larger boards use three.
+    columns = 2 if len(other_modules) <= 4 else MODULE_CARD_COLUMNS
+    for index, module in enumerate(other_modules):
+        col = index % columns
+        row = index // columns
+        w = int(module.get("w", MODULE_W))
+        h = int(module.get("h", MODULE_H))
+        x = grid_x + col * (MODULE_W + MODULE_CARD_GAP_X)
+        y = MACRO_PAD + row * (MODULE_H + MODULE_CARD_GAP_Y)
+        positions[module["id"]] = {"x": round(float(x), 2), "y": round(float(y), 2), "w": w, "h": h}
+
+    max_x = max((pos["x"] + pos["w"] for pos in positions.values()), default=400)
+    max_y = max((pos["y"] + pos["h"] for pos in positions.values()), default=300)
+    return {
+        "mode": "module-cards",
+        "canvas": {
+            "width": round(max_x + MACRO_PAD, 2),
+            "height": round(max_y + MACRO_PAD, 2),
+            "padding": MACRO_PAD,
+        },
+        "nodes": positions,
+        "edges": {},
+    }
+
+
 def _module_color(index: int, module: ModuleConfig | None) -> str:
     if module and module.color:
         return module.color
@@ -415,6 +595,11 @@ def build_bundle(
     entry_ids = [item["functionId"] for item in entrypoints]
     entry_id_set = set(entry_ids)
     entry_reasons = {item["functionId"]: item["reason"] for item in entrypoints}
+    entry_module_ids = {
+        fn_by_id[item["functionId"]].module_id
+        for item in entrypoints
+        if item["functionId"] in fn_by_id
+    }
     calls = collect_calls(analysis, call_site_list)
 
     module_function_ids: dict[str, list[str]] = defaultdict(list)
@@ -484,12 +669,15 @@ def build_bundle(
         input_labels = _module_input_labels(configured) if configured else ["模块输入"]
         output_labels = _module_output_labels(configured) if configured else ["模块输出"]
         color = _module_color(index, configured)
+        role = _module_role(configured, module_id, entry_module_ids)
+        is_main = role == "main"
         module_node = {
             "id": module_id,
             "kind": "module",
             "name": module_name,
             "note": module_note,
             "color": color,
+            "role": role,
             "functions": function_ids,
             "freeFunctions": free_function_ids,
             "classes": class_ids,
@@ -500,10 +688,10 @@ def build_bundle(
                 *(fn_by_id[fn_id].file for fn_id in function_ids if fn_id in fn_by_id),
                 *(cls.file for cls in module_classes if cls.file),
             }),
-            "w": MODULE_W,
-            "h": MODULE_H,
-            "expandedW": MODULE_EXPANDED_W,
-            "expandedH": MODULE_EXPANDED_H,
+            "w": MODULE_MAIN_W if is_main else MODULE_W,
+            "h": MODULE_MAIN_H if is_main else MODULE_H,
+            "expandedW": MODULE_MAIN_EXPANDED_W if is_main else MODULE_EXPANDED_W,
+            "expandedH": MODULE_MAIN_EXPANDED_H if is_main else MODULE_EXPANDED_H,
         }
         project_nodes[module_id] = module_node
         project_module_nodes.append(module_node)
@@ -596,6 +784,17 @@ def build_bundle(
                 "w": FUNCTION_W,
                 "h": FUNCTION_H,
             }
+
+        provided_apis = _module_provided_apis(
+            module_id,
+            module_name,
+            module_classes,
+            class_method_meta,
+            free_function_ids,
+            fn_by_id,
+            entry_id_set,
+        )
+        module_node["providedApiCount"] = len(provided_apis)
 
         internal_records = [
             record
@@ -781,6 +980,9 @@ def build_bundle(
                 "color": color,
                 "inputs": module_node["inputs"],
                 "outputs": module_node["outputs"],
+                "role": role,
+                "providedApis": provided_apis,
+                "providedApiCount": len(provided_apis),
                 "nodes": [module_nodes[node_id] for node_id in sorted(module_nodes)],
                 "edges": module_edges,
                 "methodEdges": method_edges,
@@ -861,9 +1063,10 @@ def build_bundle(
                 )
             )
 
-    boundary_ids = set(project_inputs and [item["id"] for item in project_inputs] or [])
-    boundary_ids.update(item["id"] for item in project_outputs)
-    project_layout = _layout_macro(project_nodes, project_edges, boundary_ids=boundary_ids, scope="project")
+    # The project page is a capability-card overview, not a dependency
+    # network.  Cards get their own deterministic grid; dependency evidence
+    # remains in projectGraph.edges for optional relation views and queries.
+    project_layout = _layout_module_cards(project_module_nodes)
     project_graph = {
         "kind": "archmap.project-graph",
         "project": {
@@ -887,6 +1090,7 @@ def build_bundle(
         "callSites": len(call_site_list),
         "resolvedCalls": sum(1 for site in call_site_list if site.resolved),
         "macroEdges": len(project_edges) + sum(len(graph["edges"]) for graph in module_graphs),
+        "providedApis": sum(len(graph["providedApis"]) for graph in module_graphs),
         "diagnostics": {
             level: sum(1 for item in diagnostics if item.get("severity") == level)
             for level in ("error", "warning", "info")
@@ -937,6 +1141,7 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "id": module["id"],
                     "name": module["name"],
                     "note": module["note"],
+                    "role": module.get("role"),
                     "functions": sorted(module["functions"]),
                     "freeFunctions": sorted(module.get("freeFunctions", [])),
                     "classes": sorted(module.get("classes", [])),
@@ -965,6 +1170,7 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                 {
                     "moduleId": graph["moduleId"],
                     "note": graph["note"],
+                    "role": graph.get("role"),
                     "classes": sorted(
                         [
                             {

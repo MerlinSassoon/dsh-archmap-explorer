@@ -498,7 +498,8 @@ P1.5 已完成：默认 FunctionFlow 已移除，方法详情页、源码视图�
 Phase 0 / P0    已完成
 Phase 1 / P1    已完成
 P1.5           已完成
-P2             未开始：类焦点页、类内方法布局、类路由
+P2.0           已完成：项目页/模块页能力契约、模块角色、providedApis
+P2.1           未开始：类焦点页、类内方法布局、类路由
 P3             未开始：继承/实现边、抽象方法契约、多态 candidates、类层次
 P4             未开始：组合/聚合、instantiates、impact/trace、DSM
 ```
@@ -506,6 +507,8 @@ P4             未开始：组合/聚合、instantiates、impact/trace、DSM
 当前代码事实：
 
 - `ModuleGraph.nodes` 已包含类节点，方法摘要归属类节点；
+- `moduleGraphs[].providedApis` 已提供模块能力契约投影；
+- 项目页使用 `layout.mode = "module-cards"`，默认不绘制依赖线；
 - `ModuleGraph.methodEdges` 已包含方法级调用边；
 - `FunctionDetail` 已包含源码、备注、callers/callees 和 `sourceHash`；
 - `app.js` 目前只有项目页、模块页和方法详情页路由；

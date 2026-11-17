@@ -27,5 +27,10 @@ def test_macro_layout_has_valid_geometry() -> None:
             for second in rects[index + 1:]:
                 assert not _overlap(first, second)
         for edge in graph["edges"]:
+            # The project page is a capability-card board; it intentionally
+            # omits dependency paths from the default projection layout.  Any
+            # edge whose endpoints are laid out must still have a valid path.
+            if edge["from"] not in layout["nodes"] or edge["to"] not in layout["nodes"]:
+                continue
             path = layout["edges"][edge["id"]]["d"]
             assert path.startswith("M ")

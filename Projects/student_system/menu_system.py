@@ -24,6 +24,7 @@ class MenuSystem:
     key_one_time_set = set()
 
     def __init__(self, sockets):
+        """学生信息管理系统前端展示UI初始化"""
         self.menu_items = [
             ("1.录入学生信息    ", self.add_student),
             ("2.查找学生信息    ", self.query_student),
@@ -44,6 +45,7 @@ class MenuSystem:
         self.listener = None
 
     def print_menu(self, highlight_index):
+        """内部API：打印学生信息管理系统菜单"""
         length = 76
         sys.stdout.write("\033[20A")
         sys.stdout.write('\r' + ' ' * 100 + '\n')
@@ -67,7 +69,7 @@ class MenuSystem:
         sys.stdout.flush()
 
     def build_table(self, tables):
-        """打印学生信息表格"""
+        """内部API：打印学生信息表格"""
         # 定义表头和宽度
         if len(tables) == 0:
             return 0
@@ -193,6 +195,7 @@ class MenuSystem:
     @linespace
     @cyclic_operation
     def add_student(self):
+        """内部API：录入学生信息"""
         contents = []
         for column in self.columns:
             content = input(f"请输入学生{column}:")
@@ -215,6 +218,7 @@ class MenuSystem:
     @linespace
     @cyclic_operation
     def query_student(self):
+        """内部API：查询学生信息"""
         columns = "/".join(self.columns)
         key = input(f"请输入信息查询列名({columns})：")
         value = input("请输入信息查询值：")
@@ -239,6 +243,7 @@ class MenuSystem:
     @linespace
     @cyclic_operation
     def delete_student(self):
+        """内部API：删除学生信息"""
         sno = input("请输入待删学生信息sno：")
         with Spinner("正在删除学生信息"):
             self.sockets.send(self.encode_message(2, sno, table_name=self.table))
@@ -254,6 +259,7 @@ class MenuSystem:
     @linespace
     @cyclic_operation
     def modify_student(self):
+        """内部API：修改学生信息"""
         columns = "/".join(self.columns)
         sno = input("请输入修改学生sno：")
         key = input(f"请输入信息修改列名({columns})：")
@@ -273,6 +279,7 @@ class MenuSystem:
     @linespace
     @cyclic_operation
     def sort_students(self):
+        """内部API：学生信息排序"""
         desc = input("请输入按tc进行排序(正序/倒序)：")
 
         with Spinner("正在进行排序"):
@@ -291,6 +298,7 @@ class MenuSystem:
     @linespace
     @cyclic_operation
     def count_students(self):
+        """内部API：学生信息统计"""
         with Spinner("正在显示统计学生总人数"):
             self.sockets.send(self.encode_message(5, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
@@ -307,6 +315,7 @@ class MenuSystem:
     @linespace
     @cyclic_operation
     def show_all_students(self):
+        """内部API：查询学生信息整表"""
         with Spinner("正在显示全部学生信息"):
             self.sockets.send(self.encode_message(6, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
@@ -325,6 +334,7 @@ class MenuSystem:
         return result
 
     def exit_system(self):
+        """内部API：退出学生信息管理系统"""
         print("感谢使用，再见！")
         self.running = False
         if self.listener and self.listener.running:
@@ -332,6 +342,7 @@ class MenuSystem:
         return False
 
     def run(self):
+        """公开API，面向用户：启动学生信息管理系统的交互式菜单主循环"""
         self.print_menu(self.current_selection)
         with keyboard.Listener(on_press=self.on_press, on_release=self.on_release, suppress=True) as self.listener:
             self.listener.join()

@@ -90,13 +90,22 @@ def test_browser_smoke() -> None:
         request("POST", f"/session/{session}/url", {"url": html_path.resolve().as_uri()})
         time.sleep(.6)
         assert execute("return document.querySelectorAll('.module-node').length") == 3
+        assert execute("return document.querySelectorAll('.module-node.is-main').length") == 1
+        assert execute("return document.querySelectorAll('.module-api-chip').length") > 0
+        assert execute("return document.querySelectorAll('.boundary-node').length") == 0
+        assert execute("return document.querySelectorAll('.macro-edge').length") == 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
+        execute("document.getElementById('relationModeBtn').click(); return true")
+        assert execute("return document.getElementById('relationModeBtn').getAttribute('aria-pressed')") == "true"
+        execute("document.getElementById('relationModeBtn').click(); return true")
         execute("document.querySelector('[data-expand]').click(); return true")
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.mini-node').length") > 0
         execute("location.hash='#/module/entry'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.function-node').length") == 1
+        assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
+        assert execute("return document.querySelectorAll('.contracts-track .module-api-chip').length") > 0
         execute("location.hash='#/module/entry/function/fn%3Aapp.main.main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.method-page').length") == 1

@@ -78,13 +78,16 @@ def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
     repo_root = Path(__file__).parent.parent
     config_path = repo_root / "examples" / "archmap_v3.archmap.json"
     bundle = build_architecture(repo_root, config_path)
-    assert len(bundle["projectGraph"]["modules"]) == 6
+    assert len(bundle["projectGraph"]["modules"]) == 4
     internal_edges = [
         edge for edge in bundle["projectGraph"]["edges"] if edge["role"] == "internal"
     ]
     assert internal_edges
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
-    assert {"cli-pipeline", "python-frontend", "flow-build", "graph-projection", "layout-routing", "validate-render"} <= module_ids
+    assert {"cli-pipeline", "python-frontend", "graph-projection", "validate-render"} <= module_ids
+    roles = {module["id"]: module["role"] for module in bundle["projectGraph"]["modules"]}
+    assert roles["cli-pipeline"] == "main"
+    assert roles["python-frontend"] == "service"
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
 
 

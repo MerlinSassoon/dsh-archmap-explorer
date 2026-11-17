@@ -3,8 +3,8 @@
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
 
 ```text
-项目页（模块 + 用户输入/输出）
-  └─ 模块页（模块输入/输出 + 类节点 + 模块级自由函数）
+项目页（模块能力卡片 + 提供接口 + 项目输入/输出）
+  └─ 模块页（模块输入/输出 + 提供接口 + 类节点 + 模块级自由函数）
        └─ 方法详情页（源码 + 人类备注 + LLM 语义 + callers/callees）
 ```
 
@@ -15,7 +15,8 @@ ArchMap 负责“结构和关系”，源码负责“实现细节”，LLM 负�
 
 ```text
 P0 / P1 / P1.5  已完成
-P2 类焦点页与类内方法图  未开始
+P2.0 项目页/模块页能力契约重构  已完成
+P2.1 类焦点页与类内方法图  未开始
 P3 继承/接口/多态/类层次  未开始
 P4 类关系/impact/trace  未开始
 ```
@@ -30,12 +31,12 @@ P4 类关系/impact/trace  未开始
 python -m archmap build .
 
 # 分析 student_system 样例
-python -m archmap build /path/to/student_system \
+python3 -m archmap build Projects/student_system \
   --config examples/student_system.archmap.json \
-  --out .archmap/student_system
+  --out yield/student_system
 
 # 分析 ArchMap 自身
-python -m archmap build . \
+python3 -m archmap build . \
   --config examples/archmap_v3.archmap.json \
   --out .archmap/self
 
@@ -61,8 +62,8 @@ python -m archmap serve .archmap/student_system
 
 ## 三层视图
 
-- **项目页**：模块节点、项目输入/输出边界、模块间真实调用/数据关系。
-- **模块页**：模块输入/输出、类节点、模块级自由函数节点；类方法归属类节点，不直接平铺。
+- **项目页**：模块能力卡片，展示职责、角色、提供接口、类/方法数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。
+- **模块页**：顶部展示模块提供接口；画布展示模块输入/输出、类节点、模块级自由函数节点；类方法归属类节点，不直接平铺。
 - **类节点详情**：展示类类型、抽象/接口标记、方法列表和源码证据；点击方法进入方法详情页。独立类焦点页仍是后续项。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees；点击调用者可继续下钻。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
@@ -90,13 +91,36 @@ python -m archmap serve .archmap/student_system
       "note": "订单主流程",
       "inputs": ["用户下单请求"],
       "outputs": ["订单结果"],
-      "color": "#f59e0b"
+      "color": "#f59e0b",
+      "role": "main"
     }
   ]
 }
 ```
 
 模块识别优先级：显式配置 → 包/命名空间 → 单模块兜底。文件仅作为源码证据，不直接作为页面模块。
+
+## 模块能力契约
+
+模块配置支持可选的 `role`：
+
+```json
+{
+  "id": "database",
+  "name": "数据访问",
+  "role": "service"
+}
+```
+
+当前角色：`main` / `service` / `adapter` / `test` / `other`。显式配置优先；未配置时，包含入口函数的模块视为 `main`，其余为 `service`。
+
+每个 `moduleGraph` 会从已有事实派生 `providedApis`：
+
+- 公开类方法（含抽象契约方法）；
+- 公开模块级自由函数；
+- 构造函数、dunder 和下划线内部方法不进入能力卡片。
+
+`providedApis` 只引用 `functionDetails`，不是第二套事实源。项目页与模块页都通过它展示可点击的接口 chips。
 
 ## 人工备注与 LLM 注解
 
@@ -158,7 +182,7 @@ python -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 ```
 
-当前基线：`26 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
+当前基线：`32 passed, 1 skipped`；显式开启浏览器测试后为 `1 passed`。
 
 测试覆盖：
 
@@ -195,5 +219,6 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 - 方法详情默认内嵌源码切片，单函数源码有长度上限；超大函数会标记为 truncated。
 - 宏布局的局部重叠和边界启发式仍需要持续校验。
 - 方法详情页是 P1.5 的主入口；旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
-- 类焦点页、继承/实现/组合/聚合关系图、多态 candidates 和类级 impact/trace 仍在 P2–P4。
+- P2.1 类焦点页、继承/实现/组合/聚合关系图、多态 candidates 和类级 impact/trace 仍未实现。
+- 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
 - 旧 `docs/archmap-2.0-design.md` 和旧 `docs/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

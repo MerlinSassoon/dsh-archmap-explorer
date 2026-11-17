@@ -2,7 +2,7 @@
 
 > 日期：2026-11-16；最后核对：2026-11-17<br>
 > 适用版本：ArchMap 1.1.0 / bundle schema 3.1<br>
-> 当前阶段：P0、P1、P1.5 已完成；P2、P3、P4 尚未开始。
+> 当前阶段：P0、P1、P1.5、P2.0 已完成；P2.1（类焦点页）、P3、P4 尚未开始。
 >
 > 本文用于新会话接手项目，包含项目现状、代码地图、数据契约、后续规划、设计来源和风险。文档归档边界见 [`docs/README.md`](README.md)；旧 FunctionFlow 文档不再代表当前契约。
 
@@ -59,6 +59,7 @@ LLM    = 高层语义
 - P0：类语义数据模型
 - P1：模块页类组件化、模块边界修复
 - P1.5：FunctionFlow 移除、FunctionDetail + Source View + Call Graph
+- P2.0：项目页/模块页能力契约重构
 
 ### 3.2 当前已实现能力
 
@@ -70,7 +71,15 @@ LLM    = 高层语义
   - `decorators`
   - `methodKind`
   - `visibility`
+- 模块角色：`main` / `service` / `adapter` / `test` / `other`；
+- 模块提供接口投影 `providedApis`（公开类方法、抽象契约方法、公开自由函数）；
+- 项目页模块能力卡片：
+  - 默认不绘制模块依赖线；
+  - 显示职责、角色、提供接口、类/方法数量；
+  - 主模块视觉强调；
+  - 可选“关系”模式查看保留的模块调用证据；
 - 模块页：
+  - 顶部提供接口条；
   - 模块输入/输出；
   - 类节点；
   - 模块级自由函数；
@@ -92,7 +101,7 @@ LLM    = 高层语义
 
 ### 3.3 当前未实现
 
-- 类焦点页；
+- P2.1 类焦点页；
 - 类内方法图；
 - 继承/实现的结构化边；
 - 多态调用 candidates；
@@ -104,22 +113,23 @@ LLM    = 高层语义
 
 ### 3.4 当前验收数据
 
-最近一次自举：
+最近一次自举（P2.0 后）：
 
 ```text
 project:       archmap_v3
-modules:       6（其中 2 个为空模块，见下方说明）
+modules:       4
 classes:       15
-functions:     96
+functions:     100
 methods:       24
-call sites:    987
-resolvedCalls: 162
-macroEdges:    88
-HTML:          ~1.2 MB
-JSON:          ~1.6 MB
+call sites:    1070
+resolvedCalls: 173
+macroEdges:    93
+providedApis:  36
+HTML:          ~1.4 MB
+JSON:          ~1.8 MB
 ```
 
-> 注意：`examples/archmap_v3.archmap.json` 仍引用已删除的 `archmap/flow.py` 和 `archmap/layout.py`，因此自举结果中的 `flow-build`、`layout-routing` 是空模块。该配置和对应测试断言需要清理；当前统计不能理解为有 6 个有效源码模块。
+`examples/archmap_v3.archmap.json` 已移除失效的 `flow-build` / `layout-routing` 模块，并补齐 `callsites.py` / `details.py` 到 Python 前端模块；自举现在只包含 4 个有效源码模块。
 
 `student_system`：
 
@@ -143,7 +153,7 @@ resolvedCalls: 43
 测试：
 
 ```text
-pytest: 26 passed, 1 skipped（默认跳过浏览器测试）
+pytest: 32 passed, 1 skipped（默认跳过浏览器测试）
 ARCHMAP_RUN_BROWSER=1 pytest tests/test_browser_smoke.py: 1 passed
 archmap check: OK
 ```
@@ -231,7 +241,44 @@ Bundle 顶层：
 }
 ```
 
-### 5.1 Class 节点
+### 5.1 Module 角色与提供接口
+
+`projectGraph.modules[]` 与 `moduleGraphs[]` 都包含：
+
+```json
+{
+  "role": "main",
+  "providedApiCount": 14,
+  "providedApis": [
+    {
+      "id": "api:fn:archmap.cli.main",
+      "kind": "function",
+      "name": "main",
+      "qualifiedName": "archmap.cli.main",
+      "ownerId": "cli-pipeline",
+      "ownerName": "CLI 与流水线",
+      "ownerKind": "module",
+      "moduleId": "cli-pipeline",
+      "functionId": "fn:archmap.cli.main",
+      "functionDetailId": "fn:archmap.cli.main",
+      "signature": "def main()",
+      "methodKind": "function",
+      "visibility": "public",
+      "isAbstract": false,
+      "isEntry": true
+    }
+  ]
+}
+```
+
+`providedApis` 是投影而非新事实源：
+
+- 公开类方法与抽象契约方法（`kind: method` / `abstract_method`）；
+- 公开模块级自由函数（`kind: function`）；
+- 构造函数、dunder、下划线内部方法不进入；
+- `projectGraph.layout.mode = "module-cards"`，项目页默认不渲染依赖路径。
+
+### 5.2 Class 节点
 
 `moduleGraphs[].nodes` 中 `kind: "class"`：
 
@@ -267,7 +314,7 @@ Bundle 顶层：
 - `file` / `line` / `endLine`
 - `functionDetailId`
 
-### 5.2 FunctionDetail
+### 5.3 FunctionDetail
 
 ```json
 {
@@ -294,7 +341,7 @@ Bundle 顶层：
 }
 ```
 
-### 5.3 CallSite
+### 5.4 CallSite
 
 ```json
 {
@@ -316,7 +363,7 @@ Bundle 顶层：
 }
 ```
 
-### 5.4 边
+### 5.5 边
 
 - `moduleGraphs[].edges`：类/自由函数组件级聚合边；
 - `moduleGraphs[].methodEdges`：方法级调用边；
@@ -343,7 +390,24 @@ P3/P4 需要增加结构关系类型：`inherits`、`implements`、`composes`、
 
 ---
 
+### 7.0 P2.0：项目页/模块页能力契约（已完成）
+
+P2.0 已落地：
+
+- `ModuleConfig.role`；
+- `moduleGraphs[].providedApis` / `providedApiCount` / `role`；
+- `projectGraph.modules[].role` / `providedApiCount`；
+- 项目页能力卡片布局 `layout.mode = "module-cards"`，默认不绘制依赖线；
+- 项目页“关系”按钮可临时显示保留的模块内部调用边；
+- 模块页顶部 `PROVIDED API` 条；
+- 模块详情与项目页模块详情可点击接口 chips 下钻到 Method Detail；
+- 校验器检查 `providedApis` 的 function/owner 交叉引用与计数一致性。
+
+P2.0 不新增第二套事实源：`providedApis` 从现有类方法、抽象方法和自由函数派生。
+
 ## 7. P2：类焦点页与类内方法图
+
+> 说明：本节以下内容即 P2.1，尚未开始。P2.0 契约层已完成。
 
 ### 7.1 目标
 
@@ -638,14 +702,15 @@ Class 节点增加或完善：
 4. 方法详情源码目前纯文本展示，没有完整语法高亮。
 5. 单函数源码有 24000 字符上限，超长会 truncated。
 6. 方法详情页没有“调用路径搜索”，目前只有 callers/callees 列表。
-7. 类焦点页尚未实现，类方法目前从类详情面板进入。
+7. P2.1 类焦点页尚未实现，类方法目前从类详情面板进入。
 8. 旧 schema 3.0 bundle 不再通过 `archmap check`。
 9. 旧 FunctionFlow 注解的 `sourceHash` 会过期，需要重新生成。
 10. 旧函数级布局覆盖 `override.functions` 不再生效。
 11. `config.py` 中部分旧 `maxSteps` / `maxDataDeps` 配置已失去主要用途，后续可清理。
 12. 浏览器测试默认跳过，只有当 `ARCHMAP_RUN_BROWSER=1` 时执行。
-13. `examples/archmap_v3.archmap.json` 仍包含已删除的 `flow.py` / `layout.py` 模块配置，导致自举出现 `flow-build`、`layout-routing` 两个空模块；测试 `test_archmap_v3_self_config_builds_cross_module_edges` 也仍断言 6 个模块，需要同步清理。
+13. P2.0 已清理自举配置中的 `flow-build` / `layout-routing` 空模块，并把 `callsites.py` / `details.py` 归入 Python 前端模块。
 14. 旧 `docs/archmap-2.0-design.md`、`docs/HANDOFF.md`、`docs/v1-acceptance-report.md` 已加归档说明；维护时不要把其中的 FunctionFlow 设计重新写回当前契约。
+15. 模块层次/子模块（`parentId`）尚未建模，当前模块配置仍是扁平的。
 
 ---
 
@@ -658,7 +723,7 @@ python3 -m pytest -q
 # 浏览器测试
 ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py
 
-# 构建（注意：自举配置当前仍有两个空模块，待清理）
+# 构建（自举配置已清理为 4 个有效源码模块）
 python3 -m archmap build . --config examples/archmap_v3.archmap.json --out .archmap/self
 
 # 校验
@@ -676,13 +741,12 @@ python3 -m archmap serve .archmap/self
 ## 13. 新会话建议开工顺序
 
 1. 先跑全量测试和浏览器测试，确认当前基线。
-2. 清理 `examples/archmap_v3.archmap.json` 的两个空模块配置，并同步修正自举测试断言。
-3. 阅读 `graph.py` 中类节点/`methodEdges` 生成逻辑。
-4. 阅读 `app.js` 中 `renderModuleClassNode`、`renderSelectionDetail`、`renderMethodPage`。
-5. 先实现 P2 的 classView 数据投影，不要先动 UI。
-6. 用 `class_demo` 和 `student_system` 验证类页数据和布局。
-7. P2 验收后，再做 P3 的类型层次和 candidates。
-8. P4 最后做组合/聚合、impact/trace 和 DSM。
+2. 阅读 `graph.py` 中类节点、`methodEdges`、`providedApis` 与 `_layout_module_cards`。
+3. 阅读 `app.js` 中 `renderProjectModule`、`renderModuleClassNode`、`renderSelectionDetail`、`renderMethodPage`。
+4. 先实现 P2.1 的 classView 数据投影，不要先动 UI。
+5. 用 `class_demo` 和 `student_system` 验证类页数据和布局。
+6. P2.1 验收后，再做 P3 的类型层次和 candidates。
+7. P4 最后做组合/聚合、impact/trace 和 DSM。
 
 不要同时开始 P2、P3、P4。
 不要重新引入 FunctionFlow。
