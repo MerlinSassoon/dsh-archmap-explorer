@@ -4,8 +4,11 @@ import json
 import re
 from pathlib import Path
 
-from archmap.pipeline import build_architecture
-from archmap.render import render_html
+from archmap.managers.pipeline_manager import PipelineManager
+from archmap.managers.render_manager import RenderManager
+
+build_architecture = PipelineManager().build_architecture
+render_html = RenderManager().render
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
@@ -68,7 +71,20 @@ def test_render_keeps_system_color_scheme_support() -> None:
     bundle = build_architecture(ROOT)
     html = render_html(bundle)
     assert "prefers-color-scheme: dark" in html
+    assert "color-scheme: light dark" in html
+    assert "--method-bg: #f8fafc" in html
+    assert "--method-bg: #090d13" in html
+    assert ".viewport.is-detail { cursor: default; background: var(--method-bg); }" in html
     assert "method-page" in html
+
+
+def test_render_removed_module_inline_expand_feature() -> None:
+    bundle = build_architecture(ROOT)
+    html = render_html(bundle)
+    assert "data-expand" not in html
+    assert "module-mini" not in html
+    assert "renderModuleMini" not in html
+    assert "data-open-module" in html
 
 
 def test_render_contains_class_component_contract() -> None:

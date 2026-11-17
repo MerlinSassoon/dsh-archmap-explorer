@@ -19,7 +19,7 @@ P0 / P1 / P1.5  已完成
 P2.0 项目页/模块页能力契约重构  已完成
 P2.1 API 契约建模与展示         已完成
 P2.2 Provider Role 与模块组合   已完成
-P2.3 ArchMap 自身分层重构       已完成
+P2.3 ArchMap 自身分层重构       已完成（含旧 import shim 清理）
 P2.4 主模块/功能模块/主流程     已完成
 P3 继承/接口/多态/继承 API      未开始
 P4 类关系/API impact/user surface 未开始
@@ -70,12 +70,13 @@ yield/student_system/
 ## 三层视图
 
 - **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。
+- **项目页交互**：模块卡片不再提供“+”内联展开；双击卡片或点击右上角 ↗ 进入独立模块页面。
 - **主模块页**：默认展示 entry → orchestrator/provider/interface 的主流程 DAG；可切换到能力视图查看类与自由函数。
 - **功能模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示类节点、模块级自由函数节点；不再有模块输入/输出端口。config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；内部方法只显示数量，不展开类内方法图。点击方法/函数接口进入方法详情页。
-- **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees；点击调用者可继续下钻。
+- **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
-- 项目页与模块页节点支持拖拽；布局默认坐标由 Python 生成，浏览器只保存项目页/模块页的用户覆盖。
+- 项目页与模块页节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存项目页/模块页的用户覆盖；可用“适应画布”或“重置布局”找回节点。
 - 不再生成或渲染函数内部语句级执行流图；函数实现以源码为最终事实来源。
 
 ## 配置
@@ -265,7 +266,7 @@ archmap/
 └── render/assets/
 ```
 
-旧模块路径保留为 import shim，兼容既有测试和外部调用；自举图默认排除 shim 文件。
+P2.3 迁移已最终完成：旧 import shim 文件已删除，测试、自举配置和 CLI 入口全部使用新目录；`python -m archmap` 与安装后的 `archmap` 命令均指向 `archmap.entry.cli_entry:main`。
 
 详细规范见 [docs/archmap-architecture-spec.md](docs/archmap-architecture-spec.md)，迁移记录见 [docs/p2.3-migration-plan.md](docs/p2.3-migration-plan.md)。
 
@@ -354,8 +355,8 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 `archmap/frontends/` 提供语言适配层：
 
 - `LanguageFrontend` 负责发现、解析、符号解析、CallSite 提取、FunctionDetail 和 API 契约能力构建。
-- `graph.py`、`validate.py`、`render.py` 与语言无关。
-- 语言注册使用显式 `FRONTENDS` 字典，不是插件系统。
+- `graph_utility.py`、`validate_utility.py`、`render_utility.py` 及对应 Manager 与语言无关。
+- 语言实例由 `FrontendManager` 显式注册，不是插件系统。
 - ArkTS 阶段新增 `frontends/arkts`，可使用可选解析器依赖；当前 Python 后端仍保持标准库零依赖。
 
 当前文档入口：

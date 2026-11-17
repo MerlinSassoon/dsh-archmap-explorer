@@ -168,7 +168,7 @@ utility  纯函数 / 助手
 - `providerVisibility`、`ownerProviderId`、`publicModuleComposition` / `publicProviderRoleCounts`；
 - 每个领域只暴露 facade manager；阶段函数作为内部 utility 归属到对应 manager；
 - utility 默认 internal，不进入默认项目页/模块页；事实层保留 FunctionDetail / CallSite；
-- 物理代码按 `config/model/manager/utility` 四类组织，旧模块路径保留 import shim；
+- 物理代码按 `config/model/manager/utility` 四类组织，旧 import shim 已在最终清理中删除；
 - config/model 序列化方法不再进入模块 API；
 - 协议能力：context manager / async context manager / callable / iterable；
 - 构造签名与 Magic Method 排除；
@@ -242,7 +242,7 @@ HTML:          ~2.9 MB
 JSON:          ~3.8 MB
 ```
 
-`examples/archmap_v3.archmap.json` 为 6 个逻辑模块并排除旧 import shim：
+`examples/archmap_v3.archmap.json` 为 6 个逻辑模块（旧 shim 已删除，无需排除项）：
 
 ```text
 main-pipeline / core-contracts / python-frontend /
@@ -348,7 +348,7 @@ ArkTS 未来应实现相同接口，不应修改 HTML 渲染核心。
 | `archmap/entry/cli_entry.py` / `archmap/utility/cli_utility.py` | CLI 入口与命令实现 |
 | `tests/test_main_flow.py` | 主流程边界、dispatch、模块语义与规范化样例回归 |
 
-旧模块路径（`archmap/analysis.py`、`archmap/graph.py`、`archmap/contracts.py` 等）是兼容 shim，只转发到新目录。自举配置默认排除 shim 文件。
+P2.3 迁移最终清理后，旧模块路径（`archmap/analysis.py`、`archmap/graph.py`、`archmap/contracts.py` 等）已删除；所有测试和内部引用均直接使用 `managers`、`frontends`、`model`、`utility` 和 `entry`。
 
 已删除：
 
@@ -969,7 +969,7 @@ archmap/
 ### 9.3 迁移步骤
 
 1. P2.2 角色投影已完成，不改文件结构；
-2. 抽出 model 模块，保留旧 import shim；
+2. 抽出 model 模块（过渡期保留旧 import shim，最终清理时已删除）；
 3. 抽出 managers，逐个迁移并通过测试；
 4. 把 `pipeline.py` 定位为 application manager，`cli.py` 定位为 entry；
 5. 更新 `examples/archmap_v3.archmap.json`，让自举图显示 config/model/manager/entry；
@@ -993,7 +993,7 @@ archmap/
 
 - 新增 [`archmap-architecture-spec.md`](archmap-architecture-spec.md)，冻结四类物理文件、八角色逻辑语义、依赖方向与可见性规则；迁移细节见 [`p2.3-migration-plan.md`](p2.3-migration-plan.md)；
 - 将实现迁移为 `config/model/utility/managers/entry` 目录；
-- 保留旧模块路径作为 import shim；
+- 旧 import shim 最终已删除；
 - 自举配置更新为 5 个逻辑模块并排除 shim；
 - 新增 `providerVisibility`、`ownerProviderId`、`publicModuleComposition`、`publicProviderRoleCounts`；
 - 每个领域收敛为 facade manager：PipelineManager、FrontendManager、PythonFrontend、GraphManager、ValidationManager、RenderManager；

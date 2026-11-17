@@ -2,7 +2,7 @@
 
 > 本文档冻结 v3.6 数据契约，并作为实现和后续 ArkTS 扩展的依据。与 `archmap-2.0-design.md`、旧 `docs/HANDOFF.md` 冲突时，以本文档、[`README.md`](../README.md) 和 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 为准。
 >
-> **当前状态（2026-11-17）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3 已完成；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中；结构关系和用户交互面是后续契约。
+> **当前状态（2026-11-17）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3 已完成，P2.3 旧 import shim 已删除；P3、P4 尚未开始。类焦点页与类内方法图不在产品计划中；结构关系和用户交互面是后续契约。
 
 ## 1. 三层投影
 
@@ -225,11 +225,11 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ## 7. 语言前端接口
 
-`archmap/frontends/base.py` 定义 `LanguageFrontend`：
+`archmap/model/frontend_contract.py` 定义 `LanguageFrontend`：
 
 - 负责源码发现、解析、符号解析、模块投影、CallSite 提取、FunctionDetail 和 ContractModel 构建。
-- `graph.py`、`validate.py`、`render.py` 不依赖 Python AST。
-- 注册使用显式 `FRONTENDS` 字典，不是插件系统。
+- `graph_utility.py`、`validate_utility.py`、`render_utility.py` 及对应 Manager 不依赖 Python AST。
+- 注册由 `FrontendManager` 显式持有，不是插件系统。
 - Python 前端使用标准库 `ast`，v1 运行时零第三方依赖。
 
 ### ArkTS 接入要求

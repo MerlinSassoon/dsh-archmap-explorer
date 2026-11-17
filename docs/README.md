@@ -29,7 +29,7 @@ P1.5  FunctionDetail + Source View + CallGraph 已完成
 P2.0  项目页/模块页能力契约重构             已完成
 P2.1  API 契约建模与展示                    已完成
 P2.2  Provider Role 与模块组合               已完成
-P2.3  架构规范落盘、自身代码迁移与语义归属   已完成
+P2.3  架构规范落盘、自身代码迁移与语义归属   已完成（旧 shim 已删除）
 P2.4  主模块/功能模块/主流程 DAG             已完成
 P3    继承、接口、多态与继承 API             未开始
 P4    类关系、API impact/user surface/DSM    未开始

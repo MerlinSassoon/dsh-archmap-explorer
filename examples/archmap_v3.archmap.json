@@ -5,23 +5,7 @@
     "archmap/**/*.py"
   ],
   "exclude": [
-    "**/__pycache__/**",
-    "archmap/analysis.py",
-    "archmap/callresolver.py",
-    "archmap/callsites.py",
-    "archmap/cli.py",
-    "archmap/config.py",
-    "archmap/contracts.py",
-    "archmap/details.py",
-    "archmap/discover.py",
-    "archmap/graph.py",
-    "archmap/pipeline.py",
-    "archmap/render.py",
-    "archmap/validate.py",
-    "archmap/frontends/base.py",
-    "archmap/frontends/registry.py",
-    "archmap/frontends/python/capabilities.py",
-    "archmap/frontends/python/roles.py"
+    "**/__pycache__/**"
   ],
   "entrypoints": [
     "archmap.entry.cli_entry:main"

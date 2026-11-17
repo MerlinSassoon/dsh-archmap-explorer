@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from archmap.pipeline import build_architecture
-from archmap.validate import validate_bundle
+from archmap.managers.pipeline_manager import PipelineManager
+from archmap.managers.validate_manager import ValidationManager
+
+build_architecture = PipelineManager().build_architecture
+validate_bundle = ValidationManager().validate
 
 REPO_ROOT = Path(__file__).parent.parent
 

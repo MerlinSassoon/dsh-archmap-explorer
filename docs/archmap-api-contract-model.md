@@ -311,7 +311,7 @@ ArkTS 的 length / index signature
 
 ## 10. ArkTS 扩展
 
-契约模型语言中立，`graph.py` / `validate.py` / `render.py` 不依赖 Python AST。
+契约模型语言中立，`graph_utility.py` / `validate_utility.py` / `render_utility.py` 及对应 Manager 不依赖 Python AST。
 
 ArkTS frontend 负责：
 
@@ -403,7 +403,7 @@ P2.3  ArchMap 自身 config/model/manager 重构（已完成）
       - 四类物理文件规范
       - config/model/manager/utility 目录迁移
       - providerVisibility 与 public 投影
-      - 旧 import shim 保留
+      - 旧 import shim 已在最终清理中删除
 
 P3    类型契约、Manager 接口与继承 API
       - inherits / implements

@@ -13,8 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from archmap.pipeline import build_architecture
-from archmap.render import render_html
+from archmap.managers.pipeline_manager import PipelineManager
+from archmap.managers.render_manager import RenderManager
+
+build_architecture = PipelineManager().build_architecture
+render_html = RenderManager().render
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 CLASS_ROOT = Path(__file__).parent / "fixtures" / "class_demo"
@@ -26,7 +29,6 @@ def _free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return int(sock.getsockname()[1])
-
 
 @pytest.mark.skipif(os.environ.get("ARCHMAP_RUN_BROWSER") != "1", reason="set ARCHMAP_RUN_BROWSER=1 to run WebDriver smoke test")
 def test_browser_smoke() -> None:
@@ -96,13 +98,13 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.module-api-chip').length") > 0
         assert execute("return document.querySelectorAll('.boundary-node').length") == 0
         assert execute("return document.querySelectorAll('.macro-edge').length") == 0
+        assert execute("return document.querySelectorAll('[data-expand]').length") == 0
+        assert execute("return document.querySelectorAll('.module-mini').length") == 0
+        assert execute("return document.querySelectorAll('[data-open-module]').length") == 3
         assert execute("return window.__ARCHMAP_ERRORS__") == []
         execute("document.getElementById('relationModeBtn').click(); return true")
         assert execute("return document.getElementById('relationModeBtn').getAttribute('aria-pressed')") == "true"
         execute("document.getElementById('relationModeBtn').click(); return true")
-        execute("document.querySelector('[data-expand]').click(); return true")
-        time.sleep(.4)
-        assert execute("return document.querySelectorAll('.mini-node').length") > 0
         execute("location.hash='#/module/entry'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.main-flow-node').length") > 0
@@ -112,6 +114,41 @@ def test_browser_smoke() -> None:
         execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
         time.sleep(.3)
         assert execute("return document.querySelectorAll('.function-node').length") == 1
+        assert execute("return document.querySelectorAll('[data-expand]').length") == 0
+        assert execute("return document.querySelectorAll('.module-mini').length") == 0
+        drag_result = execute("""return (() => {
+          const node = document.querySelector('.function-node');
+          const rect = node.getBoundingClientRect();
+          const x = rect.left + 12;
+          const y = rect.top + 12;
+          node.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, button: 0, pointerId: 7, clientX: x, clientY: y}));
+          node.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, pointerId: 7, clientX: x + 2600, clientY: y + 1800}));
+          node.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, pointerId: 7, clientX: x + 2600, clientY: y + 1800}));
+          return {left: parseFloat(node.style.left), top: parseFloat(node.style.top)};
+        })()""")
+        assert drag_result["left"] > 2200
+        assert drag_result["top"] > 1600 or drag_result["left"] > 2200
+        drag_result = execute("""return (() => {
+          const node = document.querySelector('.function-node');
+          const rect = node.getBoundingClientRect();
+          const x = rect.left + 12;
+          const y = rect.top + 12;
+          node.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, button: 0, pointerId: 8, clientX: x, clientY: y}));
+          node.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, pointerId: 8, clientX: x - 5000, clientY: y - 5000}));
+          node.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, pointerId: 8, clientX: x - 5000, clientY: y - 5000}));
+          return {left: parseFloat(node.style.left), top: parseFloat(node.style.top)};
+        })()""")
+        assert drag_result["left"] < 0
+        assert drag_result["top"] < 0
+        execute("document.getElementById('fitBtn').click(); return true")
+        assert execute("""return (() => {
+          const node = document.querySelector('.function-node').getBoundingClientRect();
+          const viewportRect = document.getElementById('viewport').getBoundingClientRect();
+          return node.right > viewportRect.left && node.left < viewportRect.right
+            && node.bottom > viewportRect.top && node.top < viewportRect.bottom;
+        })()""") is True
+        execute("localStorage.removeItem('archmap-v3-layout-v1'); return true")
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
         execute("location.hash='#/module/entry/function/fn%3Aapp.main.main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.method-page').length") == 1
@@ -119,6 +156,17 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.method-call-item').length") > 0
         assert execute("return document.querySelectorAll('.flow-node').length") == 0
         assert execute("return document.querySelector('.method-source-line.is-call-site') !== null") is True
+        method_theme = execute("""return (() => {
+          const page = document.querySelector('.method-page');
+          return {
+            dark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+            background: getComputedStyle(page).backgroundColor,
+            token: getComputedStyle(document.documentElement).getPropertyValue('--method-bg').trim(),
+          };
+        })()""")
+        expected_bg = "rgb(9, 13, 19)" if method_theme["dark"] else "rgb(248, 250, 252)"
+        assert method_theme["background"] == expected_bg
+        assert method_theme["token"] == ("#090d13" if method_theme["dark"] else "#f8fafc")
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # Phase 1 class layer: classes are component nodes on the module page;
