@@ -589,6 +589,7 @@ ArkTS 接入时需要：
 | [`docs/p6-project-model-plan.md`](docs/p6-project-model-plan.md) | P6 实施计划与进度：取消主模块、项目级主流程、schema 5.0、纵向能力模块、标准流程卡片与分阶段验收 |
 | [`docs/p6-project-model-discussion.md`](docs/p6-project-model-discussion.md) | P6 讨论背景：问题分析、目标模型、Provider 归属与调用视图清理 |
 | [`docs/HANDOFF-P6.md`](docs/HANDOFF-P6.md) | P6 完成交接：schema 5.0、项目级流程、能力模块规范、验收基线与后续方向 |
+| [`docs/p7-entry-model-plan.md`](docs/p7-entry-model-plan.md) | P7 修复计划：七角色、标准 flow entry 节点、项目页 flow card 同层布局 |
 | [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | 规范化项目配置生成指南：模块划分、入口/流程区分、Provider 归属与常见误配 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 

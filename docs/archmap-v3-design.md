@@ -16,6 +16,8 @@
 >
 > **P6 计划（2026-11-18）**：项目模型重构已批准，目标为取消主模块、项目级主流程、单一 executionFlows 投影和纵向能力模块。实施契约、阶段与验收以 [`p6-project-model-plan.md`](p6-project-model-plan.md) 为准。<br>
 > **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明，当前契约以本节及 schema 5.0 为准。
+>
+> **P7 计划（2026-11-18）**：修复入口语义分层。Provider Role 将移除 `entry`，execution flow 恢复标准 `entry` 节点，项目页 flow card 与 module card 同级布局。实施前当前契约仍为 P6 的 schema 5.0。
 
 ## 1. 三层投影
 
