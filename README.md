@@ -185,7 +185,7 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
 service / adapter / component / test / other
 ```
 
-拥有入口函数的模块仍是普通能力模块；入口状态由项目级 `entrypoints` / `executionEntrypoints` 和 execution flow 表达。旧配置中的 `mainModule`、`kind`、`role: "entry"` 以及 `contract.providerRoles` 中的 `entry` 只产生 deprecation warning。
+拥有入口函数的模块仍是普通能力模块；入口状态由项目级 `entrypoints` / `executionEntrypoints` 和 execution flow 表达。入口函数不会获得 `entry` Provider Role，但仍会按实际职责作为普通 Provider 出现在模块能力事实中。旧配置中的 `mainModule`、`kind`、`role: "entry"` 以及 `contract.providerRoles` 中的 `entry` 只产生 deprecation warning。
 
 ## 模块能力契约
 
@@ -599,7 +599,7 @@ ArkTS 接入时需要：
 | [`docs/HANDOFF-P6.md`](docs/HANDOFF-P6.md) | P6 历史交接：schema 5.0、项目级流程与能力模块规范 |
 | [`docs/HANDOFF-P7.md`](docs/HANDOFF-P7.md) | P7 完成交接：七角色、标准 flow entry、flow card 同层布局与验收基线 |
 | [`docs/p7-entry-model-plan.md`](docs/p7-entry-model-plan.md) | P7 修复计划：七角色、标准 flow entry 节点、项目页 flow card 同层布局 |
-| [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | 规范化项目配置生成指南：模块划分、入口/流程区分、Provider 归属与常见误配 |
+| [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | schema 6.0 规范化配置指南：模块划分、七角色、entrypoints / flow card 区分、旧配置迁移与常见误配 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 
 ### 历史归档

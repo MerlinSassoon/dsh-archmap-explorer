@@ -22,9 +22,20 @@ Project Page Item
 - 每条执行流恰好一个标准 `entry` 节点；
 - 项目页 flow card 与 module card 同层、同网格；
 - 入口检测由项目级 `entrypoints` / `executionEntrypoints` 驱动；
-- 模块不再承载 `entry` Provider Role。
+- 模块不再承载 `entry` Provider Role；入口函数仍按实际职责成为普通 Provider。
 
-## 2. 七 Provider Role
+## 2. 当前提交链
+
+```text
+9f6879d docs(p7.0): plan entry semantics and project card layout fix
+da92fb6 refactor(p7.1): remove entry from provider and module roles
+10464df fix(p7.2): restore standard flow entry anchor
+b1673c4 feat(p7.3): place project flow cards in the capability grid
+e0e9eba refactor(p7.4): normalize entry sources and sample modules
+136c96f docs(p7.5): finalize schema 6.0 entry model release
+```
+
+## 3. 七 Provider Role
 
 ```text
 config / model / manager / adapter / component / contract / utility
@@ -50,7 +61,7 @@ executionFlows[].entrypointId
 executionFlow.nodes[kind=entry]
 ```
 
-## 3. Execution Flow 入口节点
+## 4. Execution Flow 入口节点
 
 `entry` 节点已恢复为正式 flow node：
 
@@ -69,7 +80,7 @@ loop / break / continue / return / dispatch
 - 首句不可物化语句不导致断流；
 - 空入口生成 entry→exit。
 
-## 4. 项目页布局
+## 5. 项目页布局
 
 新增：
 
@@ -91,7 +102,7 @@ projectGraph.layout.nodes
 - flow card 可拖拽、保存布局；
 - module card 继续表示能力模块。
 
-## 5. 动态分发
+## 6. 动态分发
 
 P6.1 的共享 resolver 保持不变：
 
@@ -109,7 +120,7 @@ candidateSource = config
 
 候选只在节点详情展示，不展开为控制分支。
 
-## 6. 样例归一化
+## 7. 样例归一化
 
 ### student_system
 
@@ -124,7 +135,7 @@ test             验证脚本
 
 - 一张 `main()` flow card；
 - entry 函数有 `isFlowEntry=true`；
-- 无 entry Provider Role；
+- 无 entry Provider Role；`main()` 仍按结构角色作为普通 Provider；
 - 无 contracts 模块。
 
 ### gomoku
@@ -155,7 +166,7 @@ rendering
 - pipeline 模块只展示流水线能力；
 - Provider Role 计数只包含七角色。
 
-## 7. 当前验收基线
+## 8. 当前验收基线
 
 ```text
 pytest:             109 passed, 1 skipped
@@ -222,7 +233,7 @@ executionEdges:       10
 flowCards:            1
 ```
 
-## 8. 关键文件
+## 9. 关键文件
 
 ```text
 archmap/config/contract_config.py
@@ -241,7 +252,7 @@ examples/gomoku.archmap.json
 examples/archmap_v3.archmap.json
 ```
 
-## 9. 常用验证命令
+## 10. 常用验证命令
 
 ```bash
 python3 -m pytest -q
@@ -267,7 +278,50 @@ python3 -m archmap build /path/to/五子棋 \
 python3 -m archmap check /tmp/gomoku/architecture.json
 ```
 
-## 10. 变更门槛
+## 11. 配置约定
+
+规范化配置必须遵守：
+
+```text
+模块 role：service / adapter / component / test / other
+Provider Role：config / model / manager / adapter / component / contract / utility
+入口配置：entrypoints / executionEntrypoints 位于项目级
+动态分发：顶层 dispatchHints
+```
+
+不要继续输出：
+
+```text
+mainModule
+module.kind
+module.role = main / entry
+contract.providerRoles.* = entry
+mainFlow.dispatches
+```
+
+兼容行为：
+
+- `mainModule`、`module.kind`、`module.role=main/entry`、`providerRoles.entry` 只产生 deprecation warning；
+- `mainFlow.dispatches` 仍可读取；
+- 旧 bundle 5.0/4.x 使用历史 schema 追溯，必须重新 build 才能得到 schema 6.0。
+
+详细生成规则见 [`project-config-generation-guide.md`](project-config-generation-guide.md)。
+
+## 12. 交接检查清单
+
+- [x] Provider Role 七角色化；
+- [x] module role 移除 entry；
+- [x] flow `entry` 节点恢复并标准化；
+- [x] flow card 与 module card 同网格；
+- [x] 不可物化首句 pass-through；
+- [x] 空流程 entry→exit；
+- [x] student_system / gomoku / self 配置归一化；
+- [x] 自举 dispatch 9 candidates / complete / config；
+- [x] schema 6.0 与 validator 同步；
+- [x] 全量测试、浏览器冒烟、build/check 通过；
+- [x] 当前文档与配置生成指南更新。
+
+## 13. 变更门槛
 
 1. 不恢复 Provider Role `entry`。
 2. 不把 module role 设为 `entry`。
@@ -279,7 +333,7 @@ python3 -m archmap check /tmp/gomoku/architecture.json
 8. 不恢复模块页调用边。
 9. 数据契约变更必须先更新 schema、validator、测试和文档。
 
-## 11. 后续方向
+## 14. 后续方向
 
 - User Surface 置信度校准与分组；
 - ArkTS 前端；

@@ -20,7 +20,7 @@ Project Page Item
 - execution flow 恢复 `entry` 节点，与 loop/branch 同级；
 - 项目页 flow card 与 module card 同级、同布局；
 - 入口检测由项目级 `entrypoints` / `executionEntrypoints` 驱动，不依赖 Provider Role；
-- 模块不承载入口角色、入口 API 或流程导航；
+- 模块不承载 `entry` Provider Role 或流程导航；入口函数仍可按实际职责成为普通 Provider；
 - 首句不可物化语句不导致执行流断开。
 
 ## 2. 阶段
@@ -61,7 +61,7 @@ Project Page Item
 ### P7.4：模块与样例配置归一化（已完成）
 
 - student_system / gomoku / self 配置移除 entry role；
-- 模块卡片不展示入口 API；
+- 模块卡片不展示 `entry` Provider Role 或 flow navigation；入口函数可按正常角色展示；
 - 保留所有源码文件的唯一模块归属；
 - 验证入口检测、dispatch 候选和 P3/P4 查询无回退。
 
@@ -81,7 +81,7 @@ Project Page Item
 - 空函数 flow 至少包含 entry→exit；
 - 项目页无顶部独立流程入口条；
 - flow card 与 module card 同层同网格；
-- 模块不展示 entry API；
+- 模块不展示 `entry` Provider Role 或 flow navigation；
 - student_system 只有一张 `main()` flow card；
 - gomoku 只有一张 `GameCli.run()` flow card；
 - self 只有一张 `cli_entry.main()` flow card；

@@ -348,7 +348,7 @@ user surface    最终用户能感知或操作的交互面
 示例：
 
 - `MenuSystem.run()`：menu 模块 manager 的开发者 API，同时是 TUI 键盘菜单交互面；
-- `init_connection(port=12345)`：entry-network 的函数 API，同时是 CLI 输入提示交互面。
+- `NetworkAdapter.init_connection()`：network 模块 adapter 的开发者 API，同时是 CLI 输入提示交互面。
 
 建议字段：
 
@@ -365,14 +365,14 @@ user surface    最终用户能感知或操作的交互面
 {
   "kind": "cli_input",
   "display": "选择服务器/客户端并输入服务器 IP",
-  "moduleId": "entry-network",
-  "evidenceFunctionIds": ["fn:TcpConnect.init_connection"],
-  "entrypointIds": ["fn:main.__main__"],
+  "moduleId": "network",
+  "evidenceFunctionIds": ["fn:student_system.network.network_manager.NetworkAdapter.init_connection"],
+  "entrypointIds": ["fn:student_system.app.main.main"],
   "confidence": "medium"
 }
 ```
 
-主模块规则：
+项目流程规则：
 
 - 主模块默认不展示 developer API；
 - 项目页以 flow card 展示入口来源；

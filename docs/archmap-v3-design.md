@@ -31,8 +31,9 @@
 - 模块卡片同时展示 Provider Role 数量；模块间依赖证据仍不默认绘制。
 - `providedApis` 来自 Provider + Capability 契约投影，包含公开方法、抽象契约方法和协议能力。
 - 项目页默认不绘制 `projectGraph.edges`；模块间调用/数据证据保留，供可选“关系”模式与后续查询使用。
-- 默认几何由 Python 以能力卡片网格生成（`layout.mode = "module-cards"`），前端只负责渲染与用户拖拽覆盖。
-- P6.2 起 `projectGraph.mainFlows` / `primaryFlowId` 已删除；项目级执行视图只保留 `executionFlows` / `primaryExecutionFlowId`。
+- 项目页包括 `projectGraph.flowCards` 与 `projectGraph.modules` 两类标准卡片；两者都进入 `projectGraph.layout.nodes`。
+- 默认几何由 Python 以统一卡片网格生成（`layout.mode = "module-cards"` 当前兼容保留，实际同时布局 flow cards 与 module cards），前端只负责渲染与用户拖拽覆盖。
+- P6.2 起 `projectGraph.mainFlows` / `primaryFlowId` 已删除；项目级执行视图保留 `executionFlows`、`flowCards` / `primaryExecutionFlowId`。
 
 ### ExecutionFlow
 
@@ -58,6 +59,8 @@
 - 类节点是模块内的一等组件，带 `classKind`、`isAbstract`、`usage`、`providedApis` 和方法摘要。
 - 类卡片只展示构造签名与提供接口；类内方法图和类焦点页不在产品计划中。
 - 类方法归属 `class` 节点，不直接平铺为模块页函数节点；方法级关系保存在 `methodEdges` 和全局 `callSites` 中。
+- `entryFunctionIds` / `flowEntryFunctionIds` 只作为项目级入口来源事实；入口函数仍按实际职责属于普通 Provider Role。
+- `moduleGraphs[].edges` 已删除；模块页不默认展示调用边。
 - `moduleGraphs[].edges` 已删除；模块能力页不默认绘制调用边。
 - 方法节点属于类组件的子级语义；类本身不拥有执行流。
 - 模块不再包含输入/输出边界；抽象类/接口只作为契约 Provider，不进入主流程执行节点。
