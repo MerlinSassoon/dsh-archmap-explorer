@@ -8,42 +8,43 @@
     "**/__pycache__/**",
     ".archmap/**"
   ],
-  "mainModule": "main",
   "entrypoints": [
-    "student_system.main:main"
+    "student_system.app.main:main"
   ],
   "modules": [
     {
-      "id": "main",
-      "name": "主模块",
-      "kind": "main",
+      "id": "app",
+      "name": "应用入口与编排",
       "include": [
         "student_system/__init__.py",
         "student_system/__main__.py",
-        "student_system/main.py",
-        "student_system/managers/__init__.py"
+        "student_system/app/__init__.py",
+        "student_system/app/main.py"
       ],
       "note": "程序入口、角色选择与客户端/服务端顶层编排。",
       "color": "#f59e0b",
-      "role": "main"
+      "role": "entry"
     },
     {
       "id": "network",
-      "name": "网络适配",
-      "kind": "functional",
+      "name": "网络与协议",
       "include": [
-        "student_system/managers/network_manager.py"
+        "student_system/network/__init__.py",
+        "student_system/network/network_manager.py",
+        "student_system/network/protocol_model.py",
+        "student_system/network/protocol_codec.py"
       ],
-      "note": "Socket 角色选择、服务端监听与客户端连接。",
+      "note": "Socket 角色选择、连接管理、线协议模型与 JSON 编解码接口。",
       "color": "#fb7185",
       "role": "adapter"
     },
     {
       "id": "database",
       "name": "数据访问",
-      "kind": "functional",
       "include": [
-        "student_system/managers/database_manager.py"
+        "student_system/database/__init__.py",
+        "student_system/database/database_manager.py",
+        "student_system/database/database_config.py"
       ],
       "note": "MySQL 连接、协议解码与学生数据增删改查。",
       "color": "#8bdc64",
@@ -51,47 +52,34 @@
     },
     {
       "id": "menu",
-      "name": "菜单与交互",
-      "kind": "functional",
+      "name": "菜单与展示",
       "include": [
-        "student_system/managers/menu_manager.py",
-        "student_system/utility/display_utility.py"
+        "student_system/menu/__init__.py",
+        "student_system/menu/menu_manager.py",
+        "student_system/menu/student_model.py",
+        "student_system/menu/display_utility.py"
       ],
-      "note": "终端菜单、键盘事件、学生信息操作编排与表格显示。",
+      "note": "终端菜单、键盘事件、学生记录模型、表格展示与操作编排。",
       "color": "#60a5fa",
-      "role": "service"
+      "role": "component"
     },
     {
-      "id": "async",
-      "name": "异步等待",
-      "kind": "functional",
+      "id": "async-feedback",
+      "name": "异步反馈",
       "include": [
-        "student_system/managers/spinner_manager.py"
+        "student_system/async_feedback/__init__.py",
+        "student_system/async_feedback/spinner_manager.py"
       ],
-      "note": "后台线程动画与等待反馈组件。",
+      "note": "可复用的后台线程动画与 context manager 等待组件。",
       "color": "#a78bfa",
-      "role": "service"
-    },
-    {
-      "id": "contracts",
-      "name": "共享契约",
-      "kind": "functional",
-      "include": [
-        "student_system/config/*.py",
-        "student_system/model/*.py",
-        "student_system/utility/__init__.py",
-        "student_system/utility/protocol_utility.py"
-      ],
-      "note": "数据库配置、学生记录模型、协议消息模型与 JSON 编解码工具。",
-      "color": "#22d3ee",
-      "role": "service"
+      "role": "component"
     },
     {
       "id": "test",
       "name": "验证脚本",
-      "kind": "functional",
       "include": [
-        "student_system/tests/*.py"
+        "student_system/tests/__init__.py",
+        "student_system/tests/table_demo.py"
       ],
       "note": "独立的学生表格打印验证脚本。",
       "color": "#f472b6",
@@ -100,9 +88,14 @@
   ],
   "contract": {
     "providerRoles": {
-      "student_system.managers.network_manager.NetworkAdapter": "adapter",
-      "student_system.managers.database_manager.Database": "adapter",
-      "student_system.managers.menu_manager.MenuSystem": "component"
+      "student_system.network.network_manager.NetworkAdapter": "adapter",
+      "student_system.network.protocol_model.ProtocolMessage": "model",
+      "student_system.network.protocol_codec.ProtocolCodec": "manager",
+      "student_system.database.database_manager.Database": "adapter",
+      "student_system.database.database_config.DatabaseConfig": "config",
+      "student_system.menu.menu_manager.MenuSystem": "component",
+      "student_system.menu.student_model.StudentRecord": "model",
+      "student_system.async_feedback.spinner_manager.Spinner": "component"
     }
   }
 }

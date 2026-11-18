@@ -7,8 +7,8 @@ from typing import Any
 
 import pymysql
 
-from ..config.database_config import DatabaseConfig
-from ..utility.protocol_utility import decode_message
+from ..network.protocol_codec import ProtocolCodec
+from .database_config import DatabaseConfig
 
 
 class Database:
@@ -61,7 +61,7 @@ class Database:
 
     def actions(self, client_input: bytes) -> bytes:
         """公开 API：接收操作指令，根据指令操作数据库"""
-        model, args, kwargs = decode_message(client_input)
+        model, args, kwargs = ProtocolCodec.decode(client_input)
         _, action = self.menu_items[model]
         result = action(*args, **kwargs)
         return json.dumps(result, default=str).encode("utf-8")

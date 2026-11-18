@@ -16,8 +16,7 @@
       ],
       "note": "覆盖 guard clause 与嵌套循环的布局边界",
       "color": "#f59e0b",
-      "kind": "main"
+      "role": "service"
     }
-  ],
-  "mainModule": "control"
+  ]
 }

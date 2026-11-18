@@ -1,1 +1,0 @@
-"""Facade managers and components."""

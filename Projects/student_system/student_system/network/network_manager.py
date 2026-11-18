@@ -5,7 +5,7 @@ from __future__ import annotations
 import socket
 import sys
 
-from .spinner_manager import Spinner
+from ..async_feedback.spinner_manager import Spinner
 
 
 class NetworkAdapter:

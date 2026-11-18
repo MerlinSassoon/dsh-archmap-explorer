@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..model.student_model import STUDENT_COLUMNS, STUDENT_COLUMN_WIDTHS, StudentRecord
-from ..utility.display_utility import write_table
+from ..menu.display_utility import write_table
+from ..menu.student_model import STUDENT_COLUMNS, STUDENT_COLUMN_WIDTHS, StudentRecord
 
 
 def print_students(students: list[StudentRecord]) -> int:

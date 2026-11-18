@@ -12,9 +12,8 @@
   ],
   "modules": [
     {
-      "id": "main-pipeline",
-      "name": "主模块与流水线",
-      "kind": "main",
+      "id": "pipeline-entry",
+      "name": "入口与流水线",
       "include": [
         "archmap/__init__.py",
         "archmap/__main__.py",
@@ -22,30 +21,20 @@
         "archmap/managers/__init__.py",
         "archmap/managers/pipeline_manager.py",
         "archmap/utility/__init__.py",
+        "archmap/utility/pipeline_utility.py",
         "archmap/utility/cli_utility.py",
-        "archmap/utility/pipeline_utility.py"
-      ],
-      "note": "程序入口、应用级流水线编排、主流程组合根与 CLI 命令处理。",
-      "color": "#f59e0b",
-      "role": "main"
-    },
-    {
-      "id": "core-contracts",
-      "name": "核心契约",
-      "kind": "functional",
-      "include": [
-        "archmap/config/*.py",
-        "archmap/model/*.py",
+        "archmap/config/__init__.py",
+        "archmap/config/project_config.py",
+        "archmap/config/contract_config.py",
         "archmap/utility/config_utility.py"
       ],
-      "note": "静态配置、领域模型、契约 IR、前端协议与配置加载工具。",
-      "color": "#22d3ee",
-      "role": "service"
+      "note": "CLI 入口、配置加载、流水线编排与模块配置模型。",
+      "color": "#f59e0b",
+      "role": "entry"
     },
     {
       "id": "python-frontend",
       "name": "Python 前端",
-      "kind": "functional",
       "include": [
         "archmap/frontends/*.py",
         "archmap/frontends/**/*.py",
@@ -55,44 +44,50 @@
         "archmap/utility/detail_utility.py",
         "archmap/utility/contract_utility.py",
         "archmap/utility/role_utility.py",
-        "archmap/utility/discovery_utility.py"
+        "archmap/utility/discovery_utility.py",
+        "archmap/config/detail_config.py",
+        "archmap/model/__init__.py",
+        "archmap/model/analysis_model.py",
+        "archmap/model/call_model.py",
+        "archmap/model/contract_model.py",
+        "archmap/model/frontend_contract.py"
       ],
-      "note": "PythonFrontend 统一门面及其发现、分析、调用、详情、角色与契约内部工具。",
+      "note": "Python 源码发现、AST 分析、调用解析、契约与 Provider Role 投影。",
       "color": "#60a5fa",
       "role": "service"
     },
     {
       "id": "graph-projection",
-      "name": "架构投影",
-      "kind": "functional",
+      "name": "图投影与查询",
       "include": [
         "archmap/managers/graph_manager.py",
         "archmap/utility/graph_utility.py",
-        "archmap/utility/main_flow_utility.py",
+        "archmap/utility/call_resolution_utility.py",
         "archmap/utility/execution_flow_utility.py",
         "archmap/utility/execution_layout_utility.py",
-        "archmap/utility/query_utility.py"
+        "archmap/utility/query_utility.py",
+        "archmap/config/graph_config.py",
+        "archmap/model/execution_model.py",
+        "archmap/model/graph_model.py"
       ],
-      "note": "GraphManager 门面及三层投影、P5 执行流、调用投影、确定性布局、指纹与影响查询内部工具。",
+      "note": "三层 bundle、执行流、共享调用解析、布局、指纹与影响查询。",
       "color": "#a78bfa",
       "role": "service"
     },
     {
       "id": "validation",
-      "name": "契约校验",
-      "kind": "functional",
+      "name": "校验",
       "include": [
         "archmap/managers/validate_manager.py",
         "archmap/utility/validate_utility.py"
       ],
-      "note": "ValidationManager 门面与 bundle 契约、不变量和交叉引用校验。",
-      "color": "#f472b6",
+      "note": "schema 5.0、交叉引用和执行流不变量校验。",
+      "color": "#22d3ee",
       "role": "service"
     },
     {
       "id": "rendering",
       "name": "自包含渲染",
-      "kind": "functional",
       "include": [
         "archmap/managers/render_manager.py",
         "archmap/utility/render_utility.py"
@@ -102,25 +97,24 @@
       "role": "service"
     }
   ],
-  "mainModule": "main-pipeline",
   "dispatchHints": [
-      {
-        "function": "archmap.entry.cli_entry:main",
-        "expression": "args.func",
-        "occurrence": 1,
-        "candidates": [
-          "archmap.utility.cli_utility:cmd_build",
-          "archmap.utility.cli_utility:cmd_check",
-          "archmap.utility.cli_utility:cmd_method",
-          "archmap.utility.cli_utility:cmd_serve",
-          "archmap.utility.cli_utility:cmd_diff",
-          "archmap.utility.cli_utility:cmd_impact",
-          "archmap.utility.cli_utility:cmd_trace",
-          "archmap.utility.cli_utility:cmd_surfaces",
-          "archmap.utility.cli_utility:cmd_dsm"
-        ],
-        "complete": true,
-        "reason": "argparse_dispatch"
-      }
+    {
+      "function": "archmap.entry.cli_entry:main",
+      "expression": "args.func",
+      "occurrence": 1,
+      "candidates": [
+        "archmap.utility.cli_utility:cmd_build",
+        "archmap.utility.cli_utility:cmd_check",
+        "archmap.utility.cli_utility:cmd_method",
+        "archmap.utility.cli_utility:cmd_serve",
+        "archmap.utility.cli_utility:cmd_diff",
+        "archmap.utility.cli_utility:cmd_impact",
+        "archmap.utility.cli_utility:cmd_trace",
+        "archmap.utility.cli_utility:cmd_surfaces",
+        "archmap.utility.cli_utility:cmd_dsm"
+      ],
+      "complete": true,
+      "reason": "argparse_dispatch"
+    }
   ]
 }

@@ -16,9 +16,7 @@
       ],
       "note": "类语义测试",
       "color": "#60a5fa",
-      "role": "main",
-      "kind": "main"
+      "role": "entry"
     }
-  ],
-  "mainModule": "worker"
+  ]
 }

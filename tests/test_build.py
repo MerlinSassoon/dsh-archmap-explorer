@@ -82,16 +82,17 @@ def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
     repo_root = Path(__file__).parent.parent
     config_path = repo_root / "examples" / "archmap_v3.archmap.json"
     bundle = build_architecture(repo_root, config_path)
-    assert len(bundle["projectGraph"]["modules"]) == 6
+    assert len(bundle["projectGraph"]["modules"]) == 5
     internal_edges = [
         edge for edge in bundle["projectGraph"]["edges"] if edge["role"] == "internal"
     ]
     assert internal_edges
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
-    assert {"main-pipeline", "core-contracts", "python-frontend", "graph-projection", "validation", "rendering"} <= module_ids
+    assert {"pipeline-entry", "python-frontend", "graph-projection", "validation", "rendering"} == module_ids
     roles = {module["id"]: module["role"] for module in bundle["projectGraph"]["modules"]}
-    assert roles["main-pipeline"] == "entry"
+    assert roles["pipeline-entry"] == "entry"
     assert roles["python-frontend"] == "service"
+    assert "core-contracts" not in module_ids
     assert "mainModuleId" not in bundle["projectGraph"]
     assert "mainFlows" not in bundle["projectGraph"]
     assert "primaryFlowId" not in bundle["projectGraph"]

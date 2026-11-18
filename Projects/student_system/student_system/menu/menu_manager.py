@@ -8,10 +8,10 @@ import sys
 import colorama
 from pynput import keyboard
 
-from ..model.student_model import STUDENT_COLUMNS, STUDENT_COLUMN_WIDTHS
-from ..utility.display_utility import get_display_width, write_table
-from ..utility.protocol_utility import encode_message
-from .spinner_manager import Spinner
+from ..async_feedback.spinner_manager import Spinner
+from ..network.protocol_codec import ProtocolCodec
+from .display_utility import get_display_width, write_table
+from .student_model import STUDENT_COLUMNS, STUDENT_COLUMN_WIDTHS
 
 
 colorama.init()
@@ -149,7 +149,7 @@ class MenuSystem:
         contents = tuple(contents)
 
         with Spinner("正在录入学生信息"):
-            self.sockets.send(encode_message(0, contents, table_name=self.table))
+            self.sockets.send(ProtocolCodec.encode(0, contents, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -168,7 +168,7 @@ class MenuSystem:
         value = input("请输入信息查询值：")
 
         with Spinner("正在查询学生信息"):
-            self.sockets.send(encode_message(1, key, value, table_name=self.table))
+            self.sockets.send(ProtocolCodec.encode(1, key, value, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -190,7 +190,7 @@ class MenuSystem:
         """内部API：删除学生信息"""
         sno = input("请输入待删学生信息sno：")
         with Spinner("正在删除学生信息"):
-            self.sockets.send(encode_message(2, sno, table_name=self.table))
+            self.sockets.send(ProtocolCodec.encode(2, sno, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -210,7 +210,7 @@ class MenuSystem:
         value = input("请输入信息修改值：")
 
         with Spinner("正在修改学生信息"):
-            self.sockets.send(encode_message(3, sno, key, value, table_name=self.table))
+            self.sockets.send(ProtocolCodec.encode(3, sno, key, value, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -227,7 +227,7 @@ class MenuSystem:
         desc = input("请输入按tc进行排序(正序/倒序)：")
 
         with Spinner("正在进行排序"):
-            self.sockets.send(encode_message(4, desc, table_name=self.table))
+            self.sockets.send(ProtocolCodec.encode(4, desc, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -244,7 +244,7 @@ class MenuSystem:
     def _count_students(self):
         """内部API：学生信息统计"""
         with Spinner("正在显示统计学生总人数"):
-            self.sockets.send(encode_message(5, table_name=self.table))
+            self.sockets.send(ProtocolCodec.encode(5, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 
@@ -261,7 +261,7 @@ class MenuSystem:
     def _show_all_students(self):
         """内部API：查询学生信息整表"""
         with Spinner("正在显示全部学生信息"):
-            self.sockets.send(encode_message(6, table_name=self.table))
+            self.sockets.send(ProtocolCodec.encode(6, table_name=self.table))
             result_decode = self.sockets.recv(4096).decode('utf-8')
             result = tuple(json.loads(result_decode))
 

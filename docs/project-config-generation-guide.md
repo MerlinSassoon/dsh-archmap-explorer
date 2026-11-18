@@ -249,7 +249,40 @@ python3 -m archmap check <output>/architecture.json
 - 没有把内部 utility 暴露成模块 API；
 - 没有为了生成成功而设置兜底模块。
 
-## 9. 过渡期注意事项
+## 9. 规范化样例
+
+### 9.1 student_system
+
+```text
+app              入口与顶层编排（role=entry）
+network          NetworkAdapter + ProtocolMessage + ProtocolCodec
+database         Database + DatabaseConfig
+menu             MenuSystem + StudentRecord + display utility
+async-feedback   Spinner
+test             表格验证脚本
+```
+
+关键点：
+
+- 不建立 `contracts` 共享模块；
+- `ProtocolMessage` 是 network 模块的 public model；
+- `ProtocolCodec` 是 network 模块的 public manager capability；
+- `StudentRecord` 是 menu 模块的 public model；
+- `DatabaseConfig` 跟随 database manager。
+
+### 9.2 gomoku
+
+```text
+entry          main.py / __main__.py / cli.py
+terminal-ui    input_parser.py / renderer.py
+application    game.py + GameConfig
+domain         board.py + models.py
+ai-adapter     ai.py
+```
+
+`GameConfig` 跟随 application manager，不再单独建立技术层 `game-config` 模块。
+
+## 10. 过渡期注意事项
 
 P6.2 已落地 schema 5.0。当前运行时：
 

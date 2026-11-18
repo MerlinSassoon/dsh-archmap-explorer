@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import sys
 
-from .managers.database_manager import Database
-from .managers.menu_manager import MenuSystem
-from .managers.network_manager import NetworkAdapter
-from .managers.spinner_manager import Spinner
+from ..async_feedback.spinner_manager import Spinner
+from ..database.database_manager import Database
+from ..menu.menu_manager import MenuSystem
+from ..network.network_manager import NetworkAdapter
 
 
 def server(sockets):

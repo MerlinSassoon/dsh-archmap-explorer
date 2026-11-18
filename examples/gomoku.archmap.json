@@ -13,7 +13,6 @@
     "**/venv/**",
     "tests/**"
   ],
-  "mainModule": "main",
   "entrypoints": [
     "gomoku.cli:main"
   ],
@@ -22,65 +21,60 @@
   ],
   "modules": [
     {
-      "id": "main",
-      "name": "程序入口与终端交互",
-      "kind": "main",
+      "id": "entry",
+      "name": "程序入口",
       "include": [
         "main.py",
         "gomoku/__init__.py",
         "gomoku/__main__.py",
-        "gomoku/cli.py",
+        "gomoku/cli.py"
+      ],
+      "note": "脚本入口、python -m 入口与终端主菜单/对局交互入口。",
+      "color": "#f59e0b",
+      "role": "entry"
+    },
+    {
+      "id": "terminal-ui",
+      "name": "终端交互组件",
+      "include": [
         "gomoku/input_parser.py",
         "gomoku/renderer.py"
       ],
-      "note": "脚本入口、python -m 入口、菜单与对局循环、输入解析、终端棋盘渲染和退出码边界。",
-      "color": "#f59e0b",
-      "role": "main"
+      "note": "输入解析、坐标格式化和终端棋盘渲染组件。",
+      "color": "#fb7185",
+      "role": "component"
     },
     {
       "id": "application",
       "name": "对局应用层",
-      "kind": "functional",
       "include": [
-        "gomoku/game.py"
+        "gomoku/game.py",
+        "gomoku/config.py"
       ],
-      "note": "组织完整对局用例：执子方推进、合法落子、终局判定、重开和电脑回合衔接。",
+      "note": "组织完整对局用例、执子方推进、终局判定、重开和对局配置。",
       "color": "#60a5fa",
       "role": "service"
     },
     {
       "id": "domain",
       "name": "棋盘领域模型",
-      "kind": "functional",
       "include": [
         "gomoku/board.py",
         "gomoku/models.py"
       ],
-      "note": "棋盘状态与胜负判定的唯一事实来源，以及坐标、棋子、落子结果和错误契约。",
+      "note": "棋盘状态与胜负判定事实来源，以及坐标、棋子、落子结果和错误契约。",
       "color": "#22d3ee",
       "role": "service"
     },
     {
       "id": "ai-adapter",
       "name": "电脑对手适配器",
-      "kind": "functional",
       "include": [
         "gomoku/ai.py"
       ],
       "note": "本地启发式电脑落点选择适配器，通过 MoveSelector 协议接入对局用例。",
       "color": "#a78bfa",
       "role": "adapter"
-    },
-    {
-      "id": "game-config",
-      "name": "游戏配置",
-      "kind": "functional",
-      "include": [
-        "gomoku/config.py"
-      ],
-      "note": "棋盘尺寸、获胜连子数和可选对局模式的静态配置与校验。",
-      "color": "#8bdc64",
-      "role": "service"
     }
   ],
   "contract": {
