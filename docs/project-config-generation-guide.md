@@ -1,7 +1,7 @@
 # ArchMap 规范化项目配置生成指南
 
 > 状态：P9 当前配置指南<br>
-> 版本：ArchMap 2.3.0 / bundle schema 6.2<br>
+> 版本：ArchMap 2.4.0 / bundle schema 6.3<br>
 > 日期：2026-11-19<br>
 > 适用范围：为 Python 项目生成或维护 `archmap` 配置的人员、脚本与 LLM
 >
@@ -669,7 +669,7 @@ python3 -m archmap check <output>/architecture.json
 
 数据检查：
 
-- `schemaVersion == "6.2"`；
+- `schemaVersion == "6.3"`；
 - `stats.providerRoles` 只有七角色；
 - 不存在 `providerRole == "entry"`；
 - 每个 `executionFlow` 恰好一个 `entry` 节点；
@@ -870,9 +870,38 @@ rendering
   + executionOnlyCallables 能力面透明
   + 空能力模块后端保留、前端隐藏
   + 保守自由函数推断 + 模块默认自由函数面 + 少量显式例外
+  + 一级 flowScopes 接口下钻（显式 roots、自动 capability、预算与诊断）
 ```
 
-## 13. P9 实现记录
+## 13. P10 接口 scope 配置
+
+P10 起可在配置中声明一级接口 scope：
+
+```json
+"flowScopes": {
+  "enabled": true,
+  "roots": [
+    "student_system.app.main:server",
+    "student_system.app.main:client"
+  ],
+  "autoDetect": true,
+  "maxScopesPerFlow": 6,
+  "maxNodesPerScope": 24,
+  "maxEdgesPerScope": 32
+}
+```
+
+规则：
+
+- `roots` 使用 `module:qualname` 或 canonical function id；
+- `executionOnlyCallables` 可自动成为 scope root；
+- `autoDetect=true` 时跨模块 public capability 节点也可生成 scope；
+- scope 深度固定为 1，scope 内节点不能再次下钻；
+- 预算触顶时优先保留控制骨架和外部接口，并在 `scope.diagnostics` 中显式标记；
+- scope 的路由为 `#/flow/<flowId>/scope/<nodeId>`；
+- scope 内只展示直接外部能力接口与内部 helper 的接口提示，不伪造 unresolved 调用。
+
+## 14. P9 实现记录
 
 - 模块级自由函数在 `auto` 模式下采用保守推断，不再因控制流、项目调用或 public 命名自动成为 `manager`；
 - 新增 `defaultFreeFunctionSurface: auto | internal | capability`；
@@ -881,3 +910,13 @@ rendering
 - schema 升级为 6.2；
 - `executionOnlyCallables` 保持最高优先级；
 - 空能力模块继续后端保留、前端隐藏。
+
+## 15. P10 实现记录
+
+- bundle schema 升级为 6.3；
+- `projectGraph.executionFlows[].scopes[]` 新增一级接口 scope；
+- 主流程执行节点新增 `drilldown` 接口摘要和 `interfaceHints` helper 提示；
+- 新增 `flowScopes` 配置：enabled / roots / autoDetect / maxScopesPerFlow / maxNodesPerScope / maxEdgesPerScope；
+- scope 视图与主流程分离，路由为 `#/flow/<flowId>/scope/<nodeId>`；
+- scope 深度硬限制为 1，预算截断进入 scope diagnostics；
+- student_system 与 gomoku 样例配置已启用 scope roots。

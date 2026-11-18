@@ -14,6 +14,7 @@ from .project_config import (
     DEFAULT_INTERNAL_API_TAGS,
     DEFAULT_PUBLIC_API_TAGS,
     MODULE_ROLES,
+    FlowScopeConfig,
     ModuleConfig,
     ProjectConfig,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "DEFAULT_PUBLIC_API_TAGS",
     "EXPOSURE_SOURCES",
     "EXPOSURE_VALUES",
+    "FlowScopeConfig",
     "MODULE_ROLES",
     "ModuleConfig",
     "PROVIDER_ROLE_ORDER",

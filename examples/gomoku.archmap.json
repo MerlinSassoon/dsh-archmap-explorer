@@ -117,5 +117,15 @@
         "confidence": "high"
       }
     ]
+  },
+  "flowScopes": {
+    "enabled": true,
+    "roots": [
+      "gomoku.cli:GameCli._play_one_game"
+    ],
+    "autoDetect": true,
+    "maxScopesPerFlow": 6,
+    "maxNodesPerScope": 24,
+    "maxEdgesPerScope": 32
   }
 }

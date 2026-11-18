@@ -1,6 +1,6 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1-P9 已实现（当前 bundle schema 6.2）<br>
+> 状态：P2.1-P10 已实现（当前 bundle schema 6.3）<br>
 > 日期：2026-11-19<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 
@@ -460,7 +460,7 @@ P9    自由函数能力边界与模块默认面（已完成）
       - 保守自由函数推断
       - defaultFreeFunctionSurface
       - functionSurface / surface source
-      - schema 6.2
+      - schema 6.3
 ```
 
 P2.2 是 P3/P4 的前置层，不应跳过。

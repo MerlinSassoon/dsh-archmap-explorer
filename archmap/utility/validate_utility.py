@@ -125,6 +125,7 @@ def _validate_execution_flow(
     module_ids: set[str],
     capability_by_id: dict[str, tuple[str, dict[str, Any]]],
     call_site_ids: set[str],
+    scope_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     flow_id = flow.get("id")
@@ -190,6 +191,17 @@ def _validate_execution_flow(
                 issues.append(_issue("error", "EXEC_INTERFACE_TARGET", f"execution flow {flow_id} interface {node_id} references missing target {target_id}"))
             if node.get("callSiteId") not in call_site_ids:
                 issues.append(_issue("error", "EXEC_CALL_SITE", f"execution flow {flow_id} interface {node_id} references missing call site"))
+        interface_hints = node.get("interfaceHints")
+        if interface_hints is not None:
+            if not isinstance(interface_hints, list):
+                issues.append(_issue("error", "EXEC_INTERFACE_HINTS", f"execution flow {flow_id} node {node_id} interfaceHints must be an array"))
+            else:
+                for hint in interface_hints:
+                    if not isinstance(hint, dict) or not hint.get("label") or not hint.get("moduleId"):
+                        issues.append(_issue("error", "EXEC_INTERFACE_HINT_ITEM", f"execution flow {flow_id} node {node_id} has invalid interface hint"))
+                        continue
+                    if hint.get("moduleId") not in module_ids:
+                        issues.append(_issue("error", "EXEC_INTERFACE_HINT_MODULE", f"execution flow {flow_id} node {node_id} interface hint references missing module"))
         if kind == "dispatch":
             candidates = node.get("candidates")
             if not isinstance(candidates, list):
@@ -212,8 +224,11 @@ def _validate_execution_flow(
                 issues.append(_issue("error", "EXEC_BRANCH_PORTS", f"execution flow {flow_id} branch {node_id} has duplicate true/false edges"))
         if kind == "multi_branch":
             kinds = [edge.get("kind") for edge in outgoing.get(str(node_id), [])]
-            if kinds.count("case") < 1:
-                issues.append(_issue("error", "EXEC_MULTI_CASE", f"execution flow {flow_id} multi_branch {node_id} must have at least one case edge"))
+            # A multi-branch body may consist only of assignment/pass statements
+            # that correctly produce no execution node.  In that case P5 keeps
+            # the branch card as a terminal marker with no visible outgoing edge.
+            if any(kind in {"case", "default"} for kind in kinds) and kinds.count("case") < 1:
+                issues.append(_issue("error", "EXEC_MULTI_CASE", f"execution flow {flow_id} multi_branch {node_id} must have at least one case edge when case/default edges exist"))
             if kinds.count("default") > 1:
                 issues.append(_issue("error", "EXEC_MULTI_DEFAULT", f"execution flow {flow_id} multi_branch {node_id} has multiple default edges"))
         if kind == "loop":
@@ -250,6 +265,79 @@ def _validate_execution_flow(
                     f"{sorted(node_ids - reachable)}",
                 )
             )
+
+    seen_scope_ids = scope_ids if scope_ids is not None else set()
+    parent_scope_ids: set[str] = set()
+    for scope in flow.get("scopes", []) or []:
+        scope_id = str(scope.get("id") or "")
+        if not scope_id or scope_id in seen_scope_ids:
+            issues.append(_issue("error", "EXEC_SCOPE_ID", f"execution flow {flow_id} has duplicate/missing scope id: {scope_id}"))
+        seen_scope_ids.add(scope_id)
+        parent_node_id = str(scope.get("parentNodeId") or "")
+        parent_node = next((node for node in nodes if str(node.get("id") or "") == parent_node_id), None)
+        if parent_node is None:
+            issues.append(_issue("error", "EXEC_SCOPE_PARENT", f"execution scope {scope_id} references missing parent node {parent_node_id}"))
+        else:
+            if parent_scope_ids and parent_node_id in parent_scope_ids:
+                issues.append(_issue("error", "EXEC_SCOPE_PARENT_DUPLICATE", f"execution flow {flow_id} has multiple scopes for node {parent_node_id}"))
+            parent_scope_ids.add(parent_node_id)
+            drilldown = parent_node.get("drilldown") or {}
+            if drilldown.get("scopeId") != scope_id:
+                issues.append(_issue("error", "EXEC_SCOPE_PARENT_LINK", f"execution scope {scope_id} parent drilldown link mismatch"))
+        if scope.get("kind") != "archmap.execution-scope":
+            issues.append(_issue("error", "EXEC_SCOPE_KIND", f"execution scope {scope_id} has invalid kind"))
+        if scope.get("depth") != 1:
+            issues.append(_issue("error", "EXEC_SCOPE_DEPTH", f"execution scope {scope_id} must have depth=1"))
+        if scope.get("scopes"):
+            issues.append(_issue("error", "EXEC_SCOPE_NESTED", f"execution scope {scope_id} must not contain nested scopes"))
+        root_function_id = str(scope.get("rootFunctionId") or "")
+        if root_function_id not in detail_by_id:
+            issues.append(_issue("error", "EXEC_SCOPE_ROOT", f"execution scope {scope_id} references missing root function {root_function_id}"))
+        if not isinstance(scope.get("truncated"), bool):
+            issues.append(_issue("error", "EXEC_SCOPE_TRUNCATED", f"execution scope {scope_id} must define boolean truncated"))
+        if not isinstance(scope.get("omittedNodeCount"), int) or scope.get("omittedNodeCount") < 0:
+            issues.append(_issue("error", "EXEC_SCOPE_OMITTED", f"execution scope {scope_id} has invalid omittedNodeCount"))
+        summary = scope.get("interfaceSummary")
+        if not isinstance(summary, list):
+            issues.append(_issue("error", "EXEC_SCOPE_INTERFACE_SUMMARY", f"execution scope {scope_id} must define interfaceSummary"))
+        else:
+            for item in summary:
+                if not isinstance(item, dict) or not item.get("label") or not item.get("moduleId"):
+                    issues.append(_issue("error", "EXEC_SCOPE_INTERFACE_ITEM", f"execution scope {scope_id} has invalid interface summary item"))
+                    continue
+                if not isinstance(item.get("callCount"), int) or item.get("callCount") < 1:
+                    issues.append(_issue("error", "EXEC_SCOPE_INTERFACE_COUNT", f"execution scope {scope_id} interface summary callCount must be positive"))
+                if item.get("moduleId") not in module_ids:
+                    issues.append(_issue("error", "EXEC_SCOPE_INTERFACE_MODULE", f"execution scope {scope_id} interface summary references missing module"))
+        pseudo_flow = {
+            **scope,
+            "kind": "archmap.execution-flow",
+            "entrypointId": scope.get("rootFunctionId"),
+            "scopes": [],
+        }
+        issues.extend(
+            _validate_execution_flow(
+                pseudo_flow,
+                detail_by_id=detail_by_id,
+                module_ids=module_ids,
+                capability_by_id=capability_by_id,
+                call_site_ids=call_site_ids,
+                scope_ids=seen_scope_ids,
+            )
+        )
+    for node in nodes:
+        drilldown = node.get("drilldown")
+        if not drilldown:
+            continue
+        if not isinstance(drilldown, dict):
+            issues.append(_issue("error", "EXEC_DRILLDOWN_PAYLOAD", f"execution flow {flow_id} node {node.get('id')} has invalid drilldown metadata"))
+            continue
+        if drilldown.get("status") == "available":
+            linked_scope = str(drilldown.get("scopeId") or "")
+            if not linked_scope or linked_scope not in {str(item.get("id") or "") for item in flow.get("scopes", [])}:
+                issues.append(_issue("error", "EXEC_DRILLDOWN_SCOPE", f"execution flow {flow_id} node {node.get('id')} references missing scope {linked_scope}"))
+            if not isinstance(drilldown.get("interfaceSummary"), list):
+                issues.append(_issue("error", "EXEC_DRILLDOWN_SUMMARY", f"execution flow {flow_id} node {node.get('id')} drilldown summary must be an array"))
     return issues
 
 
@@ -257,8 +345,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "6.2":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 6.2"))
+    if str(bundle.get("schemaVersion")) != "6.3":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 6.3"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []

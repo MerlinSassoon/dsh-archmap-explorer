@@ -22,18 +22,27 @@ def _node_size(node: dict[str, Any]) -> tuple[float, float]:
     kind = str(node.get("kind") or "")
     if kind == "multi_branch":
         cases = len(node.get("cases") or [])
-        return 300.0, max(168.0, 122.0 + cases * 28.0)
-    if kind == "dispatch":
-        return 300.0, 190.0
-    if kind in {"free_function", "interface", "branch"}:
-        return 300.0, 160.0
-    if kind == "loop":
-        return 300.0, 186.0
-    if kind in {"break", "continue", "return"}:
-        return 250.0, 128.0
-    if kind in {"entry", "exit"}:
-        return 260.0, 128.0
-    return 280.0, 156.0
+        w, h = 300.0, max(168.0, 122.0 + cases * 28.0)
+    elif kind == "dispatch":
+        w, h = 300.0, 190.0
+    elif kind in {"free_function", "interface", "branch"}:
+        w, h = 300.0, 160.0
+    elif kind == "loop":
+        w, h = 300.0, 186.0
+    elif kind in {"break", "continue", "return"}:
+        w, h = 250.0, 128.0
+    elif kind in {"entry", "exit"}:
+        w, h = 260.0, 128.0
+    else:
+        w, h = 280.0, 156.0
+    # P10 adds compact drilldown/interface summaries to existing cards.  Grow
+    # the default box deterministically so the summary does not clip the body.
+    drilldown = node.get("drilldown") or {}
+    if drilldown.get("status") == "available":
+        h += min(58.0, 22.0 + 12.0 * min(len(drilldown.get("interfaceSummary") or []), 3))
+    if node.get("interfaceHints"):
+        h += min(24.0, 10.0 + 6.0 * min(len(node.get("interfaceHints") or []), 3))
+    return w, h
 
 
 def _port_specs(node: dict[str, Any]) -> dict[str, dict[str, Any]]:

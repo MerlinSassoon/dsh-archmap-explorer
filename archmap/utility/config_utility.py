@@ -12,6 +12,7 @@ from ..config.project_config import (
     DEFAULT_INTERNAL_API_TAGS,
     DEFAULT_PUBLIC_API_TAGS,
     DispatchHint,
+    FlowScopeConfig,
     ModuleConfig,
     ProjectConfig,
 )
@@ -188,6 +189,41 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
             )
         )
 
+    flow_scopes_raw = raw.get("flowScopes")
+    flow_scopes = FlowScopeConfig()
+    if isinstance(flow_scopes_raw, dict):
+        flow_scopes.enabled = bool(flow_scopes_raw.get("enabled", True))
+        flow_scopes.roots = _as_list(flow_scopes_raw.get("roots"), [])
+        flow_scopes.auto_detect = bool(flow_scopes_raw.get("autoDetect", True))
+
+        def _positive_int(name: str, fallback: int, maximum: int) -> int:
+            value = flow_scopes_raw.get(name, fallback)
+            try:
+                parsed = int(value)
+            except (TypeError, ValueError):
+                parsed = fallback
+                config_diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "FLOW_SCOPE_LIMIT_INVALID",
+                        "message": f"flowScopes.{name}={value!r} is invalid; falling back to {fallback}",
+                    }
+                )
+            if parsed < 1:
+                config_diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "FLOW_SCOPE_LIMIT_INVALID",
+                        "message": f"flowScopes.{name}={parsed} must be positive; falling back to {fallback}",
+                    }
+                )
+                parsed = fallback
+            return min(parsed, maximum)
+
+        flow_scopes.max_scopes_per_flow = _positive_int("maxScopesPerFlow", 6, 20)
+        flow_scopes.max_nodes_per_scope = _positive_int("maxNodesPerScope", 24, 80)
+        flow_scopes.max_edges_per_scope = _positive_int("maxEdgesPerScope", 32, 120)
+
     limits = raw.get("limits") if isinstance(raw.get("limits"), dict) else {}
     return ProjectConfig(
         root=root,
@@ -199,6 +235,7 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         entrypoints=entrypoints,
         execution_entrypoints=execution_entrypoints,
         dispatch_hints=dispatch_hints,
+        flow_scopes=flow_scopes,
         config_diagnostics=config_diagnostics,
         max_functions=int(limits.get("maxFunctions", 2000)),
         max_steps=int(limits.get("maxStepsPerFunction", 300)),

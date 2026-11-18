@@ -1,6 +1,6 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档记录 v3.8 基础数据契约及 P5.1-P9 增量修订，并作为实现和后续 ArkTS 扩展的依据。当前 bundle schema 为 6.2；历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)。发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
+> 本文档记录 v3.8 基础数据契约及 P5.1-P10 增量修订，并作为实现和后续 ArkTS 扩展的依据。当前 bundle schema 为 6.3；历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)。发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
 >
 > **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 4.1；P5.2 增加可选 `executionEntrypoints`，用于将主执行流起点与分析入口解耦；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
 >
@@ -12,16 +12,18 @@
 >
 > **P5.5 补充（2026-11-18）**：主流程页独立为 `#/flow` 项目级视图，只展示 `executionFlows`；主模块与功能模块统一进入 `#/module/<id>` 能力页。`mainFlows` 数据保留，但不再作为默认 UI 调用总览展示。<br>
 >
-> **当前状态（2026-11-19）**：P0-P9 已完成，当前 bundle schema 为 6.2。类焦点页与类内方法图不在产品计划中；后续扩展以 User Surface 校准、增量扫描、ArkTS surface 和更精细类型推断为主。
+> **当前状态（2026-11-20）**：P0-P10 已完成，当前 bundle schema 为 6.3。类焦点页与类内方法图不在产品计划中；后续扩展以真实项目解析质量、User Surface 校准、增量扫描和 ArkTS surface 为主。
 >
 > **P6 计划（2026-11-18）**：项目模型重构已批准，目标为取消主模块、项目级主流程、单一 executionFlows 投影和纵向能力模块。实施契约、阶段与验收以 [`p6-project-model-plan.md`](旧文档/11月9日/p6-project-model-plan.md) 为准。<br>
-> **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明；P9 当前契约以 schema 6.2 为准。
+> **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明；P10 当前契约以 schema 6.3 为准。
 >
 > **P7 已实施（2026-11-18）**：bundle schema 升级为 6.0；Provider Role 删除 `entry`，模块 role 删除 `entry`；execution flow 恢复标准 `entry` 节点；项目页新增 `flowCards` 并与 module card 同布局；入口语义完全由项目级 entrypoints / execution flow 承担。
 >
 > **P8 已实施（2026-11-19）**：bundle schema 升级为 6.1；模块配置新增 `executionOnlyCallables`，用于把流程入口和流程内部编排 callable 从能力面透明化；这些 callable 仍保留在 functionDetails、callSites 和执行流中。模块新增 `capabilitySurface`；能力为空时后端保留模块与 layout，前端不渲染模块卡。Provider Role 仍为七角色。
 >
 > **P9 已实施（2026-11-19）**：bundle schema 升级为 6.2；模块配置新增 `defaultFreeFunctionSurface`，自由函数采用保守推断，未经显式公开 API 或跨模块调用证据不再默认成为 `manager`。自由函数 FunctionDetail 输出 `functionSurface` / `functionSurfaceSource`，ModuleGraph 输出 capability/internal/execution 自由函数 ID 和计数。
+>
+> **P10 已实施（2026-11-20）**：bundle schema 升级为 6.3；新增一级 `executionScopes` 投影。主流程调用节点仍原子化，但可携带 `drilldown.interfaceSummary`；scope 以独立 `#/flow/<flowId>/scope/<nodeId>` 视图展示目标函数控制骨架、直接外部能力接口和内部 helper 接口提示。scope 深度硬限制为 1，受 `maxScopesPerFlow` / `maxNodesPerScope` / `maxEdgesPerScope` 预算约束，不递归展开。详见 [`p10-interface-drilldown-plan.md`](p10-interface-drilldown-plan.md)。
 
 ## 1. 三层投影
 
@@ -52,7 +54,9 @@
 - 显式声明为 `executionOnlyCallables` 的 callable 仍可作为 flow 节点和无缝源码下钻目标；
 - 项目级分析不修改模块边界；
 - dispatch 节点保存候选数量、候选来源、是否完整和 unresolved 原因；
-- **执行流边界**：只展开 entrypoint 自身控制骨架；调用目标均作为原子节点，不继续穿透实现；
+- **执行流边界**：主流程只展开 entrypoint 自身控制骨架；调用目标均作为原子节点，不继续穿透实现；
+- P10 一级接口 scope 是显式投影：只展示目标函数直接外部接口和必要控制结构，`depth` 恒为 `1`，scope 内不得再嵌套 scope；
+- 主流程节点通过 `drilldown` 摘要给出 scope 链接和外部接口；完整 scope 存放在 `executionFlows[].scopes`；
 - 内部实现路径保留在 Method Detail、callSites 和 trace/impact 中。
 
 ### ModuleGraph
@@ -339,7 +343,7 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ```json
 {
-  "schemaVersion": "6.2",
+  "schemaVersion": "6.3",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],
@@ -352,6 +356,6 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 }
 ```
 
-JSON Schema：`docs/schema/archmap-v6.2-bundle.schema.json`；6.1 / 6.0 schema 保留为历史版本。
+JSON Schema：`docs/schema/archmap-v6.3-bundle.schema.json`；6.2 / 6.1 / 6.0 schema 保留为历史版本。
 
 单文件 HTML 内联 bundle、CSS 和 JS，无 CDN、外部字体、外部图片或网络请求。

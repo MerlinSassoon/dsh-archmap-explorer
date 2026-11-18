@@ -1,7 +1,7 @@
 # ArchMap
 
-> 版本：ArchMap 2.3.0 / bundle schema 6.2<br>
-> 最后更新：2026-11-19
+> 版本：ArchMap 2.4.0 / bundle schema 6.3<br>
+> 最后更新：2026-11-20
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
 
@@ -48,11 +48,12 @@ P7.4  入口来源与样例模块配置归一化         已完成
 P7.5  schema 6.0、回归与文档收口           已完成
 P8    executionOnlyCallables、空能力模块收口 已完成
 P9    保守自由函数推断、默认函数面收口     已完成
+P10   一级接口 scope 下钻与 schema 6.3      已完成
 ```
 
 当前产品边界：
 
-- 所有模块都是普通能力模块；schema 6.2 不再有主模块或 `moduleKind`。
+- 所有模块都是普通能力模块；schema 6.3 不再有主模块或 `moduleKind`。
 - 模块配置可用 `executionOnlyCallables` 显式声明流程入口/编排 callable；它们对模块能力面透明，但仍保留在源码、调用关系和执行流中。
 - 模块级自由函数默认采用保守推断；`defaultFreeFunctionSurface` 可按模块声明 `auto` / `internal` / `capability`，用于避免内部 helper 被误识别为 `manager`。
 - 排除 `executionOnlyCallables` 和 internal Provider 后能力为空的模块，后端保留模块与 layout，前端不渲染模块卡。
@@ -61,6 +62,8 @@ P9    保守自由函数推断、默认函数面收口     已完成
 - 模块能力页只展示 Provider/Capability 与结构关系，不默认展示调用边。
 - 项目页 flow card 与 module card 同层、同网格；flow card 标注“主流程”；空能力模块不渲染。
 - 主流程页只展示有界执行流。
+- P10 起可为配置节点生成一级接口 scope；scope 只展示直接外部能力接口与控制骨架，深度硬限制为 1，不递归展开。
+- 主流程节点显示外部接口摘要；点击 L1 入口进入独立 scope 聚焦视图，不在主画布套图。
 - Provider Role 为七角色；`entry` 不再是 Provider Role。
 - 每条 execution flow 生成一个标准 `entry` 节点，与 loop / branch / dispatch 同级。
 - `executionOnlyCallables` 不是 Provider Role；七 Provider Role 不变。
@@ -115,9 +118,10 @@ yield/student_system/
 - **模块能力页**：所有能力模块统一展示提供接口、Provider Role、类/自由函数与类型关系；不默认展示调用连线；config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
-- 所有页面使用 Hash 路由和平级切换，不使用弹窗：`#/project`、`#/flow[/<id>]`、`#/module/<moduleId>`、`#/module/<moduleId>/function/<functionId>`。
+- 所有页面使用 Hash 路由和平级切换，不使用弹窗：`#/project`、`#/flow[/<id>]`、`#/flow/<flowId>/scope/<nodeId>`、`#/module/<moduleId>`、`#/module/<moduleId>/function/<functionId>`。
 - 项目页、模块页和执行流节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存用户覆盖；可用“适应画布”或“重置布局”找回节点。
 - P5 执行流只展开 entrypoint 的控制骨架；项目内 callable 和 canonical interface 均为原子节点，双击进入源码。
+- P10 的 L1 scope 是显式一级投影，不改变主流程原子节点语义；外部模块接口在 scope 内成为可点击节点或 helper 提示。
 - 不生成或渲染函数内部完整 CFG、逐语句执行流图；函数实现以源码为最终事实来源。
 
 ## P5 主流程执行流（首版已实现）
@@ -125,11 +129,12 @@ yield/student_system/
 P5 把项目主流程从“函数级调用/模块组合 DAG”升级为**有界执行流图**：
 
 - 只展示 selected entrypoint 函数内部的控制骨架；
+- P10 允许对显式 scope root 生成一级接口视图，但不改变“调用目标原子化、不递归穿透”的主流程边界；
 - 项目内 callable（自由函数与类方法统一为同一原子语义）和 canonical interface 都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
 - 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；`entry` 使用标准执行卡片样式；`free_function` 通过 `callableKind` 区分函数与方法；
 - `return` 是终止节点，不生成出边；`exit` 只用于隐式落空等真正到达结束锚点的路径；
 - `break` / `continue` 是循环内部终止标记，不生成出边；循环节点通过 `loop_complete` 作为唯一结构化离开边界；
-- bundle schema 6.2 的执行边只允许 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
+- bundle schema 6.3 的执行边只允许 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
 - 汇合不再生成 `merge` 节点，多条路径直接 fan-in 到同一个真实后继节点或 `exit`；
 - 执行流实线只表示静态确定的直接控制/执行关系；虚线只表示推断、不完整或间接关系；
 - 执行流卡片不渲染函数签名，正文展示人类备注；完整签名在 Method Detail / 节点详情中查看；
@@ -143,6 +148,21 @@ P5 把项目主流程从“函数级调用/模块组合 DAG”升级为**有界�
 
 P5 的防误解与防滑坡边界、student_system 目标快照、数据契约和验收标准见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 
+## P10 一级接口下钻（已实现）
+
+P10 在主流程之上增加一层受控的接口视图：
+
+- 主流程节点保持原子化，节点可显示 `drilldown.interfaceSummary`；
+- 配置 `flowScopes.roots` 指定需要展开的 callable；
+- `executionOnlyCallables` 和自动识别的跨模块 capability 也可成为 scope root；
+- scope 路由为 `#/flow/<flowId>/scope/<nodeId>`，独立聚焦展示，不在主画布递归套图；
+- scope 内展示目标函数控制骨架、直接外部能力接口、以及内部 helper 直接触达的接口提示；
+- scope 深度硬限制为 `1`，内部节点不可再次下钻；
+- `maxScopesPerFlow`、`maxNodesPerScope`、`maxEdgesPerScope` 控制预算，截断会写入 scope diagnostics；
+- 更深实现统一进入 Method Detail。
+
+student_system 配置下钻 `server` / `client`，gomoku 配置下钻 `_play_one_game`。详见 [`docs/p10-interface-drilldown-plan.md`](docs/p10-interface-drilldown-plan.md)。
+
 ## 配置
 
 ```json
@@ -153,6 +173,14 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
   "exclude": ["**/__pycache__/**"],
   "entrypoints": ["app.main:main"],
   "executionEntrypoints": ["app.main:App.run"],
+  "flowScopes": {
+    "enabled": true,
+    "roots": ["app.main:App.run"],
+    "autoDetect": true,
+    "maxScopesPerFlow": 6,
+    "maxNodesPerScope": 24,
+    "maxEdgesPerScope": 32
+  },
   "modules": [
     {
       "id": "orders",
@@ -480,7 +508,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         120 passed, 1 skipped
+pytest:         126 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -503,9 +531,10 @@ browser smoke:  1 passed（显式开启）
 - 宏布局几何、执行流正交布局、指纹稳定性、布局无关性和模块无调用边约束。
 - 自包含 HTML、方法详情页和 LLM 注解嵌入。
 - CLI build/check/method 闭环。
-- schema 6.2、七 Provider Role、标准 flow entry 节点、flow card 与 module card 同层、student/gomoku/self 配置规范化。
+- schema 6.3、七 Provider Role、标准 flow entry 节点、flow card 与 module card 同层、student/gomoku/self 配置规范化。
 - P8 `executionOnlyCallables` 对能力面透明、类方法排除、空能力模块后端保留/前端隐藏、旧几何覆盖失效。
 - P9 保守自由函数推断、`defaultFreeFunctionSurface`、单函数 exposure 例外、自由函数表面计数与校验。
+- P10 一级 flow scope、外部接口摘要、scope 预算/诊断、独立下钻路由、schema 6.3 与浏览器下钻回归。
 
 浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
@@ -515,20 +544,23 @@ ArchMap 自举：
 
 ```text
 modules:              5
-classes:              33
-functions:            264
+classes:              34
+functions:            270
 methods:              75
-callSites:            3796
-resolvedCalls:        661
-typeRelations:        64
-structuralRelations:  64
+callSites:            4104
+resolvedCalls:        693
+typeRelations:        66
+structuralRelations:  66
 userSurfaces:         0
 executionFlows:       1
 executionNodes:       4
 executionEdges:       3
 flowCards:            1
+flowScopes:          0
+flowScopeNodes:      0
+flowScopeEdges:      0
 executionOnly:        1
-freeFunctionSurface:  0 capability / 188 internal / 1 execution
+freeFunctionSurface:  0 capability / 194 internal / 1 execution
 capabilityModules:    5
 emptyModules:         0
 diagnostics:          0
@@ -551,6 +583,9 @@ executionFlows:       1
 executionNodes:       9
 executionEdges:       10
 flowCards:            1
+flowScopes:          3
+flowScopeNodes:      30
+flowScopeEdges:      29
 executionOnly:        3
 freeFunctionSurface:  0 capability / 7 internal / 3 execution
 capabilityModules:    4
@@ -575,6 +610,9 @@ executionFlows:       1
 executionNodes:       11
 executionEdges:       10
 flowCards:            1
+flowScopes:          1
+flowScopeNodes:      24
+flowScopeEdges:      24
 executionOnly:        1
 freeFunctionSurface:  0 capability / 10 internal / 0 execution
 capabilityModules:    5
@@ -618,18 +656,20 @@ ArkTS 接入时需要：
 | 文档 | 内容 |
 |---|---|
 | [`README.md`](README.md) | 产品定位、快速开始、配置、CLI、验收数据和已知边界 |
-| [`docs/archmap-v3-design.md`](docs/archmap-v3-design.md) | 当前数据契约与 P5/P6/P7/P8/P9 增量：三层投影、P3/P4 关系、schema 6.2、自由函数表面与项目级流程 |
+| [`docs/archmap-v3-design.md`](docs/archmap-v3-design.md) | 当前数据契约与 P5-P10 增量：三层投影、P3/P4 关系、schema 6.3、自由函数表面、项目级流程与一级接口 scope |
 | [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、七角色语义、依赖方向、普通能力模块与项目级主流程边界 |
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
-| [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流历史与现行边界；P9 当前 schema 6.2 |
+| [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流历史与现行边界；P10 当前 schema 6.3 |
 | [`docs/约定编程skill.md`](docs/约定编程skill.md) | 被分析项目代码生成 Skill：模块边界、Provider Role、能力面、入口执行流、配置生成与验证清单 |
-| [`docs/schema/archmap-v6.2-bundle.schema.json`](docs/schema/archmap-v6.2-bundle.schema.json) | 当前 bundle JSON Schema 6.2：七角色、flowCards、executionOnly、自由函数表面与 capabilitySurface |
+| [`docs/p10-interface-drilldown-plan.md`](docs/p10-interface-drilldown-plan.md) | P10 一级接口 scope：配置、数据契约、预算、UI 与验收 |
+| [`docs/schema/archmap-v6.3-bundle.schema.json`](docs/schema/archmap-v6.3-bundle.schema.json) | 当前 bundle JSON Schema 6.3：一级 flow scope、drilldown 摘要与接口提示 |
+| [`docs/schema/archmap-v6.2-bundle.schema.json`](docs/schema/archmap-v6.2-bundle.schema.json) | 历史 bundle JSON Schema 6.2，供 P9 产物追溯 |
 | [`docs/schema/archmap-v6.1-bundle.schema.json`](docs/schema/archmap-v6.1-bundle.schema.json) | 历史 bundle JSON Schema 6.1，供 P8 产物追溯 |
 | [`docs/schema/archmap-v6-bundle.schema.json`](docs/schema/archmap-v6-bundle.schema.json) | 历史 bundle JSON Schema 6.0，供 P7 产物追溯 |
 | [`docs/schema/archmap-v5-bundle.schema.json`](docs/schema/archmap-v5-bundle.schema.json) | 历史 bundle JSON Schema 5.0，供 P6 产物追溯 |
 | [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 历史 bundle JSON Schema 4.1，供 P5 产物追溯 |
 | [`docs/schema/archmap-v4.0-bundle.schema.json`](docs/schema/archmap-v4.0-bundle.schema.json) | 历史 bundle JSON Schema 4.0，供旧产物追溯 |
-| [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | schema 6.2 规范化配置指南：模块划分、七角色、entrypoints / flow card 区分、自由函数默认面、executionOnlyCallables、空能力模块与旧配置迁移 |
+| [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | schema 6.3 规范化配置指南：模块划分、七角色、entrypoints / flow card 区分、flowScopes、自由函数默认面、executionOnlyCallables、空能力模块与旧配置迁移 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 
 ### 历史归档
@@ -643,7 +683,7 @@ P2–P9 过程交接、阶段计划、分支说明、迁移计划、旧验收记
 ## 文档维护规则
 
 1. 当前产品状态只写入根 `README.md` 和 `docs/` 下的当前权威文档；历史材料只进入 `docs/旧文档/`，不反向修改为“当前设计”。
-2. 当前数据契约以 `docs/archmap-v3-design.md`、`docs/p5-main-execution-flow.md` 和 `docs/schema/archmap-v6.2-bundle.schema.json` 为准；过程计划与历史交接仅作追溯。
+2. 当前数据契约以 `docs/archmap-v3-design.md`、`docs/p5-main-execution-flow.md`、`docs/p10-interface-drilldown-plan.md` 和 `docs/schema/archmap-v6.3-bundle.schema.json` 为准；过程计划与历史交接仅作追溯。
 3. P1.5 之后的实现页统一称 **Method Detail**；不要再把 FunctionFlow 写回主产品路径。
 4. 新增 P5 及以后能力时，先更新数据契约和当前文档，再更新根 README 的使用说明与验收数据。
 5. 文档中的示例命令若引用自举配置，应同时核对 `examples/archmap_v3.archmap.json` 是否仍与源码模块一致。
@@ -670,6 +710,7 @@ P2–P9 过程交接、阶段计划、分支说明、迁移计划、旧验收记
 - P5 执行流只提取 entrypoint 控制骨架，不展开调用目标内部实现；更多内部逻辑通过 Method Detail / 源码查看。
 - P5 明确不实现逐语句节点、列表操作节点、`try/except` 异常控制、数据流边和图内下钻；这些是产品边界，不是待补延期项。
 - 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。
-- 当前 bundle schema 为 6.2；6.1/6.0/5.0/4.1/4.0 旧产物需要重新 build，历史 schema 仅用于追溯。
+- 当前 bundle schema 为 6.3；6.2/6.1/6.0/5.0/4.1/4.0 旧产物需要重新 build，历史 schema 仅用于追溯。
 - executionOnly callable 与模块默认自由函数面均由维护者显式配置；自动推断只使用显式公开 API 和跨模块调用等强证据。
 - 空能力模块后端保留与默认 layout 位置，前端直接路由会回到项目页；网格可能保留空位。
+- P10 scope 只覆盖直接外部接口和内部 helper 接口提示；静态解析不到的接口不会伪造，预算截断会显式标记。

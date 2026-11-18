@@ -57,6 +57,18 @@ class ModuleConfig:
 
 
 @dataclass
+class FlowScopeConfig:
+    """Configuration for one-level execution-flow interface drilldown."""
+
+    enabled: bool = False
+    roots: list[str] = field(default_factory=list)
+    auto_detect: bool = True
+    max_scopes_per_flow: int = 6
+    max_nodes_per_scope: int = 24
+    max_edges_per_scope: int = 32
+
+
+@dataclass
 class DispatchHint:
     """Declared candidate set for one dynamic dispatch site."""
 
@@ -79,6 +91,7 @@ class ProjectConfig:
     entrypoints: list[str] = field(default_factory=list)
     execution_entrypoints: list[str] = field(default_factory=list)
     dispatch_hints: list[DispatchHint] = field(default_factory=list)
+    flow_scopes: FlowScopeConfig = field(default_factory=FlowScopeConfig)
     config_diagnostics: list[dict[str, Any]] = field(default_factory=list)
     max_functions: int = 2000
     max_steps: int = 300

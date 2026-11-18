@@ -153,6 +153,6 @@ def test_p4_bundle_matches_schema() -> None:
     jsonschema = pytest.importorskip("jsonschema")
     bundle = _bundle()
     schema = json.loads(
-        (REPO_ROOT / "docs" / "schema" / "archmap-v6.2-bundle.schema.json").read_text(encoding="utf-8")
+        (REPO_ROOT / "docs" / "schema" / "archmap-v6.3-bundle.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.validate(bundle, schema)

@@ -1,7 +1,7 @@
 # ArchMap 旧文档归档
 
 > 最近归档日期：2026-11-19<br>
-> 当前版本：ArchMap 2.3.0 / bundle schema 6.2
+> 当前版本：ArchMap 2.4.0 / bundle schema 6.3
 
 本目录用于封存 ArchMap 各阶段的**过程文档、历史设计、旧交接、迁移记录、旧验收和旧原型**。
 这些材料用于追溯需求演进、设计取舍和验证历史，不代表当前产品契约。
@@ -15,7 +15,7 @@
 - [API 契约模型](../archmap-api-contract-model.md)
 - [规范化项目配置生成指南](../project-config-generation-guide.md)
 - [被分析项目代码生成 Skill](../约定编程skill.md)
-- [当前 bundle schema](../schema/archmap-v6.2-bundle.schema.json)
+- [当前 bundle schema](../schema/archmap-v6.3-bundle.schema.json)
 
 ## 11月9日归档批次
 

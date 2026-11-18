@@ -274,9 +274,39 @@ def test_browser_smoke() -> None:
         execution_notes = execute("return Array.from(document.querySelectorAll('.execution-node .exec-node-note')).map(node => node.textContent)")
         assert any("服务器端" in note for note in execution_notes)
         assert any("客户端" in note for note in execution_notes)
-        clipped_execution_bodies = execute("""return Array.from(document.querySelectorAll('.execution-node:not(.is-junction) .exec-node-body'))
-          .filter(body => body.scrollHeight > body.clientHeight + 1).length""")
-        assert clipped_execution_bodies == 0
+        clipped_execution_bodies = execute("""return Array.from(document.querySelectorAll('.execution-node:not(.is-junction)'))
+          .filter(node => {
+            const body = node.querySelector('.exec-node-body');
+            return body && body.scrollHeight > body.clientHeight + 1;
+          })
+          .map(node => node.querySelector('.exec-node-label')?.textContent || node.dataset.uid)""")
+        assert clipped_execution_bodies == []
+        assert execute("return document.querySelectorAll('.exec-drilldown-l1').length") >= 2
+        scope_opened = execute("""return (() => {
+          const node = Array.from(document.querySelectorAll('.execution-node'))
+            .find(item => item.querySelector('.exec-node-label')?.textContent === 'server(sockets)');
+          const button = node?.querySelector('.exec-drilldown-l1');
+          if (!button) return false;
+          button.click();
+          return true;
+        })()""")
+        assert scope_opened is True
+        time.sleep(.5)
+        assert execute("return window.location.hash.includes('/scope/')") is True
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        scope_labels = execute("return Array.from(document.querySelectorAll('.execution-node .exec-node-label')).map(node => node.textContent)")
+        assert any("Database.actions" in label for label in scope_labels)
+        assert execute("return document.querySelectorAll('.exec-drilldown-l1').length") == 0
+        assert execute("return document.querySelectorAll('.exec-interface-chip').length") > 0
+        execute("""return (() => {
+          const flow = window.__ARCHMAP_DATA__.projectGraph.executionFlows[0];
+          location.hash = '#/flow/' + encodeURIComponent(flow.id);
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+          return true;
+        })()""")
+        time.sleep(.45)
+        assert execute("return window.location.hash.includes('/scope/')") is False
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
         drag_result = execute("""return (() => {
           const node = Array.from(document.querySelectorAll('.execution-node'))
             .find(item => item.querySelector('.exec-node-label')?.textContent === 'server(sockets)');

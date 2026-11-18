@@ -1,7 +1,7 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：P5 首版已实现；P5.1-P5.5 已完成。P9 当前 schema 6.2：保留标准 flow `entry` 节点，Provider Role 不再包含 entry，模块页不输出调用边；executionOnlyCallables 可继续作为 flow 原子节点。<br>
-> 版本：ArchMap 2.3.0（P5 历史 schema 4.1；P9 当前 schema 6.2）<br>
+> 状态：P5 首版已实现；P5.1-P5.5 已完成。P10 当前 schema 6.3：保留标准 flow `entry` 节点，主流程调用目标保持原子化；一级接口 scope 通过独立聚焦视图展示，不在主画布递归展开。<br>
+> 版本：ArchMap 2.4.0（P5 历史 schema 4.1；P10 当前 schema 6.3）<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
 
@@ -22,7 +22,7 @@ P5 需要把主流程的主叙事重新拉回执行顺序，同时必须避免�
 
 因此 P5 的结论是：
 
-> **只画入口函数的执行骨架；调用目标和接口都原子化；流程控制显式表达；细节通过源码页面查看。**
+> **只画入口函数的执行骨架；调用目标和接口都原子化；流程控制显式表达；需要查看外部接口时进入一级 scope 聚焦视图；更深细节通过源码页面查看。**
 
 ## 2. 防止误解：P5 不是什么
 
@@ -358,22 +358,26 @@ BREAK 是循环体内终止标记，无出边。
 
 明确要求：
 
-- `server()`、`client()` 是 `free_function` 节点，不展开；
-- `NetworkAdapter.init_connection()` 是 `interface` 节点，不展开；
-- 执行流中不得出现 `Spinner`、`Database.actions()`、`MenuSystem.run()`；
-- 执行流中不得出现 Provider 类卡片；
-- 双击 `server()` / `client()` / 接口节点进入源码页面；
+- 主流程中 `server()`、`client()` 仍是 `free_function` 原子节点；
+- 主流程中 `NetworkAdapter.init_connection()` 仍是 `interface` 原子节点；
+- `Spinner`、`Database.actions()`、`MenuSystem.run()` 只允许出现在显式 L1 scope 视图；
+- 主流程中不得出现 Provider 类卡片；
+- 带 L1 入口的节点可打开一级 scope；双击仍进入源码 / Method Detail；
+- scope 内节点不可再次下钻，深度硬限制为 1；
 - 调用投影数据继续保留，但不再在主流程页展示调用总览。
 
 ## 9. 数据契约
 
-P9 当前 bundle schema 为 6.2，JSON Schema 位于 [`docs/schema/archmap-v6.2-bundle.schema.json`](schema/archmap-v6.2-bundle.schema.json)。P5 的 4.1 schema 保留在 [`docs/schema/archmap-v4-bundle.schema.json`](schema/archmap-v4-bundle.schema.json) 供历史追溯。
+P10 当前 bundle schema 为 6.3，JSON Schema 位于 [`docs/schema/archmap-v6.3-bundle.schema.json`](schema/archmap-v6.3-bundle.schema.json)。6.2 / 6.1 / 6.0 与 P5 的 4.1 schema 保留供历史追溯。
 
 新增：
 
 ```text
 projectGraph.executionFlows[]
 projectGraph.primaryExecutionFlowId
+projectGraph.executionFlows[].scopes[]        # P10: one-level interface scope
+executionNode.drilldown                       # P10: summary + scope link
+executionNode.interfaceHints                  # P10: compact helper capability hints
 ```
 
 P6.2 起已删除：
@@ -449,7 +453,7 @@ terminalKind
 }
 ```
 
-schema 6.2 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
+schema 6.3 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
 
 ### 9.4 统计
 
@@ -602,7 +606,7 @@ tests/test_execution_flow.py
 
 ## 13. 验收标准
 
-- schema 6.2 通过校验；
+- schema 6.3 通过校验；
 - `mainFlows` 不再存在；
 - 项目页标准流程卡片、独立主流程页与统一模块能力页通过浏览器冒烟；
 - student_system 执行流满足第 8 节快照；

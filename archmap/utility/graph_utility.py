@@ -1213,6 +1213,17 @@ def build_bundle(
         "flowCards": len(flow_cards),
         "executionNodes": sum(len(flow.get("nodes", [])) for flow in execution_flows),
         "executionEdges": sum(len(flow.get("edges", [])) for flow in execution_flows),
+        "flowScopes": sum(len(flow.get("scopes", [])) for flow in execution_flows),
+        "flowScopeNodes": sum(
+            len(scope.get("nodes", []))
+            for flow in execution_flows
+            for scope in flow.get("scopes", [])
+        ),
+        "flowScopeEdges": sum(
+            len(scope.get("edges", []))
+            for flow in execution_flows
+            for scope in flow.get("scopes", [])
+        ),
         "typeRelations": len(contract_model.class_relations),
         "structuralRelations": sum(
             1 for relation in contract_model.class_relations
@@ -1242,7 +1253,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "6.2",
+        "schemaVersion": "6.3",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,
@@ -1356,6 +1367,48 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                             key=lambda item: (
                                 item["from"], item["to"], item["kind"], item["label"] or ""
                             ),
+                        ),
+                        "scopes": sorted(
+                            [
+                                {
+                                    "id": scope.get("id"),
+                                    "parentNodeId": scope.get("parentNodeId"),
+                                    "rootFunctionId": scope.get("rootFunctionId"),
+                                    "depth": scope.get("depth"),
+                                    "nodes": sorted(
+                                        [
+                                            {
+                                                "id": node.get("id"),
+                                                "kind": node.get("kind"),
+                                                "functionId": node.get("functionId"),
+                                                "targetFunctionId": node.get("targetFunctionId"),
+                                                "capabilityId": node.get("capabilityId"),
+                                                "moduleId": node.get("moduleId"),
+                                                "label": node.get("label"),
+                                            }
+                                            for node in scope.get("nodes", [])
+                                        ],
+                                        key=lambda item: item["id"] or "",
+                                    ),
+                                    "edges": sorted(
+                                        [
+                                            {
+                                                "from": edge.get("from"),
+                                                "to": edge.get("to"),
+                                                "kind": edge.get("kind"),
+                                                "label": edge.get("label"),
+                                            }
+                                            for edge in scope.get("edges", [])
+                                        ],
+                                        key=lambda item: (
+                                            item["from"], item["to"], item["kind"], item["label"] or ""
+                                        ),
+                                    ),
+                                    "interfaceSummary": scope.get("interfaceSummary", []),
+                                }
+                                for scope in flow.get("scopes", [])
+                            ],
+                            key=lambda item: item["id"] or "",
                         ),
                     }
                     for flow in bundle["projectGraph"].get("executionFlows", [])

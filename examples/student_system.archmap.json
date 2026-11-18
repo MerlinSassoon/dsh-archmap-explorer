@@ -104,5 +104,16 @@
       "student_system.menu.student_model.StudentRecord": "model",
       "student_system.async_feedback.spinner_manager.Spinner": "component"
     }
+  },
+  "flowScopes": {
+    "enabled": true,
+    "roots": [
+      "student_system.app.main:server",
+      "student_system.app.main:client"
+    ],
+    "autoDetect": true,
+    "maxScopesPerFlow": 6,
+    "maxNodesPerScope": 24,
+    "maxEdgesPerScope": 32
   }
 }
