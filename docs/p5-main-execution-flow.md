@@ -154,6 +154,29 @@ P5.5 后页面职责拆分为：
 - `mainFlows` 是数据层调用与组合投影；
 - Method Detail 是源码事实。
 
+### 4.1 动态分发共享解析（P6.1）
+
+`executionFlows` 与旧的 `mainFlows` 使用同一套动态分发解析结果，来源包括：
+
+- 顶层配置 `dispatchHints`；
+- 兼容旧字段 `mainFlow.dispatches`；
+- `# archmap:dispatch ...` 行内声明；
+- argparse `set_defaults(func=...)`；
+- 静态函数表 registry；
+- polymorphic candidates。
+
+execution flow 的 `dispatch` 节点输出：
+
+```text
+candidates
+candidateCount
+candidateSetComplete
+candidateSource
+unresolvedReason
+```
+
+候选仅在节点详情面板展示并支持跳转 Method Detail，不展开为执行流控制边。
+
 ## 5. 节点契约
 
 ### 5.1 节点类型

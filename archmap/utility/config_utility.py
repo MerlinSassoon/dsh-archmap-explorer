@@ -124,7 +124,12 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
 
     dispatch_hints: list[DispatchHint] = []
     main_flow = raw.get("mainFlow") if isinstance(raw.get("mainFlow"), dict) else {}
-    for item in main_flow.get("dispatches") or []:
+    raw_dispatch_hints = raw.get("dispatchHints")
+    if raw_dispatch_hints is None:
+        raw_dispatch_hints = main_flow.get("dispatches")
+    if not isinstance(raw_dispatch_hints, list):
+        raw_dispatch_hints = []
+    for item in raw_dispatch_hints:
         if not isinstance(item, dict):
             continue
         function = str(item.get("function") or "").strip()

@@ -11,10 +11,12 @@ import hashlib
 from collections import defaultdict
 from typing import Any, Iterable
 
+from ..config.project_config import DispatchHint
 from ..frontends.python.execution_utility import build_entry_execution_skeleton
 from ..model.analysis_model import AnalysisResult
 from ..model.call_model import CallSite
 from ..model.contract_model import ContractModel
+from .call_resolution_utility import DispatchResolver, is_dynamic_dispatch_site
 from .execution_layout_utility import layout_execution_flow
 
 
@@ -97,19 +99,6 @@ def _interface_payload(
     }
 
 
-def _is_execution_dispatch_site(site: CallSite) -> bool:
-    if site.resolved or site.external:
-        return False
-    if site.polymorphic or site.candidates:
-        return True
-    text = str(site.callee_text or "").strip()
-    if text.endswith(".func") or text.startswith("getattr("):
-        return True
-    if text.endswith("]") and "[" in text and "]." not in text:
-        return True
-    return False
-
-
 def _build_target_resolver(
     *,
     analysis: AnalysisResult,
@@ -117,6 +106,7 @@ def _build_target_resolver(
     module_meta: dict[str, dict[str, Any]],
     capability_by_function: dict[str, dict[str, Any]],
     capability_by_constructor: dict[str, dict[str, Any]],
+    dispatch_resolver: DispatchResolver,
 ):
     def resolve(site: CallSite) -> dict[str, Any] | None:
         target = analysis.function_by_id.get(site.to_function_id or "")
@@ -160,10 +150,11 @@ def _build_target_resolver(
             if capability is not None:
                 return _interface_payload(capability, module_meta)
             return None
-        if not _is_execution_dispatch_site(site):
+        if not (site.polymorphic or is_dynamic_dispatch_site(site)):
             return None
         meta = module_meta.get(site.from_module_id, {})
-        candidates = list(site.candidates or [])
+        resolution = dispatch_resolver.resolve(site)
+        candidates = resolution.candidates
         return {
             "kind": "dispatch",
             "label": site.callee_text or site.call_text or "dispatch",
@@ -173,12 +164,13 @@ def _build_target_resolver(
             "moduleId": site.from_module_id,
             "moduleName": meta.get("name", site.from_module_id),
             "color": meta.get("color", "#60a5fa"),
-            "note": "动态分发边界；候选不展开为执行分支。",
+            "note": "动态分发边界；候选详情见节点面板，不展开为执行分支。",
             "expression": site.callee_text or site.call_text or "",
             "candidateCount": len(candidates),
-            "candidateSetComplete": False,
-            "candidateSource": "polymorphic" if site.polymorphic else "unknown",
+            "candidateSetComplete": resolution.candidate_set_complete,
+            "candidateSource": resolution.candidate_source,
             "candidates": candidates,
+            "unresolvedReason": resolution.unresolved_reason,
         }
 
     return resolve
@@ -190,6 +182,7 @@ def build_execution_flows(
     entrypoints: list[dict[str, Any]],
     module_graphs: list[dict[str, Any]],
     contract_model: ContractModel | None = None,
+    dispatch_hints: list[DispatchHint] | None = None,
 ) -> tuple[list[dict[str, Any]], str | None, list[dict[str, Any]]]:
     """Build bounded execution flows for every entrypoint."""
 
@@ -202,15 +195,22 @@ def build_execution_flows(
     )
     main_module_id = str(main_graph.get("moduleId") if main_graph else analysis.config.main_module_id or "")
     capability_by_function, capability_by_constructor, _ = _capability_indexes(module_graphs)
+    diagnostics: list[dict[str, Any]] = []
+    dispatch_resolver = DispatchResolver(
+        analysis=analysis,
+        call_sites=call_list,
+        hints=dispatch_hints,
+        diagnostics=diagnostics,
+    )
     resolver = _build_target_resolver(
         analysis=analysis,
         main_module_id=main_module_id,
         module_meta=module_meta,
         capability_by_function=capability_by_function,
         capability_by_constructor=capability_by_constructor,
+        dispatch_resolver=dispatch_resolver,
     )
     flows: list[dict[str, Any]] = []
-    diagnostics: list[dict[str, Any]] = []
     primary_id: str | None = None
     for index, entrypoint in enumerate(entrypoints):
         entry_id = str(entrypoint.get("functionId") or "")

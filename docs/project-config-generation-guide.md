@@ -137,6 +137,25 @@ network / menu 使用 with Spinner(...)
 - 不要让 `executionEntrypoints` 承担模块划分职责；
 - 不存在主模块时，流程仍可通过项目级 `entrypoints` / `executionEntrypoints` 定位。
 
+### 4.3 动态分发配置
+
+规范化配置使用顶层 `dispatchHints`：
+
+```json
+"dispatchHints": [
+  {
+    "function": "app.main:main",
+    "expression": "handlers[mode]",
+    "occurrence": 1,
+    "candidates": ["app.main:handler_a", "app.main:handler_b"],
+    "complete": true,
+    "reason": "config"
+  }
+]
+```
+
+迁移期可以继续读取 `mainFlow.dispatches`，但新配置生成器不应继续输出旧字段。
+
 ### 4.3 不为入口伪造模块
 
 - 入口函数可以属于普通模块，Role 可设为 `entry`；

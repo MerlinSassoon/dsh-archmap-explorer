@@ -10,14 +10,17 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import re
-import shlex
 from collections import defaultdict, deque
 from typing import Any, Iterable
 
 from ..config.project_config import DispatchHint
 from ..model.analysis_model import AnalysisResult, FunctionInfo, ModuleInfo
 from ..model.call_model import CallSite
+from .call_resolution_utility import (
+    DispatchResolver,
+    is_dynamic_dispatch_site,
+    resolve_function_ref,
+)
 
 FLOW_NODE_W = 244
 FLOW_NODE_H = 140
@@ -30,7 +33,6 @@ FLOW_Y_GAP = 190
 FLOW_PAD = 70
 FLOW_MAX_NODES = 120
 
-_DISPATCH_COMMENT = re.compile(r"#\s*archmap:dispatch\b(?P<body>.*)$", re.IGNORECASE)
 
 
 def _flow_key(entrypoint_id: str) -> str:
@@ -105,97 +107,6 @@ def _branch_metadata(analysis: AnalysisResult) -> dict[tuple[str, int, int], dic
     return result
 
 
-def _module_from_name(analysis: AnalysisResult, module_name: str) -> ModuleInfo | None:
-    if not module_name:
-        return None
-    name = module_name.removesuffix(".py").replace("/", ".")
-    direct = next((module for module in analysis.modules if module.name == name), None)
-    if direct is not None:
-        return direct
-    tail = name.split(".")[-1]
-    matches = [module for module in analysis.modules if module.name.split(".")[-1] == tail]
-    return matches[0] if len(matches) == 1 else None
-
-
-def _resolve_function_ref(
-    analysis: AnalysisResult,
-    current_module: ModuleInfo | None,
-    ref: str,
-) -> str | None:
-    value = str(ref or "").strip()
-    if not value:
-        return None
-    if value.startswith("fn:"):
-        return value if value in analysis.function_by_id else None
-    if ":" in value:
-        module_part, name = value.rsplit(":", 1)
-        module = _module_from_name(analysis, module_part)
-        if module is not None:
-            fn = module.functions.get(name)
-            if fn is not None:
-                return fn.id
-            matches = [item for item in module.functions.values() if item.name == name]
-            if len(matches) == 1:
-                return matches[0].id
-    if "." in value:
-        module_part, name = value.rsplit(".", 1)
-        module = _module_from_name(analysis, module_part)
-        if module is not None:
-            fn = module.functions.get(name)
-            if fn is not None:
-                return fn.id
-    if current_module is not None:
-        fn = current_module.functions.get(value)
-        if fn is not None:
-            return fn.id
-        imported = current_module.imports.get(value)
-        if imported is not None:
-            target = _module_from_name(analysis, imported.module)
-            if target is not None:
-                fn = target.functions.get(imported.name or value)
-                if fn is not None:
-                    return fn.id
-    matches = [fn.id for fn in analysis.functions if fn.name == value or fn.qualname == value]
-    return matches[0] if len(matches) == 1 else None
-
-
-def _parse_dispatch_comment(text: str) -> dict[str, Any] | None:
-    match = _DISPATCH_COMMENT.search(text or "")
-    if not match:
-        return None
-    body = match.group("body").strip()
-    tokens = shlex.split(body) if body else []
-    candidates: list[str] = []
-    complete = False
-    reason = "comment"
-    for token in tokens:
-        if token.startswith("candidates="):
-            candidates.extend(
-                item.strip()
-                for item in token.removeprefix("candidates=").split(",")
-                if item.strip()
-            )
-        elif token.startswith("complete="):
-            complete = token.removeprefix("complete=").strip().lower() == "true"
-        elif token.startswith("reason="):
-            reason = token.removeprefix("reason=").strip() or reason
-    return {
-        "candidates": candidates,
-        "complete": complete,
-        "reason": reason,
-        "source": "comment",
-    }
-
-
-def _description_comment(source_lines: list[str], line: int) -> str:
-    for index in (line, line - 1, line - 2):
-        if 1 <= index <= len(source_lines):
-            text = source_lines[index - 1]
-            if _DISPATCH_COMMENT.search(text):
-                return text
-    return ""
-
-
 def _class_provider_metadata(module_graphs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for graph in module_graphs:
@@ -268,101 +179,6 @@ def _api_metadata(module_graphs: list[dict[str, Any]]) -> dict[str, dict[str, An
                     "h": FLOW_NODE_H,
                 }
     return result
-
-
-def _static_dispatch_candidates(
-    analysis: AnalysisResult,
-    api_meta: dict[str, dict[str, Any]],
-) -> tuple[dict[str, list[str]], dict[str, dict[str, list[str]]]]:
-    """Discover only high-signal candidate registrations.
-
-    Returns ``(argparse_candidates, registry_candidates)``.  These are always
-    treated as partial candidate sets.
-    """
-
-    argparse_candidates: list[str] = []
-    registry_candidates: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
-    for module in analysis.modules:
-        for fn in module.functions.values():
-            for node in ast.walk(fn.node):
-                # parser.set_defaults(func=cmd_build) style registrations.
-                if isinstance(node, ast.Call):
-                    if isinstance(node.func, ast.Attribute) and node.func.attr == "set_defaults":
-                        for keyword in node.keywords:
-                            if keyword.arg != "func":
-                                continue
-                            ref = None
-                            if isinstance(keyword.value, ast.Name):
-                                ref = keyword.value.id
-                            elif isinstance(keyword.value, ast.Attribute):
-                                ref = keyword.value.attr
-                            resolved = _resolve_function_ref(analysis, module, ref or "")
-                            if resolved:
-                                argparse_candidates.append(resolved)
-                # Static dict/list tables of function references.
-                if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                    target = node.targets[0].id
-                    values: list[ast.AST] = []
-                    if isinstance(node.value, ast.Dict):
-                        values = [value for value in node.value.values if value is not None]
-                    elif isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
-                        values = list(node.value.elts)
-                    for value in values:
-                        ref = None
-                        if isinstance(value, ast.Name):
-                            ref = value.id
-                        elif isinstance(value, ast.Attribute):
-                            ref = value.attr
-                        resolved = _resolve_function_ref(analysis, module, ref or "")
-                        if resolved:
-                            registry_candidates[module.name][target].append(resolved)
-    return (
-        sorted(set(argparse_candidates)),
-        {
-            module: {name: sorted(set(values)) for name, values in tables.items()}
-            for module, tables in registry_candidates.items()
-        },
-    )
-
-
-def _is_dynamic_dispatch_site(site: CallSite) -> bool:
-    if site.resolved or site.external:
-        return False
-    text = str(site.callee_text or "").strip()
-    if text.endswith(".func"):
-        return True
-    if text.startswith("getattr("):
-        return True
-    # Calling the result of a mapping lookup, e.g. HANDLERS[command]().
-    # Attribute access on a subscript (detail['id'].replace) is not a
-    # dynamic callable dispatch and must not create a dispatch node.
-    if text.endswith("]") and "[" in text and "]." not in text:
-        return True
-    return False
-
-
-def _resolve_hint_candidates(
-    analysis: AnalysisResult,
-    module: ModuleInfo | None,
-    candidates: list[str],
-    diagnostics: list[dict[str, Any]],
-    *,
-    expression: str,
-) -> list[str]:
-    resolved: list[str] = []
-    for candidate in candidates:
-        function_id = _resolve_function_ref(analysis, module, candidate)
-        if function_id:
-            resolved.append(function_id)
-        else:
-            diagnostics.append(
-                {
-                    "severity": "warning",
-                    "code": "DISPATCH_CANDIDATE_UNRESOLVED",
-                    "message": f"dispatch candidate {candidate!r} for {expression or '<unknown>'} could not be resolved",
-                }
-            )
-    return sorted(set(resolved))
 
 
 def _node_meta_for_target(
@@ -557,7 +373,6 @@ def build_main_flows(
     for sites in calls_by_from.values():
         sites.sort(key=lambda item: (item.line, item.column, item.callee_text, item.id))
 
-    module_by_id = {module.module_id: module for module in analysis.modules}
     module_graph_by_id = {str(graph.get("moduleId")): graph for graph in module_graphs}
     main_module_id = analysis.config.main_module_id
     if main_module_id not in module_graph_by_id:
@@ -575,9 +390,14 @@ def build_main_flows(
     }
     api_meta = _api_metadata(module_graphs)
     class_meta = _class_provider_metadata(module_graphs)
-    argparse_candidates, registry_candidates = _static_dispatch_candidates(analysis, api_meta)
     branch_info = _branch_metadata(analysis)
     hints = list(dispatch_hints or [])
+    dispatch_resolver = DispatchResolver(
+        analysis=analysis,
+        call_sites=call_list,
+        hints=hints,
+        diagnostics=diagnostics,
+    )
     flows: list[dict[str, Any]] = []
 
     for entry_index, entry in enumerate(entrypoints):
@@ -727,66 +547,17 @@ def build_main_flows(
             source_node = nodes_by_id.get(ancestor_node_id)
             if source_node is None:
                 continue
-            unresolved_index = 0
             for site in calls_by_from.get(function_id, []):
                 if len(nodes_by_id) >= FLOW_MAX_NODES:
                     truncated = True
                     break
                 branch = branch_info.get(_call_key(fn.id, site.line, site.column), {})
-                is_dispatch = _is_dynamic_dispatch_site(site) or bool(site.polymorphic)
+                is_dispatch = is_dynamic_dispatch_site(site) or bool(site.polymorphic)
                 if not site.resolved or not site.to_function_id:
                     if not is_dispatch:
                         continue
-                    unresolved_index += 1
-                    module = module_by_id.get(fn.module_id)
-                    comment = _parse_dispatch_comment(
-                        _description_comment(module.lines if module else [], site.line)
-                    )
-                    matching_hints = [
-                        hint for hint in hints
-                        if _resolve_function_ref(analysis, module, hint.function) == fn.id
-                        and (not hint.expression or hint.expression == site.callee_text)
-                    ]
-                    hint = matching_hints[min(unresolved_index - 1, len(matching_hints) - 1)] if matching_hints else None
-                    declared_complete = bool(hint and hint.complete) or bool(comment and comment.get("complete"))
-                    candidates: list[str] = []
-                    candidate_source = "unknown"
-                    reason = "dynamic_dispatch"
-                    if site.polymorphic:
-                        candidates.extend(site.candidates)
-                        candidate_source = "polymorphic"
-                        reason = "polymorphic_dispatch"
-                    if hint and hint.candidates:
-                        candidates.extend(
-                            _resolve_hint_candidates(
-                                analysis, module, hint.candidates, diagnostics,
-                                expression=site.callee_text,
-                            )
-                        )
-                        candidate_source = "config"
-                        reason = hint.reason or reason
-                    if comment and comment.get("candidates"):
-                        candidates.extend(
-                            _resolve_hint_candidates(
-                                analysis, module, comment["candidates"], diagnostics,
-                                expression=site.callee_text,
-                            )
-                        )
-                        candidate_source = "comment" if candidate_source == "unknown" else candidate_source
-                        reason = comment.get("reason") or reason
-                    if not declared_complete and not site.polymorphic:
-                        static_candidates: list[str] = []
-                        if site.callee_text.endswith(".func"):
-                            static_candidates.extend(argparse_candidates)
-                            if static_candidates:
-                                candidate_source = "argparse_registry" if candidate_source == "unknown" else candidate_source
-                        registry = registry_candidates.get(fn.module_name, {})
-                        for name, values in registry.items():
-                            if site.callee_text.startswith(f"{name}["):
-                                static_candidates.extend(values)
-                                candidate_source = "static_registry" if candidate_source == "unknown" else candidate_source
-                        candidates.extend(static_candidates)
-                    candidates = sorted(set(candidates))
+                    resolution = dispatch_resolver.resolve(site)
+                    candidates = resolution.candidates
                     dispatch_node_id = f"flow:{flow_key}:dispatch:{site.id}"
                     dispatch_node = nodes_by_id.get(dispatch_node_id)
                     if dispatch_node is None:
@@ -801,9 +572,9 @@ def build_main_flows(
                             "moduleName": module_name_by_id.get(fn.module_id, fn.module_id),
                             "color": color_by_module.get(fn.module_id, "#60a5fa"),
                             "candidateCount": len(candidates),
-                            "candidateSetComplete": declared_complete,
-                            "candidateSource": candidate_source,
-                            "unresolvedReason": None if candidates else "dynamic_callable_not_inferable",
+                            "candidateSetComplete": resolution.candidate_set_complete,
+                            "candidateSource": resolution.candidate_source,
+                            "unresolvedReason": resolution.unresolved_reason,
                             "note": "动态分发边界；候选连线使用低置信度 composition 语义。",
                             "w": FLOW_DISPATCH_W,
                             "h": FLOW_DISPATCH_H,
@@ -858,8 +629,8 @@ def build_main_flows(
                             evidence=[],
                             branch_group=f"dispatch:{site.id}",
                             branch_label=site.callee_text,
-                            reason=reason,
-                            candidate_source=candidate_source,
+                            reason=resolution.reason,
+                            candidate_source=resolution.candidate_source,
                         )
                         if candidate_node.get("expandable") and candidate_id not in expanded:
                             expanded.add(candidate_id)

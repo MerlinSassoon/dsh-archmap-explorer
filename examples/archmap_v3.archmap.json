@@ -103,8 +103,7 @@
     }
   ],
   "mainModule": "main-pipeline",
-  "mainFlow": {
-    "dispatches": [
+  "dispatchHints": [
       {
         "function": "archmap.entry.cli_entry:main",
         "expression": "args.func",
@@ -123,6 +122,5 @@
         "complete": true,
         "reason": "argparse_dispatch"
       }
-    ]
-  }
+  ]
 }

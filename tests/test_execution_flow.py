@@ -373,3 +373,66 @@ def test_execution_flow_rejects_removed_terminal_edge_kinds() -> None:
     flow["edges"][0]["kind"] = "break"
     issues = validate_bundle(bundle)
     assert any(issue["code"] == "EXEC_EDGE_KIND" for issue in issues)
+
+
+def test_execution_dispatch_uses_shared_config_resolution() -> None:
+    """Execution flow and the legacy call projection must share dispatch candidates."""
+
+    config = REPO_ROOT / "examples" / "archmap_v3.archmap.json"
+    bundle = build_architecture(REPO_ROOT, config)
+    execution = _execution_flow(bundle, "fn:archmap.entry.cli_entry.main")
+    execution_dispatch = next(
+        node for node in execution["nodes"] if node["kind"] == "dispatch"
+    )
+    main_flow = bundle["projectGraph"]["mainFlows"][0]
+    main_dispatch = next(
+        node for node in main_flow["nodes"] if node["kind"] == "dispatch"
+    )
+    assert execution_dispatch["candidateCount"] == 9
+    assert execution_dispatch["candidateCount"] == main_dispatch["candidateCount"]
+    assert execution_dispatch["candidateSetComplete"] is True
+    assert execution_dispatch["candidateSource"] == "config"
+    assert execution_dispatch["unresolvedReason"] is None
+    assert len(execution_dispatch["candidates"]) == 9
+    assert {
+        edge["kind"] for edge in execution["edges"]
+    } <= {"next", "true", "false", "case", "default", "loop_body", "loop_complete"}
+
+
+def test_dispatch_hints_support_top_level_config_key(tmp_path: Path) -> None:
+    """The normalized top-level dispatchHints key must load without legacy mainFlow."""
+
+    project = tmp_path / "project"
+    app = project / "app"
+    app.mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "main.py").write_text(
+        '''def handler_a():\n    return "a"\n\n\ndef handler_b():\n    return "b"\n\n\ndef main(mode):\n    handlers = {}\n    return handlers[mode]()\n''',
+        encoding="utf-8",
+    )
+    config = {
+        "projectName": "top_level_dispatch",
+        "include": ["app/*.py"],
+        "mainModule": "main",
+        "entrypoints": ["app.main:main"],
+        "dispatchHints": [
+            {
+                "function": "app.main:main",
+                "expression": "handlers[mode]",
+                "candidates": ["app.main:handler_a", "app.main:handler_b"],
+                "complete": True,
+                "reason": "config",
+            }
+        ],
+        "modules": [
+            {"id": "main", "name": "入口", "kind": "main", "include": ["app/main.py"]}
+        ],
+    }
+    config_path = project / "archmap.config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    bundle = build_architecture(project, config_path)
+    execution = _execution_flow(bundle, "fn:app.main.main")
+    dispatch = next(node for node in execution["nodes"] if node["kind"] == "dispatch")
+    assert dispatch["candidateCount"] == 2
+    assert dispatch["candidateSetComplete"] is True
+    assert dispatch["candidateSource"] == "config"

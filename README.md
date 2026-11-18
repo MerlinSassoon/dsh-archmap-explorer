@@ -118,6 +118,7 @@ P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**�
 - 节点位置可在浏览器中拖拽覆盖，关联曲线实时重算并持久化；
 - 不生成逐语句节点、列表操作节点、`try/except` 异常控制、数据流边或图内下钻；
 - 新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 保留为数据层调用投影，默认不展示；
+- P6.1 起 execution flow 与 `mainFlows` 共用动态分发解析；新配置使用顶层 `dispatchHints`，旧 `mainFlow.dispatches` 仅作迁移兼容；
 - P5 首版 bundle schema 为 4.0；P5.4 收紧执行边契约并升级到 4.1。
 
 P5 的防误解与防滑坡边界、student_system 目标快照、数据契约和验收标准见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。

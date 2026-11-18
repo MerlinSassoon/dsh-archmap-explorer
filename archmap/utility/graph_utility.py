@@ -1068,6 +1068,7 @@ def build_bundle(
         execution_entrypoints,
         module_graphs,
         contract_model,
+        config.dispatch_hints,
     )
     if primary_flow_id:
         for module_node in project_module_nodes:

@@ -187,3 +187,12 @@ def test_execution_cards_show_notes_instead_of_signatures() -> None:
     assert "exec-node-signature" not in html
     assert "const signatureText" not in html
     assert "node.note || detail?.note" in html
+
+
+def test_render_exposes_dispatch_candidate_details() -> None:
+    """Dispatch nodes must expose candidate navigation hooks in the detail panel."""
+
+    html = render_html(build_architecture(ROOT))
+    assert "dispatchCandidateList" in html
+    assert "data-open-exec-candidate" in html
+    assert "Dispatch candidates" in html

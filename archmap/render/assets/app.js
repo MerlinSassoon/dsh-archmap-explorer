@@ -636,6 +636,22 @@
     }).join("");
   }
 
+  function dispatchCandidateList(node) {
+    const candidates = node?.candidates || [];
+    if (!candidates.length) {
+      return `<div class="method-call-empty">未解析出候选；请检查 dispatchHints、argparse 注册或静态分发表。</div>`;
+    }
+    return `<div class="method-call-list">${candidates.map(candidateId => {
+      const detail = functionDetailById.get(candidateId);
+      const name = detail?.qualifiedName || detail?.name || candidateId;
+      return `<button class="detail-api-row" type="button" data-open-exec-candidate="${escapeHtml(candidateId)}">
+        <span class="detail-api-kind">candidate</span>
+        <span class="detail-api-name">${escapeHtml(name)}</span>
+        <span class="detail-api-kind">${escapeHtml(detail?.file || "")}:${escapeHtml(detail?.line || "—")}</span>
+      </button>`;
+    }).join("")}</div>`;
+  }
+
   function apiButtonAttrs(api) {
     return [
       `data-api-id="${escapeHtml(api.id)}"`,
@@ -827,12 +843,19 @@
           <div class="detail-note">${escapeHtml(macroNode.note || "主执行流节点")}</div>
           <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId || "—")}</b></span>${macroNode.capabilityKind ? `<span>能力 <b>${escapeHtml(macroNode.capabilityKind)}</b></span>` : ""}${macroNode.usageKind ? `<span>用法 <b>${escapeHtml(macroNode.usageKind)}</b></span>` : ""}</div>
           ${meta.length ? `<div class="source-line">${meta.map(item => escapeHtml(item)).join("<br>")}</div>` : ""}
+          ${macroNode.kind === "dispatch" ? `<div class="class-method-section"><div class="class-method-heading">Dispatch candidates · ${Number(macroNode.candidateCount || 0)}</div>${dispatchCandidateList(macroNode)}</div>` : ""}
           ${detail ? `<div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>` : ""}
           ${annotationBlock(targetId || uid, detail?.sourceHash)}
           <div class="detail-actions">${targetId ? `<button class="detail-action" type="button" data-open-exec-method="${escapeHtml(targetId)}">打开源码 / 方法详情</button>` : ""}${module ? `<button class="detail-action" type="button" data-open-exec-module="${escapeHtml(module.id)}">打开模块页面</button>` : ""}</div>`;
         detailScroll.querySelector("[data-open-exec-method]")?.addEventListener("click", () => {
           const target = functionDetailById.get(targetId);
           if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
+        });
+        detailScroll.querySelectorAll("[data-open-exec-candidate]").forEach(button => {
+          button.addEventListener("click", () => {
+            const target = functionDetailById.get(button.dataset.openExecCandidate);
+            if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
+          });
         });
         detailScroll.querySelector("[data-open-exec-module]")?.addEventListener("click", () => navigate({ kind: "module", moduleId: module.id }));
         return;
