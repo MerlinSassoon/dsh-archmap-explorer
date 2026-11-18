@@ -1,7 +1,7 @@
 # ArchMap 架构与编码规范
 
 > 状态：P2.3 规范已落盘，P2.4/P3/P4 已按该规范完成<br>
-> 版本：ArchMap 1.9.0 / bundle schema 5.0<br>
+> 版本：ArchMap 2.0.0 / bundle schema 5.0<br>
 > 日期：2026-11-18<br>
 > 适用范围：ArchMap 自身源码、后续语言前端和架构分析扩展。
 
@@ -14,7 +14,7 @@ ArchMap 使用两层分类，禁止把两者混为一谈：
 逻辑 Provider Role：config / model / manager / entry / adapter / component / contract / utility
 ```
 
-物理文件决定代码放在哪里；逻辑角色决定它在架构图中代表什么。
+物理文件决定代码放在哪里；逻辑角色决定它在架构图中代表什么。P6.2 起模块按业务能力纵向组织，禁止用顶层 `config/`、`model/`、`utility/` 目录作为模块边界。
 
 ```text
 物理代码单元是“存储位置”
@@ -25,10 +25,11 @@ Visibility 是“是否进入默认架构视图”
 ### 1.1 物理文件规范
 
 ```text
-<domain>/<domain>_config.py     静态定义、默认值、常量、枚举
-<domain>/<domain>_model.py      数据结构、DTO、结果、契约接口
-<domain>/<domain>_manager.py    状态、生命周期、行为编排、入口代理
-<domain>/<domain>_utility.py    无状态内部辅助逻辑
+<capability>/
+├─ <domain>_config.py     静态定义、默认值、常量、枚举
+├─ <domain>_model.py      数据结构、DTO、结果、契约接口
+├─ <domain>_manager.py    状态、生命周期、行为编排、入口代理
+└─ <domain>_utility.py    无状态内部辅助逻辑
 ```
 
 为保持文件系统可控，默认只使用这四个物理类型。
@@ -254,29 +255,33 @@ adapter → contract
 
 ## 4. 普通能力模块与项目级主流程
 
-> P6.2 更新：schema 5.0 取消主模块、`moduleKind` 与 `mainFlows`。以下“主模块/功能模块”文字仅保留历史背景；当前所有模块均为普通能力模块，主流程是项目级视图。
-
-项目必须区分两类模块：
+P6.2 起所有模块都是普通能力模块：
 
 ```text
-主模块      唯一组合根，承载入口与顶层编排；其能力页展示 Provider/API/类型关系
-功能模块    暴露 Provider/Capability；数量允许为 0..N
+service / adapter / component / entry / test / other
 ```
 
 约束：
 
-- 恰好一个 `moduleKind=main`。
-- 不为了满足模块数量虚造功能模块。
-- 模块不拥有输入/输出端口；依赖和能力分别由调用证据与 `providedApis` 表达。
-- P5 执行流 `flowRole` 独立于 Provider Role，不得因主流程分析改变功能模块 API 分类。
-- P5 执行流节点：entry / exit / free_function / interface / branch / multi_branch / loop / break / continue / return / dispatch。
-- P5 执行流边只表达控制连接；`mainFlows` 调用投影数据保留但默认不展示。
-- dispatch 候选需要显式完整性标记，无法推断时保留 unresolved。
-- **主流程边界**：P5 执行流只展开主模块入口函数控制骨架；跨入功能模块时只物化 canonical interface，不穿透其实现。
-- 功能模块边界节点 `expandable=false`，无图内下钻；内部 utility 不进入主流程。
-- 主流程是项目级执行叙事，全量跨模块调用与内部实现分别由模块关系视图、Method Detail 和 P4 trace 承担。
+- 不存在主模块、`mainModuleId` 或 `moduleKind`；
+- 入口文件可归入普通能力模块，模块 role 可为 `entry`；
+- 模块不拥有输入/输出端口；能力由 `providedApis` 表达；
+- `config` / `model` / `utility` 围绕所属 manager 或能力 facade 归属；
+- 每个源码文件、Provider 和模型有且仅有一个 owner 模块；
+- 不允许建立 `contracts` / `shared` / `common` / `misc` 这类技术层兜底模块；
+- 模块被其他模块消费是依赖关系，不改变 owner。
 
-项目页展示独立主流程入口与全部模块卡片。主模块和功能模块统一使用模块能力页；主流程页只展示执行流，不嵌入模块契约或调用总览。
+执行流约束：
+
+- 执行流是项目级视图，不属于任何模块；
+- 节点类型：exit / free_function / interface / branch / multi_branch / loop / break / continue / return / dispatch；
+- 不生成语义 `entry` 节点；入口由 flow 元数据和标准入口卡片表达；
+- 执行边只表达控制连接；不输出 composition/call 调用边；
+- dispatch 候选必须显式标记完整性，无法推断时保留 unresolved；
+- 执行流只展开 entrypoint 自身控制骨架，调用目标作为原子节点，不继续穿透实现；
+- 内部实现由 Method Detail、CallSite 和 P4 trace/impact 承担。
+
+项目页以标准卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片。模块能力页只展示 Provider / Capability / 类型关系，不默认绘制调用边；主流程页只展示执行流，不嵌入模块契约或调用总览。
 
 ```text
 Project

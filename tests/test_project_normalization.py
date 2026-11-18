@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 from pathlib import Path
+
+import pytest
 
 from archmap.managers.pipeline_manager import PipelineManager
 
@@ -49,8 +52,12 @@ def test_student_system_uses_vertical_capability_modules() -> None:
 def test_gomoku_has_no_main_module_and_no_module_call_view() -> None:
     """Gomoku uses entry/UI/application/domain/adapter modules without call lines."""
 
+    configured_root = os.environ.get("ARCHMAP_GOMOKU_ROOT")
+    gomoku_root = Path(configured_root) if configured_root else REPO_ROOT.parent / "五子棋"
+    if not gomoku_root.exists():
+        pytest.skip("gomoku sample source is not available in this workspace")
     bundle = build_architecture(
-        Path("/home/sasson/桌面/Project/dsh_project/五子棋"),
+        gomoku_root,
         REPO_ROOT / "examples" / "gomoku.archmap.json",
     )
     modules = {module["id"]: module for module in bundle["projectGraph"]["modules"]}

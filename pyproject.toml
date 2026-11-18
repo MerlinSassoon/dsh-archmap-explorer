@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dsh-archmap"
-version = "1.9.0"
-description = "ArchMap v3: module-first, drill-down Python architecture maps"
+version = "2.0.0"
+description = "ArchMap: module-first, drill-down Python architecture maps"
 requires-python = ">=3.10"
 dependencies = []
 

@@ -1,13 +1,13 @@
 # P5 主流程执行流（Main Execution Flow）
 
 > 状态：P5 首版已实现；P5.1-P5.5 已完成。P6.2 已升级到 schema 5.0：移除主模块、`mainFlows` 和 execution flow 语义 `entry` 节点，模块页不再输出调用边。本文涉及这些旧契约的段落仅作为 P5 历史说明。<br>
-> 版本：ArchMap 1.9.0（P5 历史 schema 4.1；P6.2 当前 schema 5.0）<br>
+> 版本：ArchMap 2.0.0（P5 历史 schema 4.1；P6.2 当前 schema 5.0）<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
 
 ## 0. 一句话定义
 
-P5 从项目入口函数出发，以**入口函数内部的控制流**为主干，将主模块本地调用（自由函数或类方法）和功能模块公开接口视为**不可展开的执行步骤**，生成一张**静态、控制流优先、可直接跳转源码**的主执行流图。
+P5 从项目入口函数出发，以**入口函数内部的控制流**为主干，将项目内 callable 和 canonical interface 视为**不可展开的执行步骤**，生成一张**静态、控制流优先、可直接跳转源码**的主执行流图。
 
 它不是运行时轨迹，也不是完整函数 CFG，更不是旧语句级 FunctionFlow 的恢复。
 
@@ -22,7 +22,7 @@ P5 需要把主流程的主叙事重新拉回执行顺序，同时必须避免�
 
 因此 P5 的结论是：
 
-> **只画入口函数的执行骨架；主模块本地调用和功能模块接口都原子化；流程控制显式表达；细节通过源码页面查看。**
+> **只画入口函数的执行骨架；调用目标和接口都原子化；流程控制显式表达；细节通过源码页面查看。**
 
 ## 2. 防止误解：P5 不是什么
 
@@ -73,7 +73,7 @@ dispatch
 
 ### 3.2 本地调用和接口都不展开
 
-- 主模块自由函数与类方法是同一类原子执行步骤；任意私有/公开方法都按本地 callable 处理，不按可见性制造两套执行语义；
+- 项目内自由函数与类方法按原子 callable 处理，不按可见性制造两套执行语义；
 - 功能模块公开接口是原子执行步骤；
 - 两者双击打开 Method Detail / 源码页面；
 - 不在图内展示其 callees；
@@ -143,20 +143,20 @@ P5.5 后页面职责拆分为：
 
 | 页面 | 主用途 | 数据来源 |
 |---|---|---|
-| 项目页主流程入口 | 打开独立主流程页 | `projectGraph.executionFlows` |
+| 项目页流程卡片 | 打开独立主流程页 | `projectGraph.executionFlows` |
 | 主流程页 | 理解入口执行顺序、分支、循环和出口 | `projectGraph.executionFlows` |
-| 模块能力页 | 查看主模块或功能模块的 Provider / API / 类型关系 | `moduleGraphs[]` |
+| 模块能力页 | 查看普通能力模块的 Provider / API / 类型关系 | `moduleGraphs[]` |
 | Method Detail | 查看源码与调用事实 | `functionDetails` / `callSites` |
 
-`mainFlows` 仍作为调用投影数据保留，但不再作为默认 UI 视图展示：
+P6.2 起 `mainFlows` 已从 schema 5.0 删除：
 
-- `executionFlows` 是执行叙事；
-- `mainFlows` 是数据层调用与组合投影；
+- `executionFlows` 是唯一项目级执行叙事；
+- 调用事实保留在 `callSites` / `functionDetails`；
 - Method Detail 是源码事实。
 
 ### 4.1 动态分发共享解析（P6.1）
 
-`executionFlows` 与旧的 `mainFlows` 使用同一套动态分发解析结果，来源包括：
+execution flow 使用共享动态分发解析结果，来源包括：
 
 - 顶层配置 `dispatchHints`；
 - 兼容旧字段 `mainFlow.dispatches`；
@@ -183,10 +183,9 @@ unresolvedReason
 
 | 节点 | 含义 | 输出端口 |
 |---|---|---|
-| `entry` | 入口函数 | `out` |
 | `exit` | 按需生成的主流程结束锚点；仅用于隐式落空等真实到达路径 | `in` |
-| `free_function` | 主模块本地调用步骤；`callableKind` 区分自由函数与方法 | `in / out` |
-| `interface` | 功能模块公开能力调用步骤 | `in / out` |
+| `free_function` | 项目内原子 callable 步骤；`callableKind` 区分自由函数与方法 | `in / out` |
+| `interface` | canonical public capability 调用步骤 | `in / out` |
 | `branch` | 双分支 | `in / true / false` |
 | `multi_branch` | 多分支 | `in / case... / default` |
 | `loop` | 循环 | `in / loop_body / loop_complete`（离开循环） |
@@ -199,7 +198,7 @@ unresolvedReason
 
 #### `free_function`
 
-- 表示主模块本地可调用步骤，统一覆盖自由函数与类方法；
+- 表示项目内原子可调用步骤，统一覆盖自由函数与类方法；
 - `callableKind` 为 `function` 或 `method`，类方法额外携带 `ownerClassId` / `ownerClassName`；
 - 私有/公开不改变执行步骤语义；可见性只影响 API/契约视图；
 - 必须携带 `targetFunctionId`、`callSiteId`、文件、行号、签名和备注；
@@ -314,7 +313,7 @@ moduleId
 
 入口函数中的一次可执行调用，最多生成一个执行节点：
 
-1. 目标是主模块本地 callable（自由函数或类方法）→ `free_function`，`callableKind` 区分 `function` / `method`；
+1. 目标是非 canonical interface 的项目内 callable（自由函数或类方法）→ `free_function`，`callableKind` 区分 `function` / `method`；
 2. 目标是功能模块公开 capability → `interface`；
 3. 动态或多态且无法唯一确定 → `dispatch`；
 4. 外部库、stdlib、内部 utility → 不生成节点；
@@ -376,10 +375,10 @@ projectGraph.executionFlows[]
 projectGraph.primaryExecutionFlowId
 ```
 
-保留但默认不展示：
+P6.2 起已删除：
 
 ```text
-projectGraph.mainFlows[]
+projectGraph.mainFlows
 projectGraph.primaryFlowId
 ```
 
@@ -389,8 +388,8 @@ projectGraph.primaryFlowId
 {
   "kind": "archmap.execution-flow",
   "id": "exec-flow:1:...",
-  "moduleId": "main",
-  "entrypointId": "fn:student_system.main.main",
+  "moduleId": "app",
+  "entrypointId": "fn:student_system.app.main.main",
   "entrypointReason": "configured",
   "name": "main()",
   "nodes": [],
@@ -414,7 +413,7 @@ projectGraph.primaryFlowId
   "callSiteId": "call:...",
   "targetFunctionId": "fn:...",
   "capabilityId": "api:...",
-  "file": "student_system/managers/network_manager.py",
+  "file": "student_system/network/network_manager.py",
   "line": 21,
   "endLine": 49,
   "ports": ["in", "out"],
@@ -449,7 +448,7 @@ terminalKind
 }
 ```
 
-4.1 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
+schema 5.0 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
 
 ### 9.4 统计
 
@@ -461,7 +460,7 @@ executionNodes
 executionEdges
 ```
 
-`mainFlows` 相关统计保持原有语义。
+P6.2 起 `stats.mainFlows` 已删除；只保留 `executionFlows` / `executionNodes` / `executionEdges`。
 
 ## 10. 布局与 UI
 
@@ -500,9 +499,9 @@ executionEdges
 
 `archmap check` 必须新增执行流校验：
 
-- 恰好一个 `entry`；
+- 不生成语义 `entry` 节点；
 - 最多一个 `exit`；仅当存在隐式落空等真实路径时才需要；
-- 所有节点可达；
+- 所有节点从无入边根节点可达；
 - 非终止路径若存在，最终可达 `exit`；
 - `branch` 最多一条 `true` 和一条 `false`，不得重复；
 - `multi_branch` 至少一个 case，default 最多一个；
@@ -587,8 +586,8 @@ tests/test_execution_flow.py
 - 端口锚点与贝塞尔曲线；
 - 节点拖拽与布局覆盖持久化；
 - 执行流渲染；
-- 独立主流程路由与主流程入口卡片；
-- 主模块与功能模块统一能力页；
+- 独立主流程路由与标准流程卡片；
+- 所有普通能力模块统一能力页；
 - 双击源码跳转；
 - 浏览器冒烟。
 
@@ -602,9 +601,9 @@ tests/test_execution_flow.py
 
 ## 13. 验收标准
 
-- schema 4.1 通过校验；
-- `mainFlows` 数据保持构建与契约兼容，但 UI 不展示调用总览；
-- 项目页主流程入口、独立主流程页与统一模块能力页通过浏览器冒烟；
+- schema 5.0 通过校验；
+- `mainFlows` 不再存在；
+- 项目页标准流程卡片、独立主流程页与统一模块能力页通过浏览器冒烟；
 - student_system 执行流满足第 8 节快照；
 - 节点和边满足第 11 节不变量；
 - 本地调用/接口双击可进入源码；
@@ -622,7 +621,7 @@ tests/test_execution_flow.py
 | 隐藏外部 IO | 在 Method Detail 和 User Surface 中保留证据 |
 | 只提取入口函数 | 通过双击源码查看被调函数内部实现 |
 | 布局复杂 | 结构化布局 + 正交性校验 + 浏览器冒烟 |
-| 数据层存在两个投影 | `executionFlows` 与 `mainFlows` 分开构建、分开校验；UI 只展示执行流 |
+| 动态分发候选未完整解析 | 保留 candidateSource / candidateSetComplete / unresolvedReason，并在节点详情展示 |
 | 流程页与模块页职责回流 | 路由与 DOM 测试禁止主流程页出现模块契约、能力节点或调用总览 |
 | 未来需求诱导下钻 | 以第 3 节硬边界为变更门槛 |
 

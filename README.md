@@ -1,6 +1,6 @@
-# ArchMap v4.0
+# ArchMap
 
-> 版本：ArchMap 1.9.0 / bundle schema 5.0<br>
+> 版本：ArchMap 2.0.0 / bundle schema 5.0<br>
 > 最后更新：2026-11-18
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
@@ -38,6 +38,8 @@ P6.0  项目模型重构计划与配置指南             已完成
 P6.1  共享动态分发解析                       已完成
 P6.2  schema 5.0、取消主模块与 mainFlows     已完成
 P6.3  模块归属与 student/gomoku/self 规范化  已完成
+P6.4  标准流程卡片与模块能力页收口         已完成
+P6.5  回归、迁移、版本与文档收口           已完成
 ```
 
 当前产品边界：
@@ -46,7 +48,7 @@ P6.3  模块归属与 student/gomoku/self 规范化  已完成
 - 主流程是项目级视图，不属于任何模块。
 - 主流程只展开入口函数控制骨架；调用目标作为原子执行步骤，不穿透实现。
 - 模块能力页只展示 Provider/Capability 与结构关系，不默认展示调用边。
-- 项目页提供标准主流程入口；主流程页只展示有界执行流。
+- 项目页使用标准卡片展示一个或多个项目级执行流；主流程页只展示有界执行流。
 - `mainFlows` / `primaryFlowId` 已从 schema 5.0 删除。
 - execution flow 不再生成语义 `entry` 节点；入口由 flow 元数据和入口卡片表达。
 - P5 执行流不会恢复旧语句级 FunctionFlow；边界见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
@@ -586,6 +588,7 @@ ArkTS 接入时需要：
 | [`docs/HANDOFF-P5.5.md`](docs/HANDOFF-P5.5.md) | P5.5 历史交接；后续步骤已由 P6 计划接管 |
 | [`docs/p6-project-model-plan.md`](docs/p6-project-model-plan.md) | P6 实施计划与进度：取消主模块、项目级主流程、schema 5.0、纵向能力模块、标准流程卡片与分阶段验收 |
 | [`docs/p6-project-model-discussion.md`](docs/p6-project-model-discussion.md) | P6 讨论背景：问题分析、目标模型、Provider 归属与调用视图清理 |
+| [`docs/HANDOFF-P6.md`](docs/HANDOFF-P6.md) | P6 完成交接：schema 5.0、项目级流程、能力模块规范、验收基线与后续方向 |
 | [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | 规范化项目配置生成指南：模块划分、入口/流程区分、Provider 归属与常见误配 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 

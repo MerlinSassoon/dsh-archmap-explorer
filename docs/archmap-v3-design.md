@@ -32,20 +32,18 @@
 - 默认几何由 Python 以能力卡片网格生成（`layout.mode = "module-cards"`），前端只负责渲染与用户拖拽覆盖。
 - P6.2 起 `projectGraph.mainFlows` / `primaryFlowId` 已删除；项目级执行视图只保留 `executionFlows` / `primaryExecutionFlowId`。
 
-### MainFlow
+### ExecutionFlow
 
 `mainFlows` 已在 schema 5.0 删除；当前主流程页面只使用 `executionFlows`。
 
-- 节点类型：`entry` / `orchestrator` / `provider` / `interface` / `dispatch`。
-- 边类型：`call` / `call_path` / `composition`。
-- composition 必须 `confidence=low` 并以虚线渲染，绝不伪装成 call。
-- 执行流保留原子 callable / interface 节点；具体分类不再依赖主模块。
-- 主流程分析使用独立 flowRole，不修改 Provider Role、visibility 或 API 分类。
-- dispatch 节点保存表达方式、候选数量、候选来源、是否完整和 unresolved 原因。
-- 普通分支共享 branchGroup；循环不展开。
-- **主流程边界**：执行流只展开 entrypoint 自身控制骨架；调用目标均作为原子节点，不继续穿透实现。
-- 功能模块边界节点携带 `flowBoundary=true`、`expandable=false`，且不得有出边。
-- 功能模块内部 utility/helper 不进入主流程；其实现路径保留在 Method Detail、callSites 和后续 trace/impact 中。
+- 节点类型：`exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；
+- 不生成语义 `entry` 节点；入口由 flow 元数据和标准流程卡片表达；
+- 边只表达控制连接：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
+- 执行流保留原子 callable / interface 节点；具体分类不依赖主模块；
+- 项目级分析不修改 Provider Role、visibility 或 API 分类；
+- dispatch 节点保存候选数量、候选来源、是否完整和 unresolved 原因；
+- **执行流边界**：只展开 entrypoint 自身控制骨架；调用目标均作为原子节点，不继续穿透实现；
+- 内部实现路径保留在 Method Detail、callSites 和 trace/impact 中。
 
 ### ModuleGraph
 
@@ -58,6 +56,7 @@
 - 类节点是模块内的一等组件，带 `classKind`、`isAbstract`、`usage`、`providedApis` 和方法摘要。
 - 类卡片只展示构造签名与提供接口；类内方法图和类焦点页不在产品计划中。
 - 类方法归属 `class` 节点，不直接平铺为模块页函数节点；方法级关系保存在 `methodEdges` 和全局 `callSites` 中。
+- `moduleGraphs[].edges` 已删除；模块能力页不默认绘制调用边。
 - 方法节点属于类组件的子级语义；类本身不拥有执行流。
 - 模块不再包含输入/输出边界；抽象类/接口只作为契约 Provider，不进入主流程执行节点。
 - 函数节点只展示函数名和人工备注，不展示步骤数、调用数等生成统计。
