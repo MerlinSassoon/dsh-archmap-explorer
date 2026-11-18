@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P5.1 全套执行流卡片样式样例</title>
+<style>
+  /* P5.1 prototype only: visual catalog for every bounded execution node kind.
+     It deliberately contains no production renderer or layout changes. */
+  :root {
+    --bg: #080b10;
+    --panel: rgba(14, 18, 24, .80);
+    --panel-2: rgba(18, 23, 31, .92);
+    --ink: #e7edf7;
+    --muted: #7f8da3;
+    --muted-2: #56657a;
+    --line: #263142;
+    --line-soft: rgba(148, 163, 184, .13);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    --mc: 245, 158, 11;
+    --port-in: #c8d4e2;
+    --port-out: #c8d4e2;
+    --port-true: #8ed15b;
+    --port-false: #f06474;
+    --port-case: #60a5fa;
+    --port-default: #8b93a3;
+    --port-body: #38bdf8;
+    --port-complete: #94a3b8;
+    --port-dispatch: #a78bfa;
+  }
+
+  * { box-sizing: border-box; }
+  html { min-height: 100%; }
+  body {
+    min-height: 100%;
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 18% 6%, rgba(66, 99, 154, .15), transparent 30%),
+      radial-gradient(circle at 88% 92%, rgba(121, 84, 172, .10), transparent 34%),
+      var(--bg);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(148, 163, 184, .20) 1px, transparent 1px);
+    background-size: 22px 22px;
+    mask-image: radial-gradient(circle at 50% 35%, black 18%, transparent 82%);
+    opacity: .46;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    width: min(1280px, calc(100vw - 48px));
+    margin: 0 auto;
+    padding: 34px 0 64px;
+  }
+
+  .page-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 390px;
+    gap: 34px;
+    align-items: end;
+    padding: 0 4px 24px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .eyebrow {
+    color: #8ebcff;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 7px 0 0;
+    color: #f2f6fc;
+    font-size: 25px;
+    line-height: 1.15;
+    letter-spacing: -.025em;
+  }
+  .lede {
+    max-width: 760px;
+    margin: 10px 0 0;
+    color: #8f9db1;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .style-contract {
+    padding: 14px 16px;
+    border: 1px solid rgba(148, 163, 184, .13);
+    border-radius: 12px;
+    background: rgba(14, 18, 24, .58);
+    color: #78869a;
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 1.8;
+  }
+  .style-contract b {
+    display: block;
+    margin-bottom: 5px;
+    color: #b7c6d9;
+    font-size: 10px;
+    font-weight: 650;
+  }
+  .style-contract span { color: #8fc0ff; }
+
+  .tokens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 18px 0 24px;
+  }
+  .token {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 9px;
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    background: rgba(16, 21, 29, .62);
+    color: #8290a4;
+    font-family: var(--mono);
+    font-size: 8.5px;
+  }
+  .token i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--dot, #c8d4e2);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--dot, #c8d4e2) 50%, transparent);
+  }
+  .token i.square { border-radius: 2px; transform: rotate(45deg); }
+
+  .catalog {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px 24px;
+  }
+  .specimen {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 13px;
+    border: 1px solid rgba(148, 163, 184, .105);
+    border-radius: 15px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .016), transparent 50%),
+      rgba(8, 12, 17, .52);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .018);
+  }
+  .specimen-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 22px;
+    padding: 0 3px;
+    color: #657388;
+    font-family: var(--mono);
+    font-size: 8px;
+    letter-spacing: .075em;
+  }
+  .specimen-head span {
+    color: #415066;
+    letter-spacing: .10em;
+  }
+  .specimen-head b {
+    color: #aebdd1;
+    font-size: 9px;
+    font-weight: 650;
+    letter-spacing: .10em;
+  }
+  .specimen-head em {
+    margin-left: auto;
+    color: #536176;
+    font-style: normal;
+    letter-spacing: .04em;
+  }
+
+  .card-stage {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    padding: 14px 3px 6px;
+  }
+  .card-stage.is-tall { min-height: 276px; }
+  .card-stage.is-compact { min-height: 142px; }
+
+  /* Shared execution card shell. Ports are inside the card body: no wrapper
+     boxes, no per-port background and no absolutely positioned edge dots. */
+  .exec-card {
+    --mc: 245, 158, 11;
+    --mc-rgb: var(--mc);
+    position: relative;
+    width: 100%;
+    min-height: 176px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(var(--mc-rgb), .62);
+    border-radius: 13px;
+    background:
+      linear-gradient(180deg, rgba(var(--mc-rgb), .068), rgba(255, 255, 255, .006) 42%, rgba(255, 255, 255, .003)),
+      #10141a;
+    box-shadow:
+      0 18px 42px rgba(0, 0, 0, .38),
+      0 0 0 1px rgba(var(--mc-rgb), .055),
+      inset 0 1px 0 rgba(255, 255, 255, .04);
+  }
+  .exec-card.kind-dispatch { border-style: dashed; }
+  .exec-card.is-compact { min-height: 108px; }
+  .exec-card.is-junction { min-height: 112px; }
+
+  .exec-node-header {
+    flex: 0 0 36px;
+    height: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, .34);
+    background: linear-gradient(90deg, rgba(var(--mc-rgb), .96), rgba(var(--mc-rgb), .58));
+    color: #111318;
+  }
+  .exec-node-icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border-radius: 5px;
+    background: rgba(0, 0, 0, .20);
+    color: #101318;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .exec-node-kind {
+    flex: 0 0 auto;
+    color: #101318;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .07em;
+  }
+  .exec-node-module {
+    margin-left: auto;
+    overflow: hidden;
+    color: rgba(8, 12, 18, .63);
+    font-family: var(--mono);
+    font-size: 8px;
+    letter-spacing: .03em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .exec-node-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 13px 13px;
+  }
+  .exec-copy {
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(148, 163, 184, .095);
+  }
+  .exec-node-label {
+    overflow: hidden;
+    color: #f3f7fd;
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.24;
+    letter-spacing: -.015em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .exec-node-signature {
+    margin-top: 4px;
+    overflow: hidden;
+    color: #7d8b9f;
+    font-family: var(--mono);
+    font-size: 8px;
+    line-height: 1.35;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .exec-node-meta {
+    margin-top: 4px;
+    overflow: hidden;
+    color: rgba(var(--mc-rgb), .82);
+    font-family: var(--mono);
+    font-size: 8px;
+    line-height: 1.35;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .exec-port-grid {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 28px;
+    padding-top: 11px;
+  }
+  .exec-port-side {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+  .exec-port-side.is-left { align-items: flex-start; }
+  .exec-port-side.is-right { align-items: flex-end; }
+
+  .exec-port-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 22px;
+    max-width: 100%;
+    color: var(--port-in);
+  }
+  .exec-port-item.is-right {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+  .exec-port-item::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 1px;
+    background: currentColor;
+    opacity: .22;
+    transform: translateY(-50%);
+  }
+  .exec-port-item.is-left::before { left: -12px; }
+  .exec-port-item.is-right::before { right: -12px; }
+
+  .exec-port-symbol {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    width: 9px;
+    height: 9px;
+    border: 1px solid #080b10;
+    background: currentColor;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .06);
+  }
+  .exec-port-symbol.shape-circle { border-radius: 50%; }
+  .exec-port-symbol.shape-triangle { border-radius: 2px; transform: rotate(45deg); }
+  .exec-port-symbol.shape-diamond { border-radius: 1px; transform: rotate(45deg); }
+  .exec-port-item.port-in { color: var(--port-in); }
+  .exec-port-item.port-out { color: var(--port-out); }
+  .exec-port-item.port-true { color: var(--port-true); }
+  .exec-port-item.port-false { color: var(--port-false); }
+  .exec-port-item.port-case { color: var(--port-case); }
+  .exec-port-item.port-default { color: var(--port-default); }
+  .exec-port-item.port-loop_body { color: var(--port-body); }
+  .exec-port-item.port-loop_complete { color: var(--port-complete); }
+  .exec-port-item.port-dispatch { color: var(--port-dispatch); }
+
+  .exec-port-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .exec-port-copy b {
+    overflow: hidden;
+    color: #dce6f3;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 620;
+    line-height: 1.25;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .exec-port-copy small {
+    overflow: hidden;
+    color: #6d7a8e;
+    font-family: var(--mono);
+    font-size: 7.5px;
+    line-height: 1.25;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .exec-port-empty {
+    min-height: 22px;
+  }
+  .exec-foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(148, 163, 184, .085);
+    color: #667489;
+    font-family: var(--mono);
+    font-size: 7.5px;
+    line-height: 1.3;
+  }
+  .exec-pill {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    border: 1px solid rgba(var(--mc-rgb), .19);
+    border-radius: 999px;
+    background: rgba(var(--mc-rgb), .05);
+    color: rgba(var(--mc-rgb), .78);
+  }
+
+  /* Merge keeps the existing compact junction idea, but exposes the in/out
+     endpoints as in-card markers instead of absolute edge dots. */
+  .merge-shell {
+    width: min(100%, 238px);
+    min-height: 118px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    border: 1px solid rgba(var(--mc-rgb), .50);
+    border-radius: 999px;
+    background: rgba(var(--mc-rgb), .065);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .025);
+  }
+  .merge-shell .exec-port-item::before { display: none; }
+  .merge-core {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .merge-core b {
+    color: #d8e1ee;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .merge-core small {
+    color: #68758a;
+    font-family: var(--mono);
+    font-size: 7.5px;
+  }
+
+  .page-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    margin-top: 28px;
+    padding: 16px 4px 0;
+    border-top: 1px solid var(--line-soft);
+    color: #5f6d81;
+    font-family: var(--mono);
+    font-size: 8.5px;
+    line-height: 1.7;
+  }
+  .page-foot b { color: #9aa9bc; font-weight: 600; }
+
+  @media (max-width: 1060px) {
+    .page-head { grid-template-columns: 1fr; }
+    .catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 720px) {
+    .page { width: min(100% - 28px, 620px); }
+    .catalog { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">P5.1 · Execution card catalog</div>
+      <h1>有界执行流 · 全套流程卡片样式</h1>
+      <p class="lede">
+        基于当前 Loop 卡片的内嵌端口语言，统一展示 P5 封闭节点集合中的全部流程卡片。
+        端口不包裹方框、不使用独立背景色，流程文字与端口标签全部落在卡片内部。
+      </p>
+    </div>
+    <aside class="style-contract">
+      <b>视觉约束</b>
+      端口：<span>.exec-port-item</span> 行内布局<br>
+      布局：左列进入 / 右列离开与分支<br>
+      标记：仅保留语义色端口符号与短引导线<br>
+      边标签：由卡片内部端口文字承担，不另挂卡片外胶囊
+    </aside>
+  </header>
+
+  <div class="tokens" aria-label="端口语义色">
+    <span class="token"><i style="--dot:#c8d4e2"></i>进入 / 离开</span>
+    <span class="token"><i style="--dot:#8ed15b"></i>是</span>
+    <span class="token"><i style="--dot:#f06474"></i>否</span>
+    <span class="token"><i style="--dot:#60a5fa"></i>case</span>
+    <span class="token"><i style="--dot:#8b93a3"></i>default</span>
+    <span class="token"><i style="--dot:#38bdf8"></i>循环体</span>
+    <span class="token"><i style="--dot:#94a3b8"></i>循环完成</span>
+    <span class="token"><i style="--dot:#a78bfa"></i>dispatch 候选</span>
+  </div>
+
+  <section class="catalog" aria-label="全部流程卡片样式">
+    <!-- 01 ENTRY -->
+    <article class="specimen">
+      <div class="specimen-head"><span>01</span><b>ENTRY</b><em>入口</em></div>
+      <div class="card-stage is-compact">
+        <div class="exec-card is-compact kind-entry">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">▶</span>
+            <span class="exec-node-kind">入口</span>
+            <span class="exec-node-module">主模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">main()</div>
+              <div class="exec-node-meta">entrypoint · execution start</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left"></div>
+              <div class="exec-port-side is-right">
+                <div class="exec-port-item is-right port-out" data-port="out">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>开始</b><small>out</small></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 02 EXIT -->
+    <article class="specimen">
+      <div class="specimen-head"><span>02</span><b>EXIT</b><em>结束</em></div>
+      <div class="card-stage is-compact">
+        <div class="exec-card is-compact kind-exit">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">■</span>
+            <span class="exec-node-kind">结束</span>
+            <span class="exec-node-module">主模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">结束</div>
+              <div class="exec-node-meta">flow terminal · 所有路径汇入</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 03 FREE FUNCTION -->
+    <article class="specimen">
+      <div class="specimen-head"><span>03</span><b>FREE_FUNCTION</b><em>自由函数</em></div>
+      <div class="card-stage">
+        <div class="exec-card kind-free_function">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">ƒ</span>
+            <span class="exec-node-kind">自由函数</span>
+            <span class="exec-node-module">主模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">load_items()</div>
+              <div class="exec-node-signature">def load_items() -&gt; list[Item]</div>
+              <div class="exec-node-meta">opaque step · 双击进入源码</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入</b><small>call</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right">
+                <div class="exec-port-item is-right port-out" data-port="out">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>返回</b><small>return</small></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 04 INTERFACE -->
+    <article class="specimen">
+      <div class="specimen-head"><span>04</span><b>INTERFACE</b><em>功能接口</em></div>
+      <div class="card-stage">
+        <div class="exec-card kind-interface">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">I</span>
+            <span class="exec-node-kind">功能接口</span>
+            <span class="exec-node-module">功能模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">save_item(item)</div>
+              <div class="exec-node-signature">storage.save_item(item: Item) -&gt; bool</div>
+              <div class="exec-node-meta">capability · module boundary</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>调用</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right">
+                <div class="exec-port-item is-right port-out" data-port="out">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>返回</b><small>out</small></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 05 DISPATCH -->
+    <article class="specimen">
+      <div class="specimen-head"><span>05</span><b>DISPATCH</b><em>动态分发</em></div>
+      <div class="card-stage is-tall">
+        <div class="exec-card kind-dispatch">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">⑂</span>
+            <span class="exec-node-kind">动态分发</span>
+            <span class="exec-node-module">主模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">handler(event)</div>
+              <div class="exec-node-meta">2 candidates · partial</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right">
+                <div class="exec-port-item is-right port-dispatch" data-port="candidate_1">
+                  <span class="exec-port-symbol shape-circle"></span>
+                  <span class="exec-port-copy"><b>候选 1</b><small>on_create()</small></span>
+                </div>
+                <div class="exec-port-item is-right port-dispatch" data-port="candidate_2">
+                  <span class="exec-port-symbol shape-circle"></span>
+                  <span class="exec-port-copy"><b>候选 2</b><small>on_update()</small></span>
+                </div>
+              </div>
+            </div>
+            <div class="exec-foot">
+              <span class="exec-pill">low confidence</span>
+              <span class="exec-pill">candidateSetComplete: false</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 06 BRANCH -->
+    <article class="specimen">
+      <div class="specimen-head"><span>06</span><b>BRANCH</b><em>双分支</em></div>
+      <div class="card-stage">
+        <div class="exec-card kind-branch">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">◇</span>
+            <span class="exec-node-kind">双分支</span>
+            <span class="exec-node-module">主模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">if user is None</div>
+              <div class="exec-node-meta">条件：user is None</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入分支</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right">
+                <div class="exec-port-item is-right port-true" data-port="true">
+                  <span class="exec-port-symbol shape-circle"></span>
+                  <span class="exec-port-copy"><b>是</b><small>true arm</small></span>
+                </div>
+                <div class="exec-port-item is-right port-false" data-port="false">
+                  <span class="exec-port-symbol shape-circle"></span>
+                  <span class="exec-port-copy"><b>否</b><small>false arm</small></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 07 MULTI BRANCH -->
+    <article class="specimen">
+      <div class="specimen-head"><span>07</span><b>MULTI_BRANCH</b><em>多分支</em></div>
+      <div class="card-stage is-tall">
+        <div class="exec-card kind-multi_branch">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">⑂</span>
+            <span class="exec-node-kind">多分支</span>
+            <span class="exec-node-module">主模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">match command</div>
+              <div class="exec-node-meta">subject：command</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入分支</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right">
+                <div class="exec-port-item is-right port-case" data-port="case_1">
+                  <span class="exec-port-symbol shape-circle"></span>
+                  <span class="exec-port-copy"><b>"list"</b><small>case 1</small></span>
+                </div>
+                <div class="exec-port-item is-right port-case" data-port="case_2">
+                  <span class="exec-port-symbol shape-circle"></span>
+                  <span class="exec-port-copy"><b>"add"</b><small>case 2</small></span>
+                </div>
+                <div class="exec-port-item is-right port-default" data-port="default">
+                  <span class="exec-port-symbol shape-diamond"></span>
+                  <span class="exec-port-copy"><b>默认</b><small>default</small></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 08 LOOP -->
+    <article class="specimen">
+      <div class="specimen-head"><span>08</span><b>LOOP</b><em>循环</em></div>
+      <div class="card-stage">
+        <div class="exec-card kind-loop">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">↻</span>
+            <span class="exec-node-kind">循环</span>
+            <span class="exec-node-module">主模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">while True</div>
+              <div class="exec-node-meta">条件：True · 可能不退出</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入循环</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right">
+                <div class="exec-port-item is-right port-loop_body" data-port="loop_body">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>循环体</b><small>loop body</small></span>
+                </div>
+                <div class="exec-port-item is-right port-loop_complete" data-port="loop_complete">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>循环完成</b><small>loop complete</small></span>
+                </div>
+              </div>
+            </div>
+            <div class="exec-foot">
+              <span class="exec-pill">loopKind: while</span>
+              <span class="exec-pill">mayExit: false</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 09 BREAK -->
+    <article class="specimen">
+      <div class="specimen-head"><span>09</span><b>BREAK</b><em>跳出循环</em></div>
+      <div class="card-stage is-compact">
+        <div class="exec-card is-compact kind-break">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">↩</span>
+            <span class="exec-node-kind">跳出循环</span>
+            <span class="exec-node-module">循环体</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">break</div>
+              <div class="exec-node-meta">终止当前循环路径</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 10 CONTINUE -->
+    <article class="specimen">
+      <div class="specimen-head"><span>10</span><b>CONTINUE</b><em>继续循环</em></div>
+      <div class="card-stage is-compact">
+        <div class="exec-card is-compact kind-continue">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">↪</span>
+            <span class="exec-node-kind">继续循环</span>
+            <span class="exec-node-module">循环体</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">continue</div>
+              <div class="exec-node-meta">进入下一轮 · 不绘制回边</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 11 RETURN -->
+    <article class="specimen">
+      <div class="specimen-head"><span>11</span><b>RETURN</b><em>返回</em></div>
+      <div class="card-stage is-compact">
+        <div class="exec-card is-compact kind-return">
+          <header class="exec-node-header">
+            <span class="exec-node-icon">⤴</span>
+            <span class="exec-node-kind">返回</span>
+            <span class="exec-node-module">主模块</span>
+          </header>
+          <div class="exec-node-body">
+            <div class="exec-copy">
+              <div class="exec-node-label">return items</div>
+              <div class="exec-node-meta">终止当前执行路径</div>
+            </div>
+            <div class="exec-port-grid">
+              <div class="exec-port-side is-left">
+                <div class="exec-port-item is-left port-in" data-port="in">
+                  <span class="exec-port-symbol shape-triangle"></span>
+                  <span class="exec-port-copy"><b>进入</b><small>in</small></span>
+                </div>
+              </div>
+              <div class="exec-port-side is-right"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 12 MERGE -->
+    <article class="specimen">
+      <div class="specimen-head"><span>12</span><b>MERGE</b><em>汇合</em></div>
+      <div class="card-stage is-compact">
+        <div class="merge-shell">
+          <div class="exec-port-item is-left port-in" data-port="in">
+            <span class="exec-port-symbol shape-triangle"></span>
+          </div>
+          <div class="merge-core">
+            <b>汇合</b>
+            <small>flow join</small>
+          </div>
+          <div class="exec-port-item is-right port-out" data-port="out">
+            <span class="exec-port-symbol shape-triangle"></span>
+          </div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <footer class="page-foot">
+    <div><b>P5.1 prototype only.</b> 仅用于视觉确认，未修改生产 CSS / JS / layout / schema。</div>
+    <div>12 / 12 node kinds · embedded ports · no port boxes</div>
+  </footer>
+</main>
+</body>
+</html>
