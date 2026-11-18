@@ -12,7 +12,7 @@
 >
 > **P5.5 补充（2026-11-18）**：主流程页独立为 `#/flow` 项目级视图，只展示 `executionFlows`；主模块与功能模块统一进入 `#/module/<id>` 能力页。`mainFlows` 数据保留，但不再作为默认 UI 调用总览展示。<br>
 >
-> **当前状态（2026-11-20）**：P0-P10 已完成，当前 bundle schema 为 6.3。类焦点页与类内方法图不在产品计划中；后续扩展以真实项目解析质量、User Surface 校准、增量扫描和 ArkTS surface 为主。
+> **当前状态（2026-11-20）**：P0-P10.3 已完成，当前 bundle schema 为 6.3。类焦点页与类内方法图不在产品计划中；后续扩展以真实项目解析质量、User Surface 校准、增量扫描和 ArkTS surface 为主。
 >
 > **P6 计划（2026-11-18）**：项目模型重构已批准，目标为取消主模块、项目级主流程、单一 executionFlows 投影和纵向能力模块。实施契约、阶段与验收以 [`p6-project-model-plan.md`](旧文档/11月9日/p6-project-model-plan.md) 为准。<br>
 > **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明；P10 当前契约以 schema 6.3 为准。

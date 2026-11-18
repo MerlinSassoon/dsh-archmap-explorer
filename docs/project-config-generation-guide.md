@@ -870,7 +870,7 @@ rendering
   + executionOnlyCallables 能力面透明
   + 空能力模块后端保留、前端隐藏
   + 保守自由函数推断 + 模块默认自由函数面 + 少量显式例外
-  + 一级 flowScopes 接口下钻（显式 roots、自动 capability、预算与诊断）
+  + 一级 flowScopes 接口下钻（显式 roots、executionOnly、本地编排自动发现、预算与诊断）
 ```
 
 ## 13. P10 接口 scope 配置
@@ -920,7 +920,7 @@ P10 起可在配置中声明一级接口 scope：
 - bundle schema 升级为 6.3；
 - `projectGraph.executionFlows[].scopes[]` 新增一级接口 scope；
 - 主流程执行节点新增 `drilldown` 接口摘要和 `interfaceHints` helper 提示；
-- 新增 `flowScopes` 配置：enabled / roots / maxScopesPerFlow / maxNodesPerScope / maxEdgesPerScope；
+- 新增 `flowScopes` 配置：enabled / roots / autoDetect / maxScopesPerFlow / maxNodesPerScope / maxEdgesPerScope；
 - P10.1 收紧 scope root：只允许 `free_function` 编排节点，interface 节点禁止生成 scope；
 - P10.2 普通语句通过 branch `armSummaries` / edge `statements` / `implicitNext` 表达，不新增 statement 节点；多分支不展示 case 内部赋值注释；
 - P10.3 新增保守自动发现：主流程同模块 free_function + 外部接口 + 控制结构 + 预算内，显式 roots/executionOnly 优先；

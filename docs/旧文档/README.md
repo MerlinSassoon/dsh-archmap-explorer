@@ -1,6 +1,6 @@
 # ArchMap 旧文档归档
 
-> 最近归档日期：2026-11-19<br>
+> 最近归档日期：2026-11-20<br>
 > 当前版本：ArchMap 2.4.0 / bundle schema 6.3
 
 本目录用于封存 ArchMap 各阶段的**过程文档、历史设计、旧交接、迁移记录、旧验收和旧原型**。
@@ -19,7 +19,7 @@
 
 ## 11月9日归档批次
 
-本批次归档 P5.1–P9 阶段的过程计划、讨论记录和阶段交接文档：
+本批次归档 P5.1–P10 阶段的过程计划、讨论记录和阶段交接文档：
 
 | 文档 | 内容 |
 |---|---|
@@ -36,6 +36,7 @@
 | [`HANDOFF-P8.md`](11月9日/HANDOFF-P8.md) | P8 阶段交接：schema 6.1 与能力面透明化 |
 | [`p9-free-function-surface-plan.md`](11月9日/p9-free-function-surface-plan.md) | P9 自由函数能力边界与模块默认面计划 |
 | [`HANDOFF-P9.md`](11月9日/HANDOFF-P9.md) | P9 阶段交接：schema 6.2 与现行验收基线 |
+| [`HANDOFF-P10.md`](11月9日/HANDOFF-P10.md) | P10 阶段交接：一级接口 scope、控制臂语义、自动发现与 schema 6.3 |
 
 ## 其他归档文档
 

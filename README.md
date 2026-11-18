@@ -673,8 +673,8 @@ ArkTS 接入时需要：
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
 | [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流历史与现行边界；P10 当前 schema 6.3 |
 | [`docs/约定编程skill.md`](docs/约定编程skill.md) | 被分析项目代码生成 Skill：模块边界、Provider Role、能力面、入口执行流、配置生成与验证清单 |
-| [`docs/p10-interface-drilldown-plan.md`](docs/p10-interface-drilldown-plan.md) | P10 一级接口 scope：配置、数据契约、预算、UI 与验收 |
-| [`docs/schema/archmap-v6.3-bundle.schema.json`](docs/schema/archmap-v6.3-bundle.schema.json) | 当前 bundle JSON Schema 6.3：一级 flow scope、drilldown 摘要与接口提示 |
+| [`docs/p10-interface-drilldown-plan.md`](docs/p10-interface-drilldown-plan.md) | P10 一级接口 scope：配置、数据契约、控制臂语义、自动发现、预算、UI 与验收 |
+| [`docs/schema/archmap-v6.3-bundle.schema.json`](docs/schema/archmap-v6.3-bundle.schema.json) | 当前 bundle JSON Schema 6.3：一级 flow scope、drilldown 摘要、自动发现标识与接口提示 |
 | [`docs/schema/archmap-v6.2-bundle.schema.json`](docs/schema/archmap-v6.2-bundle.schema.json) | 历史 bundle JSON Schema 6.2，供 P9 产物追溯 |
 | [`docs/schema/archmap-v6.1-bundle.schema.json`](docs/schema/archmap-v6.1-bundle.schema.json) | 历史 bundle JSON Schema 6.1，供 P8 产物追溯 |
 | [`docs/schema/archmap-v6-bundle.schema.json`](docs/schema/archmap-v6-bundle.schema.json) | 历史 bundle JSON Schema 6.0，供 P7 产物追溯 |
