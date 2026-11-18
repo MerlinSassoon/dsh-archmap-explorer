@@ -1876,6 +1876,24 @@
           "items": {
             "$ref": "#/$defs/flowInterfaceSummary"
           }
+        },
+        "armSummaries": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/controlArmSummary"
+          }
+        },
+        "caseSummaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/controlArmSummary"
+          }
+        },
+        "defaultSummary": {
+          "$ref": "#/$defs/controlArmSummary"
+        },
+        "implicitNext": {
+          "type": "string"
         }
       }
     },
@@ -1936,6 +1954,19 @@
         "branchOrder": {
           "type": "integer",
           "minimum": 0
+        },
+        "statements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "statementLines": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       }
     },
@@ -2428,6 +2459,33 @@
           "items": {
             "$ref": "#/$defs/flowInterfaceSummary"
           }
+        }
+      }
+    },
+    "controlArmSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "statements",
+        "sourceLines",
+        "next"
+      ],
+      "properties": {
+        "statements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sourceLines": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "next": {
+          "type": "string"
         }
       }
     }

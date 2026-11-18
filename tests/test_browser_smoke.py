@@ -347,6 +347,41 @@ def test_browser_smoke() -> None:
         assert execute("return window.location.hash") == "#/project"
         assert execute("return document.getElementById('toast').textContent") .strip() != ""
         assert execute("return window.__ARCHMAP_ERRORS__") == []
+        # P10.2: control-arm statement semantics stay on cards/edges rather
+        # than becoming statement-level flow nodes.
+        gomoku_config = REPO_ROOT / "examples" / "gomoku.archmap.json"
+        gomoku_bundle = build_architecture(REPO_ROOT / "Projects" / "gomoku", gomoku_config)
+        gomoku_html = browser_dir / "gomoku-flow.html"
+        gomoku_html.write_text(render_html(gomoku_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": gomoku_html.resolve().as_uri()})
+        time.sleep(.5)
+        execute("""return (() => {
+          const flow = window.__ARCHMAP_DATA__.projectGraph.executionFlows[0];
+          const scope = flow.scopes[0];
+          location.hash = '#/flow/' + encodeURIComponent(flow.id)
+            + '/scope/' + encodeURIComponent(scope.parentNodeId);
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+          return true;
+        })()""")
+        time.sleep(.6)
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+        assert execute("return document.querySelectorAll('.exec-arm-summaries').length") > 0
+        assert execute("return document.querySelectorAll('.execution-edge-note').length") > 0
+        edge_notes = execute("return Array.from(document.querySelectorAll('.execution-edge-note')).map(node => node.textContent)")
+        assert any("last_move = played" in note for note in edge_notes)
+        arm_text = execute("return Array.from(document.querySelectorAll('.exec-arm-row')).map(node => node.textContent)")
+        assert any("隐式进入下一轮循环" in text for text in arm_text)
+        clipped_scope_bodies = execute("""return Array.from(document.querySelectorAll('.execution-node'))
+          .filter(node => {
+            const body = node.querySelector('.exec-node-body');
+            return body && body.scrollHeight > body.clientHeight + 1;
+          })
+          .map(node => node.querySelector('.exec-node-label')?.textContent || node.dataset.uid)""")
+        assert clipped_scope_bodies == []
+        assert execute("return document.querySelectorAll('.execution-node.kind-statement, .execution-node.kind-state_update, .execution-node.kind-basic_block').length") == 0
+        assert execute("return document.querySelectorAll('.exec-drilldown-l1').length") == 0
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
         # The self-build main flow is an execution-only page.  Capability and
         # call-overview projections must not share this canvas.
         self_config = REPO_ROOT / "examples" / "archmap_v3.archmap.json"

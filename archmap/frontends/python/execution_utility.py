@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
 from ...model.analysis_model import AnalysisResult, FunctionInfo
@@ -23,6 +23,9 @@ class _Endpoint:
     node_id: str
     kind: str = "next"
     label: str = ""
+    # Opaque, non-control statement summaries accumulated since the last
+    # visible execution node.  They are attached to the next outgoing edge.
+    pending: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _unparse(node: ast.AST | None, limit: int = 140) -> str:
@@ -138,6 +141,7 @@ class ExecutionSkeletonBuilder:
         evidence: list[dict[str, Any]] | None = None,
         case_index: int | None = None,
         branch_order: int | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         if not from_node or not to_node or from_node == to_node:
             return
@@ -162,6 +166,8 @@ class ExecutionSkeletonBuilder:
             edge["caseIndex"] = case_index
         if branch_order is not None:
             edge["branchOrder"] = branch_order
+        if extra:
+            edge.update(extra)
         self.edges.append(edge)
 
     def _connect(
@@ -175,15 +181,109 @@ class ExecutionSkeletonBuilder:
     ) -> None:
         for endpoint in endpoints:
             kind = force_kind or endpoint.kind or default_kind
+            extra: dict[str, Any] = {}
+            if endpoint.pending:
+                statements = [str(item.get("text") or "") for item in endpoint.pending if item.get("text")]
+                lines = [int(item.get("line") or 0) for item in endpoint.pending if item.get("line")]
+                if statements:
+                    extra["statements"] = statements
+                    extra["statementLines"] = lines
             self._add_edge(
                 endpoint.node_id,
                 target,
                 kind,
                 label=label or endpoint.label,
+                extra=extra,
             )
 
     def _endpoint(self, node_id: str, kind: str = "next", label: str = "") -> _Endpoint:
         return _Endpoint(node_id=node_id, kind=kind, label=label)
+
+    def _append_pending(
+        self,
+        endpoints: list[_Endpoint],
+        summary: dict[str, Any],
+    ) -> list[_Endpoint]:
+        """Carry an opaque statement summary on every live endpoint."""
+
+        return [
+            _Endpoint(
+                node_id=endpoint.node_id,
+                kind=endpoint.kind,
+                label=endpoint.label,
+                pending=[*endpoint.pending, summary],
+            )
+            for endpoint in endpoints
+        ]
+
+    def _opaque_statement_summary(self, stmt: ast.stmt) -> dict[str, Any] | None:
+        """Return a compact summary for a statement that has no visible node."""
+
+        if isinstance(stmt, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            text = _unparse(stmt)
+        elif isinstance(stmt, ast.Expr) and not isinstance(stmt.value, ast.Constant):
+            if any(isinstance(child, ast.Call) for child in ast.walk(stmt.value)):
+                return None
+            text = _unparse(stmt.value)
+        else:
+            return None
+        if not text:
+            return None
+        return {"text": text, "line": int(getattr(stmt, "lineno", 0) or 0)}
+
+    def _pending_statement_summaries(
+        self, endpoints: list[_Endpoint]
+    ) -> tuple[list[str], list[int]]:
+        """Collect unique opaque statements from a set of endpoints."""
+
+        seen: set[tuple[str, int]] = set()
+        statements: list[str] = []
+        lines: list[int] = []
+        for endpoint in endpoints:
+            for item in endpoint.pending:
+                key = (str(item.get("text") or ""), int(item.get("line") or 0))
+                if not key[0] or key in seen:
+                    continue
+                seen.add(key)
+                statements.append(key[0])
+                lines.append(key[1])
+        return statements, lines
+
+    def _arm_next_kind(
+        self, body: list[ast.stmt], endpoints: list[_Endpoint]
+    ) -> str:
+        """Describe how one control arm leaves its body."""
+
+        if endpoints:
+            return "fallthrough"
+        if not body:
+            return "empty"
+        last = body[-1]
+        if isinstance(last, ast.Continue):
+            return "continue"
+        if isinstance(last, ast.Break):
+            return "break"
+        if isinstance(last, ast.Return):
+            return "return"
+        if isinstance(last, ast.Raise):
+            return "raise"
+        return "terminal"
+
+    def _arm_summary(
+        self, body: list[ast.stmt], endpoints: list[_Endpoint]
+    ) -> dict[str, Any]:
+        statements, lines = self._pending_statement_summaries(endpoints)
+        return {
+            "statements": statements,
+            "sourceLines": lines,
+            "next": self._arm_next_kind(body, endpoints),
+        }
+
+    def _update_node(self, node_id: str, updates: dict[str, Any]) -> None:
+        for node in self.nodes:
+            if str(node.get("id") or "") == node_id:
+                node.update(updates)
+                return
 
     def _module_payload(self, module_id: str) -> dict[str, Any]:
         meta = self.module_meta.get(module_id, {})
@@ -303,6 +403,17 @@ class ExecutionSkeletonBuilder:
             return self._visit_continue(stmt, incoming)
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             return incoming
+        # P10.2: simple assignments / non-call expressions do not create nodes.
+        # If they contain no resolved project call, retain a compact summary on
+        # the live endpoint so the next edge can expose the state change.
+        if isinstance(stmt, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr)):
+            before = len(self.nodes)
+            current = self._process_calls(self._calls_in_statement(stmt), incoming)
+            if len(self.nodes) == before:
+                summary = self._opaque_statement_summary(stmt)
+                if summary is not None:
+                    return self._append_pending(current, summary)
+            return current
         # All remaining statements are opaque unless they contain a direct
         # project call.  This is the anti-slip rule: no per-statement actions.
         return self._process_calls(self._calls_in_statement(stmt), incoming)
@@ -421,34 +532,56 @@ class ExecutionSkeletonBuilder:
 
         # P5.1: no synthetic merge node.  Each continuing arm returns its own
         # endpoint; the next real statement (or exit) becomes the fan-in target.
-        endpoints: list[_Endpoint] = []
+        # P10.2: opaque statements inside each arm are retained as compact
+        # summaries; they never become statement-level execution nodes.
         if len(conditions) == 1:
-            endpoints.extend(
-                self._visit_stmts(
-                    conditions[0][1],
-                    [self._endpoint(control_id, "true", "是")],
-                )
+            true_body = conditions[0][1]
+            true_endpoints = self._visit_stmts(
+                true_body,
+                [self._endpoint(control_id, "true", "是")],
             )
-            endpoints.extend(
-                self._visit_stmts(
-                    else_body,
-                    [self._endpoint(control_id, "false", "否")],
-                )
+            false_endpoints = self._visit_stmts(
+                else_body,
+                [self._endpoint(control_id, "false", "否")],
             )
+            self._update_node(
+                control_id,
+                {
+                    "armSummaries": {
+                        "true": self._arm_summary(true_body, true_endpoints),
+                        "false": self._arm_summary(else_body, false_endpoints),
+                    }
+                },
+            )
+            endpoints = [*true_endpoints, *false_endpoints]
         else:
+            endpoints: list[_Endpoint] = []
+            case_summaries: list[dict[str, Any]] = []
+            for case in cases:
+                case["summary"] = {}
             for index, (condition, body, _) in enumerate(conditions):
-                endpoints.extend(
-                    self._visit_stmts(
-                        body,
-                        [self._endpoint(control_id, "case", _unparse(condition))],
-                    )
+                arm_endpoints = self._visit_stmts(
+                    body,
+                    [self._endpoint(control_id, "case", _unparse(condition))],
                 )
-            endpoints.extend(
-                self._visit_stmts(
-                    else_body,
-                    [self._endpoint(control_id, "default", "默认")],
-                )
+                summary = self._arm_summary(body, arm_endpoints)
+                case_summaries.append(summary)
+                if index < len(cases):
+                    cases[index]["summary"] = summary
+                endpoints.extend(arm_endpoints)
+            default_endpoints = self._visit_stmts(
+                else_body,
+                [self._endpoint(control_id, "default", "默认")],
             )
+            self._update_node(
+                control_id,
+                {
+                    "cases": cases,
+                    "caseSummaries": case_summaries,
+                    "defaultSummary": self._arm_summary(else_body, default_endpoints),
+                },
+            )
+            endpoints.extend(default_endpoints)
         return endpoints
 
     def _visit_match(self, stmt: ast.Match, incoming: list[_Endpoint]) -> list[_Endpoint]:
@@ -546,10 +679,15 @@ class ExecutionSkeletonBuilder:
         loop_context: dict[str, Any] = {"node_id": loop_id, "break_nodes": []}
         self._loop_stack.append(loop_context)
         try:
-            self._visit_stmts(
+            body_endpoints = self._visit_stmts(
                 list(stmt.body),
                 [self._endpoint(loop_id, "loop_body", "循环体")],
             )
+            for endpoint in body_endpoints:
+                self._update_node(
+                    endpoint.node_id,
+                    {"implicitNext": "loop_iteration"},
+                )
         finally:
             self._loop_stack.pop()
 

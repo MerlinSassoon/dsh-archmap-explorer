@@ -1349,6 +1349,10 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                     "candidateSetComplete": node.get("candidateSetComplete"),
                                     "candidateSource": node.get("candidateSource"),
                                     "unresolvedReason": node.get("unresolvedReason"),
+                                    "armSummaries": node.get("armSummaries", {}),
+                                    "caseSummaries": node.get("caseSummaries", []),
+                                    "defaultSummary": node.get("defaultSummary"),
+                                    "implicitNext": node.get("implicitNext"),
                                 }
                                 for node in flow.get("nodes", [])
                             ],
@@ -1361,6 +1365,8 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                     "to": edge.get("to"),
                                     "kind": edge.get("kind"),
                                     "label": edge.get("label"),
+                                    "statements": edge.get("statements", []),
+                                    "statementLines": edge.get("statementLines", []),
                                 }
                                 for edge in flow.get("edges", [])
                             ],
@@ -1385,6 +1391,10 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                                 "capabilityId": node.get("capabilityId"),
                                                 "moduleId": node.get("moduleId"),
                                                 "label": node.get("label"),
+                                                "armSummaries": node.get("armSummaries", {}),
+                                                "caseSummaries": node.get("caseSummaries", []),
+                                                "defaultSummary": node.get("defaultSummary"),
+                                                "implicitNext": node.get("implicitNext"),
                                             }
                                             for node in scope.get("nodes", [])
                                         ],
@@ -1397,6 +1407,8 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                                 "to": edge.get("to"),
                                                 "kind": edge.get("kind"),
                                                 "label": edge.get("label"),
+                                                "statements": edge.get("statements", []),
+                                                "statementLines": edge.get("statementLines", []),
                                             }
                                             for edge in scope.get("edges", [])
                                         ],

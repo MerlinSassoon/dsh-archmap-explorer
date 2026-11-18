@@ -42,6 +42,22 @@ def _node_size(node: dict[str, Any]) -> tuple[float, float]:
         h += min(58.0, 22.0 + 12.0 * min(len(drilldown.get("interfaceSummary") or []), 3))
     if node.get("interfaceHints"):
         h += min(24.0, 10.0 + 6.0 * min(len(node.get("interfaceHints") or []), 3))
+    arm_rows = 0
+    if isinstance(node.get("armSummaries"), dict):
+        arm_rows += sum(
+            1
+            for value in node["armSummaries"].values()
+            if isinstance(value, dict)
+            and (value.get("statements") or value.get("next") not in {None, "fallthrough", ""})
+        )
+    if isinstance(node.get("caseSummaries"), list):
+        arm_rows += len(node["caseSummaries"])
+    if node.get("defaultSummary"):
+        arm_rows += 1
+    if node.get("implicitNext"):
+        arm_rows += 1
+    if arm_rows:
+        h += min(58.0, 12.0 + 12.0 * arm_rows)
     return w, h
 
 

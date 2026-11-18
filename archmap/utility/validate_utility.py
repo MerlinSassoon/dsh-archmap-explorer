@@ -159,6 +159,14 @@ def _validate_execution_flow(
                 issues.append(_issue("error", "EXEC_LOOP_COMPLETE_SOURCE", f"execution flow {flow_id} loop_complete edge {edge.get('id')} must start at a loop"))
         if edge.get("kind") in {"call", "call_path", "composition"}:
             issues.append(_issue("error", "EXEC_CALL_EDGE", f"execution flow {flow_id} must not use call-graph edge kind {edge.get('kind')}"))
+        statements = edge.get("statements")
+        if statements is not None:
+            if not isinstance(statements, list) or not all(isinstance(item, str) for item in statements):
+                issues.append(_issue("error", "EXEC_EDGE_STATEMENTS", f"execution flow {flow_id} edge {edge.get('id')} statements must be a string array"))
+            if not isinstance(edge.get("statementLines", []), list) or not all(
+                isinstance(item, int) and item >= 0 for item in edge.get("statementLines", [])
+            ):
+                issues.append(_issue("error", "EXEC_EDGE_STATEMENT_LINES", f"execution flow {flow_id} edge {edge.get('id')} statementLines must be a non-negative integer array"))
         outgoing.setdefault(source, []).append(edge)
         incoming.setdefault(target, []).append(edge)
     for node in nodes:
@@ -193,6 +201,29 @@ def _validate_execution_flow(
                 issues.append(_issue("error", "EXEC_INTERFACE_TARGET", f"execution flow {flow_id} interface {node_id} references missing target {target_id}"))
             if node.get("callSiteId") not in call_site_ids:
                 issues.append(_issue("error", "EXEC_CALL_SITE", f"execution flow {flow_id} interface {node_id} references missing call site"))
+        arm_summaries = node.get("armSummaries")
+        if arm_summaries is not None:
+            if not isinstance(arm_summaries, dict):
+                issues.append(_issue("error", "EXEC_ARM_SUMMARIES", f"execution flow {flow_id} node {node_id} armSummaries must be an object"))
+            else:
+                for arm_name, summary in arm_summaries.items():
+                    if not isinstance(summary, dict):
+                        issues.append(_issue("error", "EXEC_ARM_SUMMARY_ITEM", f"execution flow {flow_id} node {node_id} arm {arm_name} summary must be an object"))
+                        continue
+                    if not isinstance(summary.get("statements"), list):
+                        issues.append(_issue("error", "EXEC_ARM_STATEMENTS", f"execution flow {flow_id} node {node_id} arm {arm_name} statements must be an array"))
+                    if not isinstance(summary.get("sourceLines"), list):
+                        issues.append(_issue("error", "EXEC_ARM_LINES", f"execution flow {flow_id} node {node_id} arm {arm_name} sourceLines must be an array"))
+                    if not isinstance(summary.get("next"), str):
+                        issues.append(_issue("error", "EXEC_ARM_NEXT", f"execution flow {flow_id} node {node_id} arm {arm_name} next must be a string"))
+        case_summaries = node.get("caseSummaries")
+        if case_summaries is not None and not isinstance(case_summaries, list):
+            issues.append(_issue("error", "EXEC_CASE_SUMMARIES", f"execution flow {flow_id} node {node_id} caseSummaries must be an array"))
+        default_summary = node.get("defaultSummary")
+        if default_summary is not None and not isinstance(default_summary, dict):
+            issues.append(_issue("error", "EXEC_DEFAULT_SUMMARY", f"execution flow {flow_id} node {node_id} defaultSummary must be an object"))
+        if node.get("implicitNext") is not None and not isinstance(node.get("implicitNext"), str):
+            issues.append(_issue("error", "EXEC_IMPLICIT_NEXT", f"execution flow {flow_id} node {node_id} implicitNext must be a string"))
         interface_hints = node.get("interfaceHints")
         if interface_hints is not None:
             if not isinstance(interface_hints, list):

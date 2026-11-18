@@ -272,3 +272,16 @@ P10.1 修正了 P10 初版中 `autoDetect` 把跨模块 capability 节点转成 
 - validator 新增 `EXEC_INTERFACE_SCOPE_FORBIDDEN`、`EXEC_SCOPE_PARENT_KIND` 与 `EXEC_SCOPE_ROOT_MISMATCH`；
 - 显式 roots 命中 interface 时报告 `FLOW_SCOPE_INTERFACE_ROOT_FORBIDDEN`，不生成 scope；
 - 前端对 interface 节点做防御性隐藏，即使旧 bundle 带错误 `drilldown` 也不显示 L1 按钮。
+
+## 14. P10.2 控制臂语义摘要
+
+P10.2 在不增加 statement / state_update / basic_block 节点的前提下补足普通语句语义：
+
+- branch 节点新增 `armSummaries`，记录 true/false 臂内不可见普通语句、源码行和下一控制动作；
+- multi_branch 的 `cases[]` 和 `caseSummaries` 记录每个 case 的语句摘要，`defaultSummary` 记录默认路径；
+- 普通语句如果位于控制节点与后续可见节点之间，通过 edge `statements` / `statementLines` 表达；
+- 循环体末尾 endpoint 标记 `implicitNext=loop_iteration`，UI 显示“隐式进入下一轮循环”；
+- 主流程和 scope 均复用同一摘要机制；
+- 不新增执行节点 kind，不改变既有控制流算法和分支 fan-in 规则；
+- 新增 schema 可选字段：`armSummaries` / `caseSummaries` / `defaultSummary` / `implicitNext` / edge `statements` / `statementLines`；
+- 浏览器回归覆盖 edge 语句标签、控制臂摘要和节点裁剪检查。

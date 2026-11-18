@@ -159,6 +159,8 @@ P10 在主流程之上增加一层受控的接口视图：
 - scope root 必须是 `free_function`；`interface` 节点不展开内部实现；
 - scope 路由为 `#/flow/<flowId>/scope/<nodeId>`，独立聚焦展示，不在主画布递归套图；
 - scope 内展示目标函数控制骨架、直接外部能力接口、以及内部 helper 直接触达的接口提示；
+- P10.2 普通赋值/非调用表达式不新增节点：branch 输出 `armSummaries`，multi_branch 输出 `caseSummaries` / `defaultSummary`，跨控制边的普通语句写入 edge `statements`；
+- 循环体末尾分支通过 `implicitNext=loop_iteration` 表达隐式进入下一轮循环；
 - scope 深度硬限制为 `1`，内部节点不可再次下钻；
 - `maxScopesPerFlow`、`maxNodesPerScope`、`maxEdgesPerScope` 控制预算，截断会写入 scope diagnostics；
 - 更深实现统一进入 Method Detail。
@@ -509,7 +511,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         127 passed, 1 skipped
+pytest:         128 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -537,6 +539,7 @@ browser smoke:  1 passed（显式开启）
 - P9 保守自由函数推断、`defaultFreeFunctionSurface`、单函数 exposure 例外、自由函数表面计数与校验。
 - P10 一级 flow scope、外部接口摘要、scope 预算/诊断、独立下钻路由、schema 6.3 与浏览器下钻回归。
 - P10.1 interface 黑盒边界、scope root 仅限编排 callable、interface root 拒绝与 validator 不变量。
+- P10.2 控制臂语句摘要、edge statement 标签、多分支 case summary、隐式循环继续语义，以及无 statement/basic-block 节点的回归。
 
 浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
@@ -547,10 +550,10 @@ ArchMap 自举：
 ```text
 modules:              5
 classes:              34
-functions:            270
-methods:              75
-callSites:            4112
-resolvedCalls:        695
+functions:            276
+methods:              81
+callSites:            4234
+resolvedCalls:        720
 typeRelations:        66
 structuralRelations:  66
 userSurfaces:         0
@@ -717,3 +720,4 @@ P2–P9 过程交接、阶段计划、分支说明、迁移计划、旧验收记
 - 空能力模块后端保留与默认 layout 位置，前端直接路由会回到项目页；网格可能保留空位。
 - P10 scope 只覆盖直接外部接口和内部 helper 接口提示；静态解析不到的接口不会伪造，预算截断会显式标记。
 - P10.1 起功能接口节点是黑盒边界，不生成 scope；scope root 只允许 `free_function` 编排 callable。
+- P10.2 普通语句不再作为独立节点，而是控制臂/边摘要；这保持控制骨架边界并避免语句级节点爆炸。

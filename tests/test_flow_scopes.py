@@ -205,3 +205,46 @@ def test_flow_scope_bundles_match_schema_6_3() -> None:
     )
     jsonschema.validate(_student_bundle(), schema)
     jsonschema.validate(_gomoku_bundle(), schema)
+
+
+def test_gomoku_control_arms_keep_statement_semantics_without_new_nodes() -> None:
+    """Opaque assignments annotate control arms instead of becoming nodes."""
+
+    bundle = _gomoku_bundle()
+    scope = _scope_by_root(bundle, "fn:gomoku.cli.GameCli._play_one_game")
+    nodes = {node["id"]: node for node in scope["nodes"]}
+    assert not any(
+        node["kind"] in {"statement", "state_update", "basic_block"}
+        for node in scope["nodes"]
+    )
+
+    branch = next(
+        node for node in scope["nodes"] if node["kind"] == "branch" and node.get("line") == 140
+    )
+    assert branch["armSummaries"]["true"]["next"] == "continue"
+    false_edges = [
+        edge
+        for edge in scope["edges"]
+        if edge["from"] == branch["id"] and edge["kind"] == "false"
+    ]
+    assert len(false_edges) == 1
+    assert false_edges[0]["statements"] == ["last_move = played"]
+    assert false_edges[0]["statementLines"] == [142]
+    assert nodes[false_edges[0]["to"]]["kind"] == "continue"
+
+    multi = next(
+        node
+        for node in scope["nodes"]
+        if node["kind"] == "multi_branch" and node.get("line") == 157
+    )
+    assert multi["implicitNext"] == "loop_iteration"
+    assert len(multi["caseSummaries"]) == 2
+    assert multi["caseSummaries"][0]["statements"] == [
+        "last_move = handled.last_move",
+        "winning_line = handled.winning_line",
+    ]
+    assert multi["caseSummaries"][1]["statements"] == [
+        "last_move = None",
+        "winning_line = ()",
+    ]
+    assert multi["defaultSummary"]["next"] == "fallthrough"

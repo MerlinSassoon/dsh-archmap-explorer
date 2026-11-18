@@ -890,6 +890,7 @@
           <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId || "—")}</b></span>${macroNode.capabilityKind ? `<span>能力 <b>${escapeHtml(macroNode.capabilityKind)}</b></span>` : ""}${macroNode.usageKind ? `<span>用法 <b>${escapeHtml(macroNode.usageKind)}</b></span>` : ""}</div>
           ${macroNode.kind === "interface" ? `<div class="empty-hint">功能接口是模块暴露的能力边界，不在主流程中展开内部实现；请打开方法详情或模块能力页查看。</div>` : ""}
           ${meta.length ? `<div class="source-line">${meta.map(item => escapeHtml(item)).join("<br>")}</div>` : ""}
+          ${executionArmSummaryDetailHtml(macroNode)}
           ${macroNode.kind === "dispatch" ? `<div class="class-method-section"><div class="class-method-heading">Dispatch candidates · ${Number(macroNode.candidateCount || 0)}</div>${dispatchCandidateList(macroNode)}</div>` : ""}
           ${macroNode.kind !== "interface" && (macroNode.drilldown?.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">L1 外部接口 · ${macroNode.drilldown.interfaceSummary.length}</div><div class="exec-interface-list">${macroNode.drilldown.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
           ${(macroNode.interfaceHints || []).length ? `<div class="class-method-section"><div class="class-method-heading">Helper 直接触达接口 · ${macroNode.interfaceHints.length}</div><div class="exec-interface-list">${macroNode.interfaceHints.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}</span>`).join("")}</div></div>` : ""}
@@ -1062,9 +1063,10 @@
       const edge = edgesById.get(edgeId);
       if (!edge) return;
       const geometry = state.executionEdgeLayouts?.[edgeId] || {};
-      const point = executionPortPoint(edge.from, geometry.fromPort || "out");
-      element.style.left = `${point.x + 12}px`;
-      element.style.top = `${point.y - 10}px`;
+      const from = executionPortPoint(edge.from, geometry.fromPort || "out");
+      const to = executionPortPoint(edge.to, geometry.toPort || "in");
+      element.style.left = `${(from.x + to.x) / 2}px`;
+      element.style.top = `${(from.y + to.y) / 2 - 14}px`;
     });
   }
 
@@ -1458,6 +1460,66 @@
     return `execution-edge kind-${escapeHtml(edge.kind || "next")}`;
   }
 
+  function executionArmSummaryText(summary, emptyText = "") {
+    if (!summary || typeof summary !== "object") return emptyText;
+    const statements = Array.isArray(summary.statements)
+      ? summary.statements.map(item => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    if (statements.length) return statements.join("; ");
+    const next = String(summary.next || "");
+    if (next && next !== "fallthrough") return `→ ${next}`;
+    return emptyText;
+  }
+
+  function executionArmSummaryRows(node) {
+    const rows = [];
+    const arms = node.armSummaries && typeof node.armSummaries === "object"
+      ? node.armSummaries
+      : {};
+    ["true", "false"].forEach(port => {
+      const summary = arms[port];
+      const text = executionArmSummaryText(summary, "");
+      if (text) rows.push({ label: port === "true" ? "是" : "否", text });
+    });
+    if (Array.isArray(node.caseSummaries)) {
+      node.caseSummaries.forEach((summary, index) => {
+        const caseLabel = node.cases?.[index]?.label || `case ${index + 1}`;
+        const text = executionArmSummaryText(summary, "保持原状态");
+        rows.push({ label: `case ${index + 1}`, text, title: caseLabel });
+      });
+    }
+    if (node.defaultSummary) {
+      rows.push({
+        label: "默认",
+        text: executionArmSummaryText(node.defaultSummary, "保持原状态"),
+      });
+    }
+    if (node.implicitNext === "loop_iteration") {
+      rows.push({ label: "↻", text: "隐式进入下一轮循环" });
+    }
+    return rows;
+  }
+
+  function executionArmSummaryHtml(node) {
+    const rows = executionArmSummaryRows(node);
+    if (!rows.length) return "";
+    return `<div class="exec-arm-summaries">${rows.map(row =>
+      `<div class="exec-arm-row"><b title="${escapeHtml(row.title || row.label)}">${escapeHtml(row.label)}</b><span>${escapeHtml(truncate(row.text, 72))}</span></div>`
+    ).join("")}</div>`;
+  }
+
+  function executionArmSummaryDetailHtml(node) {
+    const rows = executionArmSummaryRows(node);
+    const outgoing = (state.pageEdges || [])
+      .filter(edge => edge.from === node.id && Array.isArray(edge.statements) && edge.statements.length);
+    if (!rows.length && !outgoing.length) return "";
+    return `<div class="class-method-section"><div class="class-method-heading">Control arm semantics</div>
+      <div class="exec-arm-detail">
+        ${rows.map(row => `<div class="exec-arm-detail-row"><b>${escapeHtml(row.label)}</b><span>${escapeHtml(row.text)}</span></div>`).join("")}
+        ${outgoing.map(edge => `<div class="exec-arm-detail-row"><b>${escapeHtml(edge.kind || "next")}</b><span>${escapeHtml((edge.statements || []).join("; "))}</span></div>`).join("")}
+      </div></div>`;
+  }
+
   function executionPortDisplay(node, name, spec) {
     const kind = node.kind;
     const caseMatch = /^case:(\d+)$/.exec(String(name));
@@ -1571,6 +1633,7 @@
           <div class="exec-node-label" title="${escapeHtml(node.label || "")}">${escapeHtml(node.label || "")}</div>
           ${noteText ? `<div class="exec-node-note" title="${escapeHtml(noteText)}">${escapeHtml(noteText)}</div>` : ""}
           ${meta.length ? `<div class="exec-node-meta">${escapeHtml(meta.join(" · "))}</div>` : ""}
+          ${executionArmSummaryHtml(node)}
           ${node.kind !== "interface" && (node.drilldown?.interfaceSummary || []).length ? `<div class="exec-node-interface-hint">外部接口 ${node.drilldown.interfaceSummary.length} · ${node.drilldown.interfaceSummary.slice(0, 2).map(item => escapeHtml(item.label)).join(" / ")}</div>` : ""}
           ${(node.interfaceHints || []).length ? `<div class="exec-node-interface-hint">触达 ${node.interfaceHints.length} 个接口 · ${node.interfaceHints.slice(0, 2).map(item => escapeHtml(item.label)).join(" / ")}</div>` : ""}
         </div>
@@ -1709,6 +1772,14 @@
       path.appendChild(title);
       path.setAttribute("d", executionCurveD(edge));
       svg.appendChild(path);
+      if (Array.isArray(edge.statements) && edge.statements.length) {
+        const note = document.createElement("div");
+        note.className = "execution-edge-note";
+        note.dataset.edgeId = edge.id;
+        note.textContent = edge.statements.join("; ");
+        world.appendChild(note);
+        state.executionEdgeLabels.set(edge.id, note);
+      }
     });
     state.nodes.forEach((node, nodeId) => renderExecutionNode(moduleId, nodeId, node));
     refreshExecutionEdges();
