@@ -607,6 +607,32 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         issues.append(_issue("error", "EXECUTION_FLOWS", "projectGraph.executionFlows must be an array"))
         execution_flows = []
     execution_flow_ids = {str(flow.get("id")) for flow in execution_flows}
+    flow_card_items = project_graph.get("flowCards")
+    if not isinstance(flow_card_items, list):
+        issues.append(_issue("error", "FLOW_CARDS", "projectGraph.flowCards must be an array"))
+        flow_card_items = []
+    flow_card_ids: set[str] = set()
+    flow_by_id = {str(flow.get("id")): flow for flow in execution_flows}
+    for card in flow_card_items:
+        card_id = str(card.get("id") or "")
+        if not card_id or card_id in flow_card_ids:
+            issues.append(_issue("error", "FLOW_CARD_ID", "flow card has missing/duplicate id"))
+        flow_card_ids.add(card_id)
+        if card.get("kind") != "flow":
+            issues.append(_issue("error", "FLOW_CARD_KIND", f"flow card {card_id} must use kind=flow"))
+        flow = flow_by_id.get(str(card.get("flowId") or ""))
+        if flow is None:
+            issues.append(_issue("error", "FLOW_CARD_FLOW", f"flow card {card_id} references missing flow"))
+        else:
+            if card.get("entrypointId") != flow.get("entrypointId"):
+                issues.append(_issue("error", "FLOW_CARD_ENTRYPOINT", f"flow card {card_id} entrypoint mismatch"))
+        if card.get("moduleId") not in module_ids:
+            issues.append(_issue("error", "FLOW_CARD_MODULE", f"flow card {card_id} references missing module"))
+    layout_ids = {str(key) for key in (project_graph.get("layout") or {}).get("nodes", {})}
+    if layout_ids:
+        expected_layout_ids = module_ids | flow_card_ids
+        if layout_ids != expected_layout_ids:
+            issues.append(_issue("error", "PROJECT_LAYOUT_ITEMS", "project layout must include exactly modules and flow cards"))
     primary_execution_flow_id = project_graph.get("primaryExecutionFlowId")
     if primary_execution_flow_id is not None and primary_execution_flow_id not in execution_flow_ids:
         issues.append(_issue("error", "PRIMARY_EXEC_FLOW_MISSING", f"primaryExecutionFlowId does not reference an execution flow: {primary_execution_flow_id}"))

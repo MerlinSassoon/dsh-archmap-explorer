@@ -104,36 +104,9 @@
   .search-wrap.is-disabled { opacity: .36; pointer-events: none; }
   .page-hint { color: var(--muted-2); font-size: 9px; white-space: nowrap; }
 
-  .project-flow-entry {
-    display: none; flex: 0 0 auto; min-width: 0;
-    margin: 12px 16px 0;
-  }
-  .project-flow-entry.is-visible { display: block; }
-  .flow-launch-grid {
-    display: flex; align-items: stretch; gap: 10px; overflow-x: auto; padding: 2px 0 4px;
-  }
-  .flow-launch-card {
-    --mc: #f59e0b; --mc-rgb: 245,158,11;
-    position: relative; flex: 0 0 336px; min-width: 0; overflow: hidden;
-    border: 1px solid rgba(var(--mc-rgb), .48); border-radius: 13px;
-    background: linear-gradient(180deg, rgba(var(--mc-rgb), .10), rgba(var(--mc-rgb), .022) 30%, rgba(255,255,255,.010)), #0e141d;
-    box-shadow: 0 12px 28px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.045);
-    cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
-  }
-  .flow-launch-card::after {
-    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
-    background: linear-gradient(90deg, rgb(var(--mc-rgb)), rgba(var(--mc-rgb), .05));
-  }
-  .flow-launch-card:hover { transform: translateY(-1px); border-color: rgba(var(--mc-rgb), .82); box-shadow: 0 16px 36px rgba(0,0,0,.38), 0 0 0 3px rgba(var(--mc-rgb), .08); }
-  .flow-launch-card.is-empty { cursor: default; opacity: .72; }
-  .flow-launch-head { display: flex; align-items: center; gap: 8px; padding: 12px 13px 0; }
-  .flow-launch-kicker { color: #8fa2ba; font-family: var(--mono); font-size: 7px; letter-spacing: .14em; }
-  .flow-launch-state { margin-left: auto; color: rgba(var(--mc-rgb), .94); font-family: var(--mono); font-size: 7px; }
-  .flow-launch-title { padding: 7px 13px 0; color: #f1f5fb; font-family: var(--mono); font-size: 12px; font-weight: 680; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .flow-launch-entry { padding: 4px 13px 0; color: #9dabbd; font-family: var(--mono); font-size: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .flow-launch-meta { display: flex; flex-wrap: wrap; gap: 5px; padding: 9px 13px 12px; }
-  .flow-launch-chip { border: 1px solid rgba(var(--mc-rgb), .28); border-radius: 4px; padding: 2px 6px; color: #c5d8ef; background: rgba(var(--mc-rgb), .08); font-family: var(--mono); font-size: 7px; }
-  .flow-launch-more { margin-left: auto; align-self: center; border: 0; background: transparent; color: rgba(var(--mc-rgb), .92); font-family: var(--mono); font-size: 7px; cursor: pointer; }
+  .flow-card-node .module-kind { color: #8bdc64; }
+  .flow-card-node .module-api-chip.is-entry { border-color: rgba(139,220,100,.58); background: rgba(139,220,100,.12); color: #dcf8cc; }
+  .flow-card-node { border-color: rgba(var(--mc-rgb), .62); }
 
   .flow-picker {
     position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 10;

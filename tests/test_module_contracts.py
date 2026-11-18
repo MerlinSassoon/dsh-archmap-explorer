@@ -66,7 +66,8 @@ def test_project_layout_is_a_capability_board_with_edges_preserved() -> None:
     assert project["layout"]["edges"] == {}
     assert project["edges"]
     layout_ids = set(project["layout"]["nodes"])
-    assert layout_ids == {module["id"] for module in project["modules"]}
+    flow_card_ids = {card["id"] for card in project["flowCards"]}
+    assert layout_ids == {module["id"] for module in project["modules"]} | flow_card_ids
     for node_id in layout_ids:
         assert project["layout"]["nodes"][node_id]["w"] > 0
 

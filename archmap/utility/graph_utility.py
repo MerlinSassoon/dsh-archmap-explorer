@@ -941,6 +941,36 @@ def build_bundle(
         contract_model,
         config.dispatch_hints,
     )
+    flow_cards: list[dict[str, Any]] = []
+    module_by_id = {str(module.get("id")): module for module in project_module_nodes}
+    detail_by_id = {str(detail.get("id")): detail for detail in function_details}
+    for flow in execution_flows:
+        flow_id = str(flow.get("id") or "")
+        module_id = str(flow.get("moduleId") or "")
+        module = module_by_id.get(module_id, {})
+        entry_detail = detail_by_id.get(str(flow.get("entrypointId") or ""), {})
+        flow_cards.append(
+            {
+                "id": f"flow-card:{flow_id}",
+                "kind": "flow",
+                "flowId": flow_id,
+                "entrypointId": flow.get("entrypointId"),
+                "name": flow.get("name") or entry_detail.get("name") or flow_id,
+                "entrypointReason": flow.get("entrypointReason") or "",
+                "moduleId": module_id,
+                "moduleName": module.get("name") or module_id,
+                "color": module.get("color") or "#f59e0b",
+                "note": entry_detail.get("note") or "项目级主流程入口",
+                "nodeCount": int(flow.get("nodeCount", len(flow.get("nodes") or []))),
+                "edgeCount": int(flow.get("edgeCount", len(flow.get("edges") or []))),
+                "icon": "flow",
+                "w": MODULE_W,
+                "h": MODULE_H,
+                "expandedW": MODULE_EXPANDED_W,
+                "expandedH": MODULE_EXPANDED_H,
+            }
+        )
+
     user_surfaces = build_user_surfaces(
         analysis, call_site_list, entrypoints, role_infos
     )
@@ -959,7 +989,7 @@ def build_bundle(
 
     # The project page is a capability-card overview.  Dependency evidence is
     # retained for relation/impact views; execution flows are project-level.
-    project_layout = _layout_module_cards(project_module_nodes)
+    project_layout = _layout_module_cards([*flow_cards, *project_module_nodes])
     project_graph = {
         "kind": "archmap.project-graph",
         "project": {
@@ -969,6 +999,7 @@ def build_bundle(
         "primaryExecutionFlowId": primary_execution_flow_id,
         "executionEntrypoints": execution_entrypoints,
         "executionFlows": execution_flows,
+        "flowCards": flow_cards,
         "modules": project_module_nodes,
         "edges": project_edges,
         "typeRelations": [relation.as_dict() for relation in contract_model.class_relations],
@@ -993,6 +1024,7 @@ def build_bundle(
         "providedApis": sum(len(graph["providedApis"]) for graph in module_graphs),
         "apiProviders": sum(len(graph.get("apiProviders", [])) for graph in module_graphs),
         "executionFlows": len(execution_flows),
+        "flowCards": len(flow_cards),
         "executionNodes": sum(len(flow.get("nodes", [])) for flow in execution_flows),
         "executionEdges": sum(len(flow.get("edges", [])) for flow in execution_flows),
         "typeRelations": len(contract_model.class_relations),
@@ -1077,6 +1109,19 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     bundle["projectGraph"]["modules"], key=lambda item: item["id"]
                 )
             ],
+            "flowCards": sorted(
+                [
+                    {
+                        "id": card.get("id"),
+                        "flowId": card.get("flowId"),
+                        "entrypointId": card.get("entrypointId"),
+                        "moduleId": card.get("moduleId"),
+                        "name": card.get("name"),
+                    }
+                    for card in bundle["projectGraph"].get("flowCards", [])
+                ],
+                key=lambda item: item["id"] or "",
+            ),
             "executionFlows": sorted(
                 [
                     {

@@ -1,6 +1,6 @@
 # P7 入口语义与项目页布局修复计划
 
-> 状态：已批准，按阶段实施；P7.0/P7.1/P7.2 已完成<br>
+> 状态：已批准，按阶段实施；P7.0-P7.3 已完成<br>
 > 起始基线：`P6` 分支 5b3c245<br>
 > 日期：2026-11-18
 
@@ -50,7 +50,7 @@ Project Page Item
 - 空流程生成 entry→exit；
 - validator 恢复唯一 entry 节点和可达性约束。
 
-### P7.3：项目页 flow card 同层布局
+### P7.3：项目页 flow card 同层布局（已完成）
 
 - 新增 `projectGraph.flowCards`；
 - flow cards 与 module cards 一起进入项目布局；

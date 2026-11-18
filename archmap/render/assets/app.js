@@ -33,7 +33,6 @@
   const singleModeBtn = $("singleModeBtn");
   const moduleContracts = $("moduleContracts");
   const flowPicker = $("flowPicker");
-  const projectFlowEntry = $("projectFlowEntry");
   const projectNameEl = $("projectName");
   const projectLanguageEl = $("projectLanguage");
   const toastEl = $("toast");
@@ -822,6 +821,18 @@
   function renderSelectionDetail(uid) {
     const macroNode = state.nodes.get(uid);
     if (macroNode) {
+      if (macroNode.kind === "flow") {
+        detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#f59e0b"}"><div class="detail-color"></div><div>
+            <div class="eyebrow">Project flow</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name || "主流程")}</h2>
+            <div class="detail-module">${escapeHtml(macroNode.moduleName || macroNode.moduleId || "")}</div></div></div>
+          <div class="detail-note">${escapeHtml(macroNode.note || "项目级主流程入口")}</div>
+          <div class="port-detail"><span>入口 <b>${escapeHtml(macroNode.entrypointId || "—")}</b></span><span>节点 <b>${Number(macroNode.nodeCount || 0)}</b></span><span>边 <b>${Number(macroNode.edgeCount || 0)}</b></span></div>
+          <div class="detail-actions"><button class="detail-action" type="button" data-open-flow-card-detail="${escapeHtml(macroNode.flowId)}">打开主流程 →</button></div>`;
+        detailScroll.querySelector("[data-open-flow-card-detail]")?.addEventListener("click", () => {
+          navigate({ kind: "flow", flowId: macroNode.flowId });
+        });
+        return;
+      }
       if (macroNode.execution) {
         const module = projectModuleById.get(macroNode.moduleId);
         const targetId = macroNode.targetFunctionId || (
@@ -1027,41 +1038,6 @@
     bindApiNavigation(moduleContracts);
   }
 
-  function setProjectFlowEntryVisible(visible) {
-    projectFlowEntry.classList.toggle("is-visible", Boolean(visible));
-    if (!visible) projectFlowEntry.innerHTML = "";
-  }
-
-  function renderProjectFlowEntry() {
-    const flows = projectGraph.executionFlows || [];
-    setProjectFlowEntryVisible(true);
-    if (!flows.length) {
-      projectFlowEntry.innerHTML = `<div class="flow-launch-grid"><article class="flow-launch-card is-empty" style="--mc:#64748b;--mc-rgb:100,116,139">
-        <div class="flow-launch-head"><span class="module-dot"></span><span class="flow-launch-kicker">EXECUTION FLOW</span><span class="flow-launch-state">EMPTY</span></div>
-        <div class="flow-launch-title">暂无可解析主流程</div>
-        <div class="flow-launch-entry">请检查 entrypoints 或 executionEntrypoints 配置</div>
-        <div class="flow-launch-meta"><span class="flow-launch-chip">0 nodes</span><span class="flow-launch-chip">0 edges</span></div>
-      </article></div>`;
-      return;
-    }
-    projectFlowEntry.innerHTML = `<div class="flow-launch-grid">${flows.map(flow => {
-      const module = projectModuleById.get(flow.moduleId);
-      const rgb = rgbFromHex(module?.color || "#f59e0b");
-      return `<article class="flow-launch-card" data-open-flow="${escapeHtml(flow.id)}" style="--mc:${escapeHtml(module?.color || "#f59e0b")};--mc-rgb:${rgb}">
-        <div class="flow-launch-head"><span class="module-dot"></span><span class="flow-launch-kicker">EXECUTION FLOW</span><span class="flow-launch-state">${flow.id === projectGraph.primaryExecutionFlowId ? "PRIMARY" : "FLOW"}</span></div>
-        <div class="flow-launch-title">${escapeHtml(flow.name || "主流程")}</div>
-        <div class="flow-launch-entry">${escapeHtml(flow.entrypointId || "")}</div>
-        <div class="flow-launch-meta"><span class="flow-launch-chip">${(flow.nodes || []).length} nodes</span><span class="flow-launch-chip">${(flow.edges || []).length} edges</span><span class="flow-launch-chip">${escapeHtml(module?.name || flow.moduleId || "")}</span><button class="flow-launch-more" type="button" data-open-flow="${escapeHtml(flow.id)}">打开流程图 →</button></div>
-      </article>`;
-    }).join("")}</div>`;
-    projectFlowEntry.querySelectorAll("[data-open-flow]").forEach(card => {
-      card.addEventListener("click", event => {
-        event.stopPropagation();
-        navigate({ kind: "flow", flowId: card.dataset.openFlow });
-      });
-    });
-  }
-
   function renderFlowPicker(selectedFlow) {
     const flows = projectGraph.executionFlows || [];
     const visible = flows.length > 1;
@@ -1129,8 +1105,8 @@
   }
 
   function projectNodeSize(node) {
-    if (node.kind === "module") {
-      return { w: node.w || 270, h: node.h || 140 };
+    if (node.kind === "module" || node.kind === "flow") {
+      return { w: node.w || 320, h: node.h || 200 };
     }
     return { w: node.w || 190, h: node.h || 96 };
   }
@@ -1174,7 +1150,6 @@
     viewport.classList.remove("is-detail");
     setGraphChromeVisible(true);
     updateChrome("project");
-    renderProjectFlowEntry();
     if (moduleContracts) {
       moduleContracts.innerHTML = "";
       moduleContracts.classList.remove("is-visible");
@@ -1186,8 +1161,13 @@
       ? [projectGraph.modules[0].id]
       : projectGraph.modules.map(item => item.id);
     state.nodes = new Map();
-    // The project page is a module capability board plus a separate main-flow
-    // launch card.  Dependency evidence stays in the bundle.
+    // The project page is one card grid: project-level flow cards and
+    // capability module cards are peers.  Dependency evidence stays in facts.
+    if (!state.singleModule) {
+      (projectGraph.flowCards || []).forEach(card => {
+        state.nodes.set(card.id, { ...card, kind: "flow" });
+      });
+    }
     projectGraph.modules.forEach(module => {
       if (visibleModuleIds.includes(module.id)) {
         state.nodes.set(module.id, { ...module, kind: "module" });
@@ -1223,7 +1203,8 @@
       svg.appendChild(path);
     });
     state.nodes.forEach((node, nodeId) => {
-      renderProjectModule(nodeId, node);
+      if (node.kind === "flow") renderProjectFlowCard(nodeId, node);
+      else renderProjectModule(nodeId, node);
     });
     updateProjectWorldSize();
     refreshProjectEdges();
@@ -1233,6 +1214,64 @@
       fitView();
       renderDefaultDetail();
       if (state.search) applySearch();
+    });
+  }
+
+  function renderProjectFlowCard(nodeId, card) {
+    const position = state.positions.get(nodeId);
+    const size = state.sizes.get(nodeId);
+    const element = document.createElement("article");
+    element.className = "node-card module-node flow-card-node";
+    element.dataset.uid = nodeId;
+    element.style.left = `${position.x}px`;
+    element.style.top = `${position.y}px`;
+    element.style.width = `${size.w}px`;
+    element.style.height = `${size.h}px`;
+    element.style.setProperty("--mc", card.color || "#f59e0b");
+    element.style.setProperty("--mc-rgb", rgbFromHex(card.color || "#f59e0b"));
+    element.innerHTML = `<header class="module-header">
+        <div class="module-title-row">
+          <span class="module-dot"></span><span class="module-kind">主流程</span>
+          <span class="module-title">${escapeHtml(card.name || "主流程")}</span>
+          <div class="module-actions">
+            <button class="mini-action" type="button" data-open-flow-card="${escapeHtml(card.flowId)}" aria-label="打开主流程" title="打开主流程">↗</button>
+          </div>
+        </div>
+        <div class="module-note">${escapeHtml(card.note || "项目级主流程入口")}</div>
+        <div class="module-api-section">
+          <div class="module-api-heading"><span>ENTRYPOINT</span><b>${escapeHtml(card.entrypointReason || "flow")}</b></div>
+          <div class="module-api-chips"><span class="module-api-chip is-entry">${escapeHtml(card.entrypointId || "")}</span></div>
+        </div>
+        <div class="module-metrics">
+          <span>${escapeHtml(card.moduleName || card.moduleId || "")}</span>
+          <span>${Number(card.nodeCount || 0)} nodes</span>
+          <span>${Number(card.edgeCount || 0)} edges</span>
+        </div>
+      </header>`;
+    world.appendChild(element);
+    bindNodeHover(element, nodeId);
+    const header = element.querySelector(".module-header");
+    header.addEventListener("click", event => {
+      if (event.target.closest("button")) return;
+      selectUid(nodeId);
+    });
+    header.addEventListener("dblclick", event => {
+      if (event.target.closest("button")) return;
+      navigate({ kind: "flow", flowId: card.flowId });
+    });
+    element.querySelector("[data-open-flow-card]")?.addEventListener("click", event => {
+      event.stopPropagation();
+      navigate({ kind: "flow", flowId: card.flowId });
+    });
+    attachDrag(header, element, {
+      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
+      setPosition: (x, y) => {
+        const pos = state.positions.get(nodeId);
+        pos.x = x; pos.y = y;
+        setProjectPosition(nodeId, x, y);
+      },
+      onMove: () => { updateProjectWorldSize(); refreshProjectEdges(); },
+      onEnd: () => { persistOverride(); updateProjectWorldSize(); },
     });
   }
 
@@ -1501,7 +1540,6 @@
     viewport.classList.remove("is-light");
     viewport.classList.remove("is-detail");
     setGraphChromeVisible(true);
-    setProjectFlowEntryVisible(false);
     if (moduleContracts) {
       moduleContracts.innerHTML = "";
       moduleContracts.classList.remove("is-visible");
@@ -1604,7 +1642,6 @@
     viewport.classList.remove("is-light");
     viewport.classList.remove("is-detail");
     setGraphChromeVisible(true);
-    setProjectFlowEntryVisible(false);
     flowPicker.classList.remove("is-visible");
     updateChrome("module");
     renderModuleContracts(moduleId);
@@ -1765,7 +1802,6 @@
     state.pageKind = "method";
     state.moduleId = moduleId;
     state.functionId = functionId;
-    setProjectFlowEntryVisible(false);
     flowPicker.classList.remove("is-visible");
     if (moduleContracts) moduleContracts.classList.remove("is-visible");
     viewport.classList.add("is-light");

@@ -626,7 +626,8 @@
         "typeRelations",
         "primaryExecutionFlowId",
         "executionFlows",
-        "executionEntrypoints"
+        "executionEntrypoints",
+        "flowCards"
       ],
       "properties": {
         "kind": {
@@ -679,6 +680,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/executionFlow"
+          }
+        },
+        "flowCards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flowCard"
           }
         }
       }
@@ -1241,6 +1248,10 @@
         "executionEdges": {
           "type": "integer",
           "minimum": 0
+        },
+        "flowCards": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -1690,7 +1701,9 @@
         "entrypointId",
         "nodes",
         "edges",
-        "layout"
+        "layout",
+        "nodeCount",
+        "edgeCount"
       ],
       "properties": {
         "kind": {
@@ -1920,6 +1933,58 @@
         },
         "source": {
           "type": "string"
+        }
+      }
+    },
+    "flowCard": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "flowId",
+        "entrypointId",
+        "name",
+        "moduleId"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "const": "flow"
+        },
+        "flowId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "entrypointId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string"
+        },
+        "entrypointReason": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "nodeCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edgeCount": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     }

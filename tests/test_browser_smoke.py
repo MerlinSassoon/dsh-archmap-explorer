@@ -96,8 +96,8 @@ def test_browser_smoke() -> None:
 
         request("POST", f"/session/{session}/url", {"url": html_path.resolve().as_uri()})
         time.sleep(.6)
-        assert execute("return document.querySelectorAll('.module-node').length") == 3
-        assert execute("return document.querySelectorAll('.module-node.is-main').length") == 0
+        assert execute("return document.querySelectorAll('.module-node:not(.flow-card-node)').length") == 3
+        assert execute("return document.querySelectorAll('.flow-card-node').length") == 1
         assert execute("return document.querySelectorAll('.module-api-chip').length") > 0
         assert execute("return document.querySelectorAll('.boundary-node').length") == 0
         assert execute("return document.querySelectorAll('.macro-edge').length") == 0
@@ -108,13 +108,15 @@ def test_browser_smoke() -> None:
         execute("document.getElementById('relationModeBtn').click(); return true")
         assert execute("return document.getElementById('relationModeBtn').getAttribute('aria-pressed')") == "true"
         execute("document.getElementById('relationModeBtn').click(); return true")
-        assert execute("return document.querySelectorAll('#projectFlowEntry.is-visible').length") == 1
-        assert execute("return document.querySelectorAll('.flow-launch-card').length") == 1
-        assert execute("return document.querySelectorAll('[data-open-flow]').length") > 0
-        execute("document.querySelector('.flow-launch-card').click(); return true")
+        assert execute("return document.querySelectorAll('.flow-card-node').length") == 1
+        assert execute("return document.querySelectorAll('[data-open-flow-card]').length") == 1
+        assert execute("return document.querySelector('.flow-card-node')?.parentElement?.id") == "world"
+        assert execute("return document.querySelector('.module-node:not(.flow-card-node)')?.parentElement?.id") == "world"
+        execute("document.querySelector('[data-open-flow-card]').click(); return true")
         time.sleep(.4)
         assert execute("return window.location.hash.startsWith('#/flow')") is True
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        assert execute("return document.querySelectorAll('.execution-node.kind-entry').length") == 1
         assert execute("return document.querySelectorAll('.execution-edge').length") > 0
         assert execute("return document.querySelectorAll('.exec-node-header').length") > 0
         assert execute("return document.querySelectorAll('.exec-port-item').length") > 0
@@ -133,7 +135,7 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
         assert execute("return document.querySelectorAll('.contracts-track .module-api-chip').length") > 0
         assert execute("return document.querySelectorAll('.macro-edge').length") == 0
-        assert execute("return document.querySelectorAll('#projectFlowEntry.is-visible, .flow-picker.is-visible').length") == 0
+        assert execute("return document.querySelectorAll('.flow-picker.is-visible, .flow-card-node').length") == 0
         assert execute("return document.querySelectorAll('[data-expand]').length") == 0
         assert execute("return document.querySelectorAll('.module-mini').length") == 0
         drag_result = execute("""return (() => {
@@ -200,8 +202,8 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
         assert execute("return document.querySelectorAll('.exec-edge-capsule').length") == 0
         execution_labels = execute("return Array.from(document.querySelectorAll('.execution-node .exec-node-label')).map(node => node.textContent)")
-        assert "server()" in execution_labels
-        assert "client()" in execution_labels
+        assert "server(sockets)" in execution_labels
+        assert "client(sockets)" in execution_labels
         assert "NetworkAdapter.init_connection()" in execution_labels
         assert "with Spinner(message: str='加载中')" not in execution_labels
         assert "with Database(password: str)" not in execution_labels
@@ -216,7 +218,7 @@ def test_browser_smoke() -> None:
         assert clipped_execution_bodies == 0
         drag_result = execute("""return (() => {
           const node = Array.from(document.querySelectorAll('.execution-node'))
-            .find(item => item.querySelector('.exec-node-label')?.textContent === 'server()');
+            .find(item => item.querySelector('.exec-node-label')?.textContent === 'server(sockets)');
           if (!node) return null;
           const edge = Array.from(document.querySelectorAll('.execution-edge'))
             .find(path => path.dataset.from === node.dataset.uid);

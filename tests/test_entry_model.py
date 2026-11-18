@@ -80,3 +80,20 @@ def test_execution_flow_requires_one_standard_entry_node() -> None:
     flow["nodes"] = [node for node in flow["nodes"] if node["kind"] != "entry"]
     issues = ValidationManager().validate(bundle)
     assert any(issue["code"] == "EXEC_ENTRY_COUNT" for issue in issues)
+
+
+def test_project_flow_cards_share_module_card_grid() -> None:
+    """Flow cards are project page items in the same layout as module cards."""
+
+    bundle = build_architecture(REPO_ROOT / "tests" / "fixtures" / "student_demo")
+    project = bundle["projectGraph"]
+    flow_cards = project["flowCards"]
+    assert len(flow_cards) == len(project["executionFlows"]) == 1
+    card = flow_cards[0]
+    assert card["kind"] == "flow"
+    assert card["flowId"] == project["primaryExecutionFlowId"]
+    assert card["entrypointId"] == project["executionFlows"][0]["entrypointId"]
+    assert card["id"] in project["layout"]["nodes"]
+    module_ids = {module["id"] for module in project["modules"]}
+    assert card["id"] not in module_ids
+    assert set(project["layout"]["nodes"]) == module_ids | {card["id"]}

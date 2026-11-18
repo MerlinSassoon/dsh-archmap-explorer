@@ -219,6 +219,8 @@ def build_execution_flows(
             module_meta=module_meta,
         )
         skeleton["entrypointReason"] = str(entrypoint.get("reason") or "")
+        skeleton["nodeCount"] = len(skeleton.get("nodes") or [])
+        skeleton["edgeCount"] = len(skeleton.get("edges") or [])
         skeleton["layout"] = layout_execution_flow(
             list(skeleton.get("nodes") or []),
             list(skeleton.get("edges") or []),

@@ -118,8 +118,8 @@ def test_render_contains_api_contract_capabilities() -> None:
 def test_render_separates_main_flow_from_module_capabilities() -> None:
     bundle = build_architecture(ROOT)
     html = render_html(bundle)
-    assert 'id="projectFlowEntry"' in html
-    assert "data-open-flow" in html
+    assert 'id="projectFlowEntry"' not in html
+    assert "data-open-flow-card" in html
     assert 'id="flowPicker"' in html
     assert "renderFlowPage" in html
     assert "Module capability" in html
@@ -194,8 +194,8 @@ def test_render_uses_standard_flow_launch_cards() -> None:
     """Project flow entries must reuse the standard capability-card language."""
 
     html = render_html(build_architecture(ROOT))
-    assert "flow-launch-grid" in html
-    assert "flow-launch-card" in html
+    assert "flow-card-node" in html
+    assert "flow-launch-grid" not in html
     assert "project-flow-mark" not in html
     assert "execution-node.kind-entry" not in html
     assert "window.__ARCHMAP_DATA__" in html
