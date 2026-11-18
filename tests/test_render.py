@@ -201,6 +201,15 @@ def test_render_uses_standard_flow_launch_cards() -> None:
     assert "window.__ARCHMAP_DATA__" in html
 
 
+def test_render_ignores_layout_overrides_from_old_geometry() -> None:
+    """Saved drag coordinates must not survive a default-geometry change."""
+
+    html = render_html(build_architecture(ROOT))
+    assert "const GEOMETRY_VERSION = 2;" in html
+    assert "Number(value.geometryVersion) !== GEOMETRY_VERSION" in html
+    assert "localStorage.removeItem(STORAGE_KEY)" in html
+
+
 def test_render_exposes_dispatch_candidate_details() -> None:
     """Dispatch nodes must expose candidate navigation hooks in the detail panel."""
 

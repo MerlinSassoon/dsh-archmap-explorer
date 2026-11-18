@@ -16,7 +16,8 @@
       ],
       "note": "类语义测试",
       "color": "#60a5fa",
-      "role": "service"
+      "role": "service",
+      "defaultFreeFunctionSurface": "capability"
     }
   ]
 }

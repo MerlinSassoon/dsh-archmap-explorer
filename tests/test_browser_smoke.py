@@ -105,6 +105,38 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.module-mini').length") == 0
         assert execute("return document.querySelectorAll('[data-open-module]').length") == 3
         assert execute("return window.__ARCHMAP_ERRORS__") == []
+        # Coordinates saved against an older default geometry must be discarded
+        # instead of being replayed onto the new card grid.
+        execute("""return (() => {
+          const ids = [...document.querySelectorAll('.module-node')].map(node => node.dataset.uid);
+          localStorage.setItem('archmap-v3-layout-v1', JSON.stringify({
+            version: 1,
+            geometryVersion: 1,
+            project: {nodes: {
+              [ids[0]]: {x: 100, y: 100},
+              [ids[1]]: {x: 110, y: 110},
+            }},
+            modules: {}, functions: {}, executions: {},
+          }));
+          location.reload();
+          return true;
+        })()""")
+        time.sleep(.7)
+        assert execute("return localStorage.getItem('archmap-v3-layout-v1')") is None
+        assert execute("""return (() => {
+          const rects = [...document.querySelectorAll('.module-node')].map(node => ({
+            left: node.offsetLeft, top: node.offsetTop,
+            right: node.offsetLeft + node.offsetWidth, bottom: node.offsetTop + node.offsetHeight,
+          }));
+          for (let i = 0; i < rects.length; i++) {
+            for (let j = i + 1; j < rects.length; j++) {
+              const a = rects[i], b = rects[j];
+              if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) return false;
+            }
+          }
+          return true;
+        })()""") is True
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
         execute("document.getElementById('relationModeBtn').click(); return true")
         assert execute("return document.getElementById('relationModeBtn').getAttribute('aria-pressed')") == "true"
         execute("document.getElementById('relationModeBtn').click(); return true")
@@ -124,6 +156,35 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.execution-node.kind-provider, .execution-node.kind-action, .execution-node.kind-statement').length") == 0
         assert execute("return document.querySelectorAll('[data-main-view], .main-flow-node').length") == 0
         assert execute("return document.querySelectorAll('.module-contracts.is-visible, .function-node, .class-node').length") == 0
+        # The same stale-geometry guard must cover execution-flow coordinates.
+        execute("""return (() => {
+          const flow = window.__ARCHMAP_DATA__.projectGraph.executionFlows[0];
+          const nodes = flow.nodes;
+          const stored = {version: 1, geometryVersion: 1, project: {nodes: {}}, modules: {}, functions: {}, executions: {}};
+          stored.executions[flow.id] = {nodes: {
+            [nodes[0].id]: {x: 100, y: 100},
+            [nodes[1].id]: {x: 110, y: 110},
+          }};
+          localStorage.setItem('archmap-v3-layout-v1', JSON.stringify(stored));
+          location.reload();
+          return true;
+        })()""")
+        time.sleep(.7)
+        assert execute("return localStorage.getItem('archmap-v3-layout-v1')") is None
+        assert execute("""return (() => {
+          const rects = [...document.querySelectorAll('.execution-node')].map(node => ({
+            left: node.offsetLeft, top: node.offsetTop,
+            right: node.offsetLeft + node.offsetWidth, bottom: node.offsetTop + node.offsetHeight,
+          }));
+          for (let i = 0; i < rects.length; i++) {
+            for (let j = i + 1; j < rects.length; j++) {
+              const a = rects[i], b = rects[j];
+              if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) return false;
+            }
+          }
+          return true;
+        })()""") is True
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
         execute("location.hash='#/flow/missing-flow'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.35)
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
@@ -241,6 +302,19 @@ def test_browser_smoke() -> None:
         assert drag_result["edgeChanged"] is True
         assert drag_result["storedFlows"] > 0
         execute("localStorage.removeItem('archmap-v3-layout-v1'); return true")
+        # Capability-empty modules stay in the backend/layout but must not be
+        # rendered on the project page or open as an empty module view.
+        execute("location.hash='#/project'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.5)
+        assert execute("return document.querySelectorAll('.module-node:not(.flow-card-node)').length") == 4
+        assert execute("return document.querySelectorAll('.flow-card-node').length") == 1
+        assert execute("return document.querySelector('[data-uid=\"app\"]')") is None
+        assert execute("return document.querySelector('[data-uid=\"test\"]')") is None
+        execute("location.hash='#/module/app'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.4)
+        assert execute("return window.location.hash") == "#/project"
+        assert execute("return document.getElementById('toast').textContent") .strip() != ""
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
         # The self-build main flow is an execution-only page.  Capability and
         # call-overview projections must not share this canvas.
         self_config = REPO_ROOT / "examples" / "archmap_v3.archmap.json"

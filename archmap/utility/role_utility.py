@@ -332,32 +332,20 @@ def _infer_function_role(
     configured_entries: set[str],
     project_names: set[str],
 ) -> tuple[str, str, str]:
+    """Infer a conservative base role for a module-level free function.
+
+    P9 no longer promotes a public free function to ``manager`` merely because
+    it contains control flow or calls project classes.  The effective free
+    function surface is resolved separately; only explicit capability evidence
+    upgrades a free function to a behavioral Provider role.
+    """
+
+    del configured_entries, project_names
     if fn.synthetic or fn.name == "__main__":
         return "utility", "structure", "high"
     if _uses_external_io(fn.node, module):
         return "adapter", "structure", "medium"
-
-    # utility is an internal implementation category.  Internal helpers do
-    # not become managers merely because they contain control flow or call a
-    # project class.  Public free functions are callable module capabilities
-    # and default to manager unless an entry/adapter signal applies.
-    if fn.api_exposure == "internal":
-        return "utility", "structure", "medium"
-
-    calls: list[ast.Call] = [node for node in ast.walk(fn.node) if isinstance(node, ast.Call)]
-    project_calls = 0
-    for call in calls:
-        func = call.func
-        name = ""
-        if isinstance(func, ast.Name):
-            name = func.id
-        elif isinstance(func, ast.Attribute):
-            name = func.attr
-        if name in project_names:
-            project_calls += 1
-    if project_calls or _has_control_flow(fn.node):
-        return "manager", "structure", "medium"
-    return "manager", "structure", "low"
+    return "utility", "structure", "medium"
 
 
 def _provider_visibility(role: str, name: str, api_exposure: str) -> str:

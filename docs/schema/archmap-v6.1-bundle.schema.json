@@ -1,0 +1,2103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://archmap.local/schema/archmap-v6.1-bundle.schema.json",
+  "title": "ArchMap Bundle Schema 6.1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "project",
+    "entrypoints",
+    "projectGraph",
+    "moduleGraphs",
+    "functionDetails",
+    "callSites",
+    "diagnostics",
+    "stats"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "6.1"
+    },
+    "kind": {
+      "const": "archmap.bundle"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entrypoint"
+      }
+    },
+    "projectGraph": {
+      "$ref": "#/$defs/projectGraph"
+    },
+    "moduleGraphs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/moduleGraph"
+      }
+    },
+    "functionDetails": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/functionDetail"
+      }
+    },
+    "callSites": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/callSite"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "stats": {
+      "$ref": "#/$defs/stats"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "root",
+        "language",
+        "generatedAt",
+        "fingerprint"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language": {
+          "enum": [
+            "python",
+            "arkts"
+          ]
+        },
+        "pythonVersion": {
+          "type": "string"
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "entrypoint": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "functionId",
+        "reason"
+      ],
+      "properties": {
+        "functionId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "reason": {
+          "enum": [
+            "main",
+            "configured",
+            "route",
+            "heuristic"
+          ]
+        }
+      }
+    },
+    "port": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "label": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "fromFunctionId": {
+          "type": "string"
+        },
+        "toFunctionId": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        }
+      }
+    },
+    "macroEdge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "from",
+        "to",
+        "primaryType",
+        "relations",
+        "role",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "from": {
+          "$ref": "#/$defs/identifier"
+        },
+        "to": {
+          "$ref": "#/$defs/identifier"
+        },
+        "primaryType": {
+          "enum": [
+            "call",
+            "data",
+            "control"
+          ]
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "call",
+              "data",
+              "control"
+            ]
+          }
+        },
+        "role": {
+          "enum": [
+            "internal"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "apiCapability": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "display",
+        "signature",
+        "providerId",
+        "providerKind",
+        "providerName",
+        "moduleId",
+        "exposure",
+        "exposureSource",
+        "exposureConfidence",
+        "evidenceFunctionIds",
+        "isEntry",
+        "providerRole",
+        "roleSource",
+        "roleConfidence",
+        "providerVisibility",
+        "ownerProviderId"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "function",
+            "method",
+            "context_manager",
+            "async_context_manager",
+            "callable",
+            "iterable"
+          ]
+        },
+        "display": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        },
+        "providerId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "providerKind": {
+          "enum": [
+            "class",
+            "function"
+          ]
+        },
+        "providerName": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "exposure": {
+          "enum": [
+            "public",
+            "internal"
+          ]
+        },
+        "exposureSource": {
+          "enum": [
+            "docstring",
+            "comment",
+            "decorator",
+            "config",
+            "entrypoint",
+            "protocol",
+            "naming"
+          ]
+        },
+        "exposureConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "functionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidenceFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "constructorFunctionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isEntry": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "providerRole": {
+          "$ref": "#/$defs/providerRole"
+        },
+        "roleSource": {
+          "$ref": "#/$defs/providerRoleSource"
+        },
+        "roleConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "providerVisibility": {
+          "$ref": "#/$defs/providerVisibility"
+        },
+        "ownerProviderId": {
+          "$ref": "#/$defs/ownerProviderId"
+        },
+        "inherited": {
+          "type": "boolean"
+        },
+        "declaredInProviderId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inheritedFromProviderId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overridesCapabilityId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inheritedFromClassIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apiProvider": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "providerId",
+        "providerKind",
+        "providerName",
+        "moduleId",
+        "apiCount",
+        "apis",
+        "providerRole",
+        "roleSource",
+        "roleConfidence",
+        "providerVisibility",
+        "ownerProviderId"
+      ],
+      "properties": {
+        "providerId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "providerKind": {
+          "enum": [
+            "class",
+            "function"
+          ]
+        },
+        "providerName": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "apiCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "apis": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/apiCapability"
+          }
+        },
+        "providerRole": {
+          "$ref": "#/$defs/providerRole"
+        },
+        "roleSource": {
+          "$ref": "#/$defs/providerRoleSource"
+        },
+        "roleConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "typeSummary": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/typeSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providerVisibility": {
+          "$ref": "#/$defs/providerVisibility"
+        },
+        "ownerProviderId": {
+          "$ref": "#/$defs/ownerProviderId"
+        },
+        "declaredApiCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inheritedApiCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "classUsage": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "constructor",
+        "protocols"
+      ],
+      "properties": {
+        "constructor": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "functionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "signature": {
+              "type": "string"
+            }
+          }
+        },
+        "protocols": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "context_manager",
+              "async_context_manager",
+              "callable",
+              "iterable"
+            ]
+          }
+        }
+      }
+    },
+    "macroNode": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "entryFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "flowEntryFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "executionOnlyFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "capabilitySurface": {
+          "$ref": "#/$defs/capabilitySurface"
+        }
+      }
+    },
+    "layoutNode": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "cx": {
+          "type": "number"
+        },
+        "rank": {
+          "type": "integer"
+        }
+      }
+    },
+    "layoutEdge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "d"
+      ],
+      "properties": {
+        "d": {
+          "type": "string"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "label": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "canvas",
+        "nodes",
+        "edges"
+      ],
+      "properties": {
+        "canvas": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "width",
+            "height",
+            "padding"
+          ],
+          "properties": {
+            "width": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            },
+            "padding": {
+              "type": "number"
+            }
+          }
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/layoutNode"
+          }
+        },
+        "edges": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/layoutEdge"
+          }
+        }
+      }
+    },
+    "projectGraph": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "project",
+        "modules",
+        "edges",
+        "layout",
+        "typeRelations",
+        "primaryExecutionFlowId",
+        "executionFlows",
+        "executionEntrypoints",
+        "flowCards",
+        "capabilityModuleIds"
+      ],
+      "properties": {
+        "kind": {
+          "const": "archmap.project-graph"
+        },
+        "project": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroEdge"
+          }
+        },
+        "layout": {
+          "$ref": "#/$defs/layout"
+        },
+        "typeRelations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeRelation"
+          }
+        },
+        "userSurfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/userSurface"
+          }
+        },
+        "primaryExecutionFlowId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "executionEntrypoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entrypoint"
+          }
+        },
+        "executionFlows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/executionFlow"
+          }
+        },
+        "flowCards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flowCard"
+          }
+        },
+        "capabilityModuleIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      }
+    },
+    "moduleGraph": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "moduleId",
+        "name",
+        "note",
+        "color",
+        "nodes",
+        "layout",
+        "moduleComposition",
+        "providerRoleCounts",
+        "publicModuleComposition",
+        "publicProviderRoleCounts",
+        "typeRelations",
+        "methodEdges",
+        "providedApiCount",
+        "apiProviders",
+        "classCount",
+        "methodCount",
+        "role",
+        "executionOnlyFunctionIds",
+        "capabilitySurface"
+      ],
+      "properties": {
+        "kind": {
+          "const": "archmap.module-graph"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroNode"
+          }
+        },
+        "methodEdges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/macroEdge"
+          }
+        },
+        "role": {
+          "enum": [
+            "service",
+            "adapter",
+            "component",
+            "test",
+            "other"
+          ]
+        },
+        "providedApis": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/apiCapability"
+          }
+        },
+        "providedApiCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "apiProviders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/apiProvider"
+          }
+        },
+        "classCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "methodCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "layout": {
+          "$ref": "#/$defs/layout"
+        },
+        "moduleComposition": {
+          "$ref": "#/$defs/moduleComposition"
+        },
+        "providerRoleCounts": {
+          "$ref": "#/$defs/providerRoleCounts"
+        },
+        "publicModuleComposition": {
+          "$ref": "#/$defs/moduleComposition"
+        },
+        "publicProviderRoleCounts": {
+          "$ref": "#/$defs/providerRoleCounts"
+        },
+        "typeRelations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeRelation"
+          }
+        },
+        "userSurfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/userSurface"
+          }
+        },
+        "entryFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "flowEntryFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "executionOnlyFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "capabilitySurface": {
+          "$ref": "#/$defs/capabilitySurface"
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "properties": {
+        "severity": {
+          "enum": [
+            "error",
+            "warning",
+            "info"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "functionId": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        }
+      }
+    },
+    "functionDetail": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "name",
+        "qualifiedName",
+        "module",
+        "moduleId",
+        "file",
+        "line",
+        "endLine",
+        "signature",
+        "isAsync",
+        "note",
+        "source",
+        "sourceHash",
+        "callers",
+        "callees"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string"
+        },
+        "qualifiedName": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "ownerClassId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "methodKind": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string"
+        },
+        "apiExposure": {
+          "enum": [
+            "public",
+            "internal"
+          ]
+        },
+        "apiExposureSource": {
+          "enum": [
+            "docstring",
+            "comment",
+            "decorator",
+            "config",
+            "entrypoint",
+            "protocol",
+            "naming"
+          ]
+        },
+        "apiExposureConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "isEntry": {
+          "type": "boolean"
+        },
+        "isAbstract": {
+          "type": "boolean"
+        },
+        "isAsync": {
+          "type": "boolean"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "signature": {
+          "type": "string"
+        },
+        "returns": {
+          "type": "string"
+        },
+        "raises": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "text",
+            "startLine",
+            "endLine"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "startLine": {
+              "type": "integer"
+            },
+            "endLine": {
+              "type": "integer"
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "language": {
+              "type": "string"
+            }
+          }
+        },
+        "sourceHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "callers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "callees": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "callerCount": {
+          "type": "integer"
+        },
+        "calleeCount": {
+          "type": "integer"
+        },
+        "providerRole": {
+          "$ref": "#/$defs/providerRole"
+        },
+        "roleSource": {
+          "$ref": "#/$defs/providerRoleSource"
+        },
+        "roleConfidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "providerVisibility": {
+          "$ref": "#/$defs/providerVisibility"
+        },
+        "ownerProviderId": {
+          "$ref": "#/$defs/ownerProviderId"
+        },
+        "overrideOfFunctionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overriddenByFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "polymorphicCallers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "polymorphicCallees": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "polymorphicCallerCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "polymorphicCalleeCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "userSurfaceKinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isFlowEntry": {
+          "type": "boolean"
+        },
+        "flowIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isExecutionOnly": {
+          "type": "boolean"
+        },
+        "functionSurface": {
+          "enum": [
+            "capability",
+            "execution",
+            "internal"
+          ]
+        },
+        "executionRole": {
+          "oneOf": [
+            {
+              "enum": [
+                "entry",
+                "orchestrator"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "callSite": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "fromFunctionId",
+        "file",
+        "line",
+        "column",
+        "calleeText",
+        "callText",
+        "kind",
+        "resolved",
+        "external",
+        "recursive",
+        "confidence",
+        "candidates"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "fromFunctionId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "fromModuleId": {
+          "type": "string"
+        },
+        "toFunctionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toModuleId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "column": {
+          "type": "integer"
+        },
+        "calleeText": {
+          "type": "string"
+        },
+        "callText": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "external": {
+          "type": "boolean"
+        },
+        "recursive": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "argumentCount": {
+          "type": "integer"
+        },
+        "polymorphic": {
+          "type": "boolean"
+        },
+        "dispatchKind": {
+          "enum": [
+            "static",
+            "polymorphic",
+            "dynamic",
+            "unresolved"
+          ]
+        },
+        "usageKind": {
+          "enum": [
+            "call",
+            "instantiate",
+            "context_manager",
+            "async_context_manager"
+          ]
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "modules",
+        "classes",
+        "functions",
+        "methods",
+        "callSites",
+        "resolvedCalls",
+        "macroEdges",
+        "diagnostics",
+        "capabilityModules",
+        "emptyCapabilityModules",
+        "executionOnlyCallables"
+      ],
+      "properties": {
+        "modules": {
+          "type": "integer"
+        },
+        "classes": {
+          "type": "integer"
+        },
+        "functions": {
+          "type": "integer"
+        },
+        "methods": {
+          "type": "integer"
+        },
+        "callSites": {
+          "type": "integer"
+        },
+        "resolvedCalls": {
+          "type": "integer"
+        },
+        "macroEdges": {
+          "type": "integer"
+        },
+        "diagnostics": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "error": {
+              "type": "integer"
+            },
+            "warning": {
+              "type": "integer"
+            },
+            "info": {
+              "type": "integer"
+            }
+          }
+        },
+        "providerRoles": {
+          "$ref": "#/$defs/providerRoleCounts"
+        },
+        "typeRelations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "polymorphicCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "structuralRelations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "userSurfaces": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "executionFlows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "executionNodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "executionEdges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "flowCards": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "capabilityModules": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "emptyCapabilityModules": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "executionOnlyCallables": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "providerRole": {
+      "type": "string",
+      "enum": [
+        "config",
+        "model",
+        "manager",
+        "adapter",
+        "component",
+        "contract",
+        "utility"
+      ]
+    },
+    "providerRoleSource": {
+      "type": "string",
+      "enum": [
+        "config",
+        "docstring",
+        "comment",
+        "decorator",
+        "entrypoint",
+        "structure",
+        "naming"
+      ]
+    },
+    "typeField": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "annotation",
+        "default",
+        "kind"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "annotation": {
+          "type": "string"
+        },
+        "default": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "field",
+            "instance_field",
+            "constant",
+            "enum_member"
+          ]
+        }
+      }
+    },
+    "typeSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "fieldCount",
+        "fields"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "fieldCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeField"
+          }
+        }
+      }
+    },
+    "moduleComposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config",
+        "model",
+        "manager",
+        "adapter",
+        "component",
+        "contract",
+        "utility"
+      ],
+      "properties": {
+        "config": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "model": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "manager": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "adapter": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "component": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contract": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "utility": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "providerRoleCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config",
+        "model",
+        "manager",
+        "adapter",
+        "component",
+        "contract",
+        "utility"
+      ],
+      "properties": {
+        "config": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "manager": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "adapter": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "component": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contract": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "utility": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "providerVisibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "internal"
+      ]
+    },
+    "ownerProviderId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "executionNode": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "moduleId",
+        "ports",
+        "expandable"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "entry",
+            "exit",
+            "free_function",
+            "interface",
+            "branch",
+            "multi_branch",
+            "loop",
+            "break",
+            "continue",
+            "return",
+            "dispatch"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "functionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "targetFunctionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capabilityId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "providerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "providerName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "providerRole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "callSiteId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signature": {
+          "type": "string"
+        },
+        "callableKind": {
+          "enum": [
+            "function",
+            "method"
+          ]
+        },
+        "ownerClassId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerClassName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "condition": {
+          "type": "string"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "loopKind": {
+          "type": "string"
+        },
+        "iterable": {
+          "type": "string"
+        },
+        "loopVariable": {
+          "type": "string"
+        },
+        "mayExit": {
+          "type": "boolean"
+        },
+        "terminalKind": {
+          "type": "string"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "candidateCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidateSetComplete": {
+          "type": "boolean"
+        },
+        "candidateSource": {
+          "type": "string"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "loopId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expandable": {
+          "const": false
+        },
+        "execution": {
+          "type": "boolean"
+        },
+        "flowId": {
+          "type": "string"
+        }
+      }
+    },
+    "executionEdge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "from",
+        "to",
+        "kind",
+        "label",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "from": {
+          "$ref": "#/$defs/identifier"
+        },
+        "to": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "next",
+            "true",
+            "false",
+            "case",
+            "default",
+            "loop_body",
+            "loop_complete"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "caseIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "branchOrder": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "executionFlow": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "id",
+        "moduleId",
+        "entrypointId",
+        "nodes",
+        "edges",
+        "layout",
+        "nodeCount",
+        "edgeCount"
+      ],
+      "properties": {
+        "kind": {
+          "const": "archmap.execution-flow"
+        },
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "entrypointId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "entrypointReason": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/executionNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/executionEdge"
+          }
+        },
+        "layout": {
+          "$ref": "#/$defs/layout"
+        },
+        "nodeCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edgeCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        }
+      }
+    },
+    "typeRelation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "fromClassId",
+        "toClassId",
+        "moduleId",
+        "targetModuleId",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "inherits",
+            "implements",
+            "instantiates",
+            "uses",
+            "aggregates",
+            "composes"
+          ]
+        },
+        "fromClassId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "toClassId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "toClassName": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "targetModuleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "fromProviderId": {
+          "type": "string"
+        },
+        "toProviderId": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "fromProviderRole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toProviderRole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fromVisibility": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toVisibility": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidenceFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "userSurface": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "display",
+        "audiences",
+        "moduleId",
+        "evidenceFunctionIds",
+        "entrypointIds",
+        "confidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "enum": [
+            "cli_input",
+            "cli_output",
+            "file_io",
+            "network_endpoint",
+            "network_client",
+            "keyboard_event",
+            "http_endpoint",
+            "tui_menu",
+            "ui_component"
+          ]
+        },
+        "display": {
+          "type": "string"
+        },
+        "audiences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "providerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "providerRole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidenceFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "propagatedFunctionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entrypointIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "flowCard": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "flowId",
+        "entrypointId",
+        "name",
+        "moduleId"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "kind": {
+          "const": "flow"
+        },
+        "flowId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "entrypointId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string"
+        },
+        "entrypointReason": {
+          "type": "string"
+        },
+        "moduleId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "moduleName": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "nodeCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edgeCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "capabilitySurface": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "hasProviders",
+        "providerCount",
+        "apiCount"
+      ],
+      "properties": {
+        "hasProviders": {
+          "type": "boolean"
+        },
+        "providerCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "apiCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

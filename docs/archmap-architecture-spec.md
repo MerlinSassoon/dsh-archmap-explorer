@@ -1,8 +1,8 @@
 # ArchMap 架构与编码规范
 
-> 状态：P2.3 规范已落盘，P2.4/P3/P4 已按该规范完成<br>
-> 版本：ArchMap 2.1.0 / bundle schema 6.0<br>
-> 日期：2026-11-18<br>
+> 状态：P2.3 规范已落盘，P2.4-P9 已按该规范完成<br>
+> 版本：ArchMap 2.3.0 / bundle schema 6.2<br>
+> 日期：2026-11-19<br>
 > 适用范围：ArchMap 自身源码、后续语言前端和架构分析扩展。
 
 ## 1. 两层分类：物理代码单元与逻辑 Provider Role
@@ -52,6 +52,10 @@ contract > adapter > component > manager > config > model > utility
 ```
 
 > P7.1 起 Provider Role `entry` 已删除。入口状态属于 execution flow，不属于模块/Provider Role。
+>
+> P8 起，只参与执行流的 callable 通过模块配置 `executionOnlyCallables` 显式声明；它们对能力面透明，但仍是源码、调用关系和 execution flow 事实。
+>
+> P9 起，模块级自由函数默认采用保守能力边界；`defaultFreeFunctionSurface` 声明模块默认面，单个函数通过 `apiExposure` 例外。
 
 ### 2.1 config
 
@@ -243,7 +247,8 @@ service / adapter / component / test / other
 - `config` / `model` / `utility` 围绕所属 manager 或能力 facade 归属；
 - 每个源码文件、Provider 和模型有且仅有一个 owner 模块；
 - 不允许建立 `contracts` / `shared` / `common` / `misc` 这类技术层兜底模块；
-- 模块被其他模块消费是依赖关系，不改变 owner。
+- 模块被其他模块消费是依赖关系，不改变 owner；
+- 模块可以没有可见能力 Provider；后端保留模块边界与 layout，前端不渲染空能力模块卡。
 
 执行流约束：
 
@@ -253,7 +258,8 @@ service / adapter / component / test / other
 - 执行边只表达控制连接；不输出 composition/call 调用边；
 - dispatch 候选必须显式标记完整性，无法推断时保留 unresolved；
 - 执行流只展开 entrypoint 自身控制骨架，调用目标作为原子节点，不继续穿透实现；
-- 内部实现由 Method Detail、CallSite 和 P4 trace/impact 承担。
+- 内部实现由 Method Detail、CallSite 和 P4 trace/impact 承担；
+- `executionOnlyCallables` 中的入口/编排 callable 只在 execution flow 与 Method Detail 中作为主要 UI 入口，不进入模块能力面。
 
 项目页以标准卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片。模块能力页只展示 Provider / Capability / 类型关系，不默认绘制调用边；主流程页只展示执行流，不嵌入模块契约或调用总览。
 
@@ -285,6 +291,7 @@ Project
 ```text
 providerRole        职责语义
 providerVisibility  public / internal
+functionSurface     capability / internal / execution（模块级自由函数）
 ownerProviderId     内部实现归属的 facade manager / owner provider
 presentationGroup   public_surface / internal_implementation
 ```
@@ -295,6 +302,8 @@ presentationGroup   public_surface / internal_implementation
 - manager/adapter/component/contract 的公开 Provider 可进入默认视图；
 - config/model 以类型卡片展示；
 - internal 实现保留在事实层，不进入项目页/模块页默认视图；
+- 模块级自由函数通过 `defaultFreeFunctionSurface` 和 `apiExposure` 解析 effective surface；
+- `functionSurface=capability` 才进入能力 API，`internal` / `execution` 均不进入；
 - 项目页角色计数只统计公开 Provider；
 - 内部函数仍保留在 `functionDetails` / `callSites` / callers/callees 中，供 P4 impact/trace 使用；
 - 单个 facade manager 拥有的阶段函数通过 `ownerProviderId` 归属，不生成独立卡片。

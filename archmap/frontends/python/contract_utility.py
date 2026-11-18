@@ -40,14 +40,19 @@ def _capability_key(capability: ApiCapability) -> tuple[str, str]:
 
 
 def _declared_class_capabilities(
-    cls: ClassInfo, role_info: ProviderRoleInfo | None
+    cls: ClassInfo,
+    role_info: ProviderRoleInfo | None,
+    execution_only_function_ids: set[str] | None = None,
 ) -> list[ApiCapability]:
     """Return only the capabilities declared by this class itself."""
 
+    excluded = execution_only_function_ids or set()
     capabilities: list[ApiCapability] = []
     protocols, _ = _protocol_capabilities(cls, role_info)
     capabilities.extend(protocols)
     for method in sorted(cls.methods.values(), key=lambda item: (item.line, item.id)):
+        if method.id in excluded:
+            continue
         if method.name.startswith("__") and method.name.endswith("__"):
             continue
         if method.api_exposure != "public":
@@ -154,6 +159,13 @@ def build_capabilities(
     capabilities: list[ApiCapability] = []
     class_usage: dict[str, ClassUsage] = {}
     provider_roles = build_provider_roles(analysis, call_sites)
+    execution_only_function_ids = set(analysis.execution_only_function_ids)
+    excluded_method_names_by_class: dict[str, set[str]] = {}
+    for fn in analysis.functions:
+        if fn.id not in execution_only_function_ids or not fn.class_name:
+            continue
+        class_id = f"cls:{fn.module_name}.{fn.class_name}"
+        excluded_method_names_by_class.setdefault(class_id, set()).add(fn.name)
     class_by_id = {_class_id(cls): cls for cls in analysis.classes}
     declared_by_class: dict[str, list[ApiCapability]] = {}
 
@@ -185,7 +197,9 @@ def build_capabilities(
             abstract_method_names=list(cls.abstract_method_names),
         )
         if expose_apis:
-            declared_by_class[class_id] = _declared_class_capabilities(cls, role_info)
+            declared_by_class[class_id] = _declared_class_capabilities(
+                cls, role_info, execution_only_function_ids
+            )
         else:
             declared_by_class[class_id] = []
 
@@ -196,9 +210,15 @@ def build_capabilities(
             continue
         own_caps = list(declared_by_class[class_id])
         effective = {_capability_key(cap): cap for cap in own_caps}
+        excluded_keys = {
+            ("member", name)
+            for name in excluded_method_names_by_class.get(class_id, set())
+        }
         for ancestor_id in cls.mro_class_ids[1:]:
             for base_cap in declared_by_class.get(ancestor_id, []):
                 key = _capability_key(base_cap)
+                if key in excluded_keys:
+                    continue
                 existing = effective.get(key)
                 if existing is None:
                     inherited = _inherit_capability(base_cap, cls, role_info)
@@ -223,6 +243,8 @@ def build_capabilities(
     for fn in analysis.functions:
         if fn.class_name:
             continue
+        if fn.id in execution_only_function_ids:
+            continue
         role_info = provider_roles.get(fn.id)
         role = role_info.role if role_info else "utility"
         if role not in API_EXPOSING_ROLES:
@@ -231,6 +253,11 @@ def build_capabilities(
             continue
         capabilities.append(_function_capability(fn, role_info))
 
+    capabilities = [
+        capability
+        for capability in capabilities
+        if capability.function_id not in execution_only_function_ids
+    ]
     capabilities.sort(
         key=lambda item: (
             0 if item.provider_kind == "class" else 1,

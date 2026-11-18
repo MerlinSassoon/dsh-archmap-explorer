@@ -30,7 +30,11 @@
       ],
       "note": "CLI 入口、配置加载、流水线编排与模块配置模型。",
       "color": "#f59e0b",
-      "role": "service"
+      "role": "service",
+      "executionOnlyCallables": [
+        "archmap.entry.cli_entry:main"
+      ],
+      "defaultFreeFunctionSurface": "internal"
     },
     {
       "id": "python-frontend",

@@ -10,6 +10,8 @@ from ..config.contract_config import (
     CAPABILITY_KINDS,
     EXPOSURE_SOURCES,
     EXPOSURE_VALUES,
+    FREE_FUNCTION_SURFACE_SOURCES,
+    FREE_FUNCTION_SURFACES,
     PROTOCOL_CAPABILITY_KINDS,
     PROVIDER_ROLE_ORDER,
     PROVIDER_ROLE_SOURCES,
@@ -255,8 +257,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "6.0":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 6.0"))
+    if str(bundle.get("schemaVersion")) != "6.2":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 6.2"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []
@@ -265,6 +267,38 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     detail_by_id = {detail.get("id"): detail for detail in details}
     if len(detail_by_id) != len(details):
         issues.append(_issue("error", "DUPLICATE_FUNCTION", "duplicate function detail ids"))
+
+    for diagnostic in bundle.get("diagnostics", []):
+        if diagnostic.get("severity") == "error":
+            issues.append(
+                _issue(
+                    "error",
+                    "BUNDLE_ERROR_DIAGNOSTIC",
+                    f"{diagnostic.get('code', 'DIAGNOSTIC')}: {diagnostic.get('message', '')}",
+                    functionId=diagnostic.get("functionId"),
+                    moduleId=diagnostic.get("moduleId"),
+                )
+            )
+
+    execution_only_ids: set[str] = set()
+    internal_function_ids: set[str] = set()
+    for graph in module_graphs:
+        declared = graph.get("executionOnlyFunctionIds")
+        if not isinstance(declared, list):
+            issues.append(_issue("error", "EXECUTION_ONLY_IDS", f"module {graph.get('moduleId')} executionOnlyFunctionIds must be an array"))
+            continue
+        for function_id in declared:
+            execution_only_ids.add(str(function_id))
+            detail = detail_by_id.get(function_id)
+            if detail is None:
+                issues.append(_issue("error", "EXECUTION_ONLY_MISSING", f"module {graph.get('moduleId')} executionOnlyFunctionIds references missing function {function_id}"))
+            elif detail.get("moduleId") != graph.get("moduleId"):
+                issues.append(_issue("error", "EXECUTION_ONLY_MODULE", f"execution-only function {function_id} belongs to a different module"))
+            if detail is not None and detail.get("isExecutionOnly") is not True:
+                issues.append(_issue("error", "EXECUTION_ONLY_FLAG", f"function detail {function_id} must set isExecutionOnly=true"))
+        internal_declared = graph.get("internalFreeFunctionIds")
+        if isinstance(internal_declared, list):
+            internal_function_ids.update(str(function_id) for function_id in internal_declared)
 
     module_ids = {module.get("id") for module in project_graph.get("modules", [])}
     if len(module_ids) != len(project_graph.get("modules", [])):
@@ -310,6 +344,66 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         for node in graph.get("nodes", []):
             if node.get("kind") in {"input", "output"}:
                 issues.append(_issue("error", "MODULE_BOUNDARY_NODE", f"module {module_id} contains removed boundary node {node.get('id')}"))
+        for function_id in graph.get("executionOnlyFunctionIds", []):
+            if any(node.get("id") == function_id for node in graph.get("nodes", [])):
+                issues.append(_issue("error", "EXECUTION_ONLY_NODE_LEAK", f"module {module_id} renders execution-only callable as provider node: {function_id}"))
+        capability_surface = graph.get("capabilitySurface")
+        if not isinstance(capability_surface, dict):
+            issues.append(_issue("error", "CAPABILITY_SURFACE", f"module {module_id} capabilitySurface must be an object"))
+            capability_surface = {}
+        if not isinstance(capability_surface.get("hasProviders"), bool):
+            issues.append(_issue("error", "CAPABILITY_SURFACE_FLAG", f"module {module_id} capabilitySurface.hasProviders must be boolean"))
+        if not isinstance(capability_surface.get("providerCount"), int):
+            issues.append(_issue("error", "CAPABILITY_SURFACE_PROVIDERS", f"module {module_id} capabilitySurface.providerCount must be integer"))
+        if not isinstance(capability_surface.get("apiCount"), int):
+            issues.append(_issue("error", "CAPABILITY_SURFACE_APIS", f"module {module_id} capabilitySurface.apiCount must be integer"))
+        default_surface = graph.get("defaultFreeFunctionSurface")
+        if default_surface not in {"auto", "internal", "capability"}:
+            issues.append(_issue("error", "DEFAULT_FREE_FUNCTION_SURFACE", f"module {module_id} has invalid defaultFreeFunctionSurface: {default_surface}"))
+        surface_lists: dict[str, list[str]] = {}
+        for field, expected_surface in (
+            ("capabilityFreeFunctionIds", "capability"),
+            ("internalFreeFunctionIds", "internal"),
+            ("executionFreeFunctionIds", "execution"),
+        ):
+            values = graph.get(field)
+            if not isinstance(values, list):
+                issues.append(_issue("error", "FREE_FUNCTION_SURFACE_IDS", f"module {module_id} {field} must be an array"))
+                values = []
+            surface_lists[expected_surface] = [str(value) for value in values]
+            for function_id in values:
+                detail = detail_by_id.get(function_id)
+                if detail is None:
+                    issues.append(_issue("error", "FREE_FUNCTION_SURFACE_MISSING", f"module {module_id} {field} references missing function {function_id}"))
+                elif detail.get("moduleId") != module_id:
+                    issues.append(_issue("error", "FREE_FUNCTION_SURFACE_MODULE", f"module {module_id} {field} references function from another module: {function_id}"))
+                elif detail.get("functionSurface") != expected_surface:
+                    issues.append(_issue("error", "FREE_FUNCTION_SURFACE_MISMATCH", f"module {module_id} {field} disagrees with detail surface for {function_id}"))
+        execution_only_declared = graph.get("executionOnlyFunctionIds")
+        if not isinstance(execution_only_declared, list):
+            issues.append(_issue("error", "EXECUTION_ONLY_IDS", f"module {module_id} executionOnlyFunctionIds must be an array"))
+            execution_only_declared = []
+        if not set(surface_lists.get("execution", [])).issubset(
+            {str(function_id) for function_id in execution_only_declared}
+        ):
+            issues.append(_issue("error", "EXECUTION_FREE_FUNCTION_IDS", f"module {module_id} executionFreeFunctionIds must be a subset of executionOnlyFunctionIds"))
+        seen_surface_ids: set[str] = set()
+        for values in surface_lists.values():
+            for function_id in values:
+                if function_id in seen_surface_ids:
+                    issues.append(_issue("error", "FREE_FUNCTION_SURFACE_DUPLICATE", f"module {module_id} callable has multiple surfaces: {function_id}"))
+                seen_surface_ids.add(function_id)
+        counts = graph.get("freeFunctionSurfaceCounts")
+        if not isinstance(counts, dict):
+            issues.append(_issue("error", "FREE_FUNCTION_SURFACE_COUNTS", f"module {module_id} freeFunctionSurfaceCounts must be an object"))
+            counts = {}
+        for surface, expected_surface in (
+            ("capability", "capability"),
+            ("internal", "internal"),
+            ("execution", "execution"),
+        ):
+            if counts.get(surface) != len(surface_lists.get(expected_surface, [])):
+                issues.append(_issue("error", "FREE_FUNCTION_SURFACE_COUNT", f"module {module_id} freeFunctionSurfaceCounts mismatch for {surface}"))
         node_role_by_id: dict[str, str] = {}
         for node in graph.get("nodes", []):
             if node.get("kind") not in {"class", "function"}:
@@ -392,6 +486,10 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                     seen=seen_apis,
                 )
             )
+            if api.get("functionId") in execution_only_ids:
+                issues.append(_issue("error", "EXECUTION_ONLY_API_LEAK", f"module {module_id} exposes execution-only callable as API: {api.get('functionId')}"))
+            if api.get("functionId") in set(surface_lists.get("internal", [])):
+                issues.append(_issue("error", "INTERNAL_FUNCTION_API_LEAK", f"module {module_id} exposes internal free function as API: {api.get('functionId')}"))
         provider_apis: list[dict[str, Any]] = []
         for provider in graph.get("apiProviders", []):
             provider_id = provider.get("providerId")
@@ -417,6 +515,17 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                 )
         if {api.get("id") for api in provider_apis} != {api.get("id") for api in graph.get("providedApis", [])}:
             issues.append(_issue("error", "PROVIDED_API_PROVIDER_MISMATCH", f"module {module_id} apiProviders and providedApis disagree"))
+        expected_public_provider_count = sum(
+            len(provider_ids)
+            for provider_ids in public_composition.values()
+            if isinstance(provider_ids, list)
+        )
+        if capability_surface.get("providerCount") != expected_public_provider_count:
+            issues.append(_issue("error", "CAPABILITY_SURFACE_PROVIDER_COUNT", f"module {module_id} capabilitySurface.providerCount mismatch"))
+        if capability_surface.get("apiCount") != len(graph.get("providedApis", [])):
+            issues.append(_issue("error", "CAPABILITY_SURFACE_API_COUNT", f"module {module_id} capabilitySurface.apiCount mismatch"))
+        if capability_surface.get("hasProviders") != (expected_public_provider_count > 0):
+            issues.append(_issue("error", "CAPABILITY_SURFACE_HAS_PROVIDERS", f"module {module_id} capabilitySurface.hasProviders mismatch"))
         for node in graph.get("nodes", []):
             if node.get("kind") == "class":
                 if node.get("id") in seen_class_ids:
@@ -562,8 +671,24 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                 issues.append(_issue("error", "MODULE_USER_SURFACE_MISSING", f"module {graph.get('moduleId')} has unknown user surface {surface_id}"))
             if surface.get("moduleId") != graph.get("moduleId"):
                 issues.append(_issue("error", "MODULE_USER_SURFACE_MODULE", f"module {graph.get('moduleId')} surface has wrong moduleId"))
-    if surface_ids != module_surface_ids:
-        issues.append(_issue("error", "USER_SURFACE_PROJECT_MISMATCH", "module userSurfaces do not match projectGraph.userSurfaces"))
+    if not module_surface_ids.issubset(surface_ids):
+        issues.append(_issue("error", "USER_SURFACE_PROJECT_MISMATCH", "module userSurfaces contain unknown project surfaces"))
+    for surface in surfaces:
+        surface_id = str(surface.get("id") or "")
+        if surface_id in module_surface_ids:
+            continue
+        module_graph = module_graph_by_id.get(surface.get("moduleId"))
+        if module_graph is None:
+            continue
+        evidence_ids = {
+            str(function_id)
+            for function_id in surface.get("evidenceFunctionIds", [])
+            if function_id
+        }
+        if not evidence_ids or not evidence_ids.issubset(
+            execution_only_ids | internal_function_ids
+        ):
+            issues.append(_issue("error", "MODULE_USER_SURFACE_MISSING", f"module {surface.get('moduleId')} omitted non-capability surface {surface_id}"))
 
     for entry in bundle.get("entrypoints", []):
         if entry.get("functionId") not in detail_by_id:
@@ -581,6 +706,20 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         if graph is not None and module.get("providedApiCount") != len(graph.get("providedApis", [])):
             issues.append(_issue("error", "PROVIDED_API_COUNT", f"project module {module.get('id')} providedApiCount does not match module graph"))
         if graph is not None:
+            if module.get("defaultFreeFunctionSurface") != graph.get("defaultFreeFunctionSurface"):
+                issues.append(_issue("error", "PROJECT_DEFAULT_FREE_FUNCTION_SURFACE", f"project module {module.get('id')} defaultFreeFunctionSurface does not match module graph"))
+            if module.get("capabilityFreeFunctionIds") != graph.get("capabilityFreeFunctionIds"):
+                issues.append(_issue("error", "PROJECT_CAPABILITY_FREE_FUNCTIONS", f"project module {module.get('id')} capabilityFreeFunctionIds do not match module graph"))
+            if module.get("internalFreeFunctionIds") != graph.get("internalFreeFunctionIds"):
+                issues.append(_issue("error", "PROJECT_INTERNAL_FREE_FUNCTIONS", f"project module {module.get('id')} internalFreeFunctionIds do not match module graph"))
+            if module.get("executionFreeFunctionIds") != graph.get("executionFreeFunctionIds"):
+                issues.append(_issue("error", "PROJECT_EXECUTION_FREE_FUNCTIONS", f"project module {module.get('id')} executionFreeFunctionIds do not match module graph"))
+            if module.get("executionOnlyFunctionIds") != graph.get("executionOnlyFunctionIds"):
+                issues.append(_issue("error", "PROJECT_EXECUTION_ONLY_IDS", f"project module {module.get('id')} executionOnlyFunctionIds do not match module graph"))
+            if module.get("freeFunctionSurfaceCounts") != graph.get("freeFunctionSurfaceCounts"):
+                issues.append(_issue("error", "PROJECT_FREE_FUNCTION_SURFACES", f"project module {module.get('id')} freeFunctionSurfaceCounts do not match module graph"))
+            if module.get("capabilitySurface") != graph.get("capabilitySurface"):
+                issues.append(_issue("error", "PROJECT_CAPABILITY_SURFACE", f"project module {module.get('id')} capabilitySurface does not match module graph"))
             if module.get("moduleComposition") != graph.get("moduleComposition"):
                 issues.append(_issue("error", "PROJECT_MODULE_COMPOSITION", f"project module {module.get('id')} composition does not match module graph"))
             if module.get("providerRoleCounts") != graph.get("providerRoleCounts"):
@@ -639,6 +778,13 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         expected_layout_ids = module_ids | flow_card_ids
         if layout_ids != expected_layout_ids:
             issues.append(_issue("error", "PROJECT_LAYOUT_ITEMS", "project layout must include exactly modules and flow cards"))
+    expected_capability_module_ids = [
+        str(module.get("id"))
+        for module in project_graph.get("modules", [])
+        if (module.get("capabilitySurface") or {}).get("hasProviders")
+    ]
+    if project_graph.get("capabilityModuleIds") != expected_capability_module_ids:
+        issues.append(_issue("error", "CAPABILITY_MODULE_IDS", "projectGraph.capabilityModuleIds mismatch"))
     primary_execution_flow_id = project_graph.get("primaryExecutionFlowId")
     if primary_execution_flow_id is not None and primary_execution_flow_id not in execution_flow_ids:
         issues.append(_issue("error", "PRIMARY_EXEC_FLOW_MISSING", f"primaryExecutionFlowId does not reference an execution flow: {primary_execution_flow_id}"))
@@ -683,7 +829,20 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
             issues.append(_issue("error", "DETAIL_EXPOSURE", f"{detail_id}: invalid apiExposure"))
         if detail.get("apiExposureSource") not in EXPOSURE_SOURCES:
             issues.append(_issue("error", "DETAIL_EXPOSURE_SOURCE", f"{detail_id}: invalid apiExposureSource"))
+        function_surface = detail.get("functionSurface")
+        if function_surface is not None and function_surface not in FREE_FUNCTION_SURFACES:
+            issues.append(_issue("error", "FUNCTION_SURFACE", f"{detail_id}: invalid functionSurface: {function_surface}"))
+        surface_source = detail.get("functionSurfaceSource")
+        if surface_source is not None and surface_source not in FREE_FUNCTION_SURFACE_SOURCES:
+            issues.append(_issue("error", "FUNCTION_SURFACE_SOURCE", f"{detail_id}: invalid functionSurfaceSource: {surface_source}"))
         owner_class_id = detail.get("ownerClassId")
+        if owner_class_id is None and function_surface is None:
+            issues.append(_issue("error", "FUNCTION_SURFACE_MISSING", f"{detail_id}: free function detail is missing functionSurface"))
+        if detail.get("isExecutionOnly") is True:
+            if function_surface != "execution":
+                issues.append(_issue("error", "EXECUTION_ONLY_SURFACE", f"{detail_id}: execution-only detail must use functionSurface=execution"))
+            if detail.get("executionRole") not in {"entry", "orchestrator"}:
+                issues.append(_issue("error", "EXECUTION_ONLY_ROLE", f"{detail_id}: invalid executionRole"))
         if owner_class_id and owner_class_id not in class_ids:
             issues.append(_issue("error", "OWNER_CLASS_MISSING", f"{detail_id}: owner class missing {owner_class_id}"))
         for caller in detail.get("callers", []):

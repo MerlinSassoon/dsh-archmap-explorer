@@ -14,6 +14,7 @@ from ...model.analysis_model import (
     SourceFile,
 )
 from .type_utility import resolve_type_hierarchy
+from ...utility.call_resolution_utility import resolve_function_ref
 from ...utility.analysis_utility import (
     _api_exposure,
     _class_kind,
@@ -239,5 +240,77 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
         function_by_qualname=function_by_qualname,
         method_index=method_index,
     )
+    execution_only_ids: set[str] = set()
+    execution_only_module_by_function: dict[str, str] = {}
+    module_by_id = {module.module_id: module for module in modules}
+    for module_config in config.modules:
+        current_module = module_by_id.get(module_config.id)
+        for spec in module_config.execution_only_callables:
+            resolved = resolve_function_ref(analysis, current_module, spec)
+            function = analysis.function_by_id.get(resolved or "")
+            if function is None:
+                diagnostics.append(
+                    {
+                        "severity": "error",
+                        "code": "EXECUTION_ONLY_CALLABLE_UNRESOLVED",
+                        "message": (
+                            f"module {module_config.id} executionOnlyCallables entry "
+                            f"{spec!r} did not match a project callable"
+                        ),
+                        "moduleId": module_config.id,
+                    }
+                )
+                continue
+            if function.module_id != module_config.id:
+                diagnostics.append(
+                    {
+                        "severity": "error",
+                        "code": "EXECUTION_ONLY_MODULE_MISMATCH",
+                        "message": (
+                            f"executionOnlyCallables entry {spec!r} resolves to "
+                            f"{function.id} in module {function.module_id}, not {module_config.id}"
+                        ),
+                        "moduleId": module_config.id,
+                        "functionId": function.id,
+                    }
+                )
+                continue
+            previous_module = execution_only_module_by_function.get(function.id)
+            if previous_module and previous_module != module_config.id:
+                diagnostics.append(
+                    {
+                        "severity": "error",
+                        "code": "EXECUTION_ONLY_DUPLICATE",
+                        "message": (
+                            f"callable {function.id} is declared execution-only by both "
+                            f"{previous_module} and {module_config.id}"
+                        ),
+                        "functionId": function.id,
+                    }
+                )
+                continue
+            role_override_keys = {
+                function.id,
+                f"{function.module_name}.{function.qualname}",
+                function.qualname,
+                function.name,
+            }
+            if role_override_keys.intersection(config.provider_role_overrides):
+                diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "EXECUTION_ONLY_PROVIDER_ROLE_CONFLICT",
+                        "message": (
+                            f"callable {function.id} is execution-only and also has a "
+                            "providerRoles override; execution-only wins for the capability surface"
+                        ),
+                        "moduleId": module_config.id,
+                        "functionId": function.id,
+                    }
+                )
+            execution_only_ids.add(function.id)
+            execution_only_module_by_function[function.id] = module_config.id
+    analysis.execution_only_function_ids = execution_only_ids
+    analysis.execution_only_module_by_function = execution_only_module_by_function
     resolve_type_hierarchy(analysis)
     return analysis

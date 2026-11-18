@@ -128,12 +128,20 @@ def _build_target_resolver(
                 if is_method
                 else None
             )
+            signature = target.signature.strip()
+            for prefix in ("async def ", "def "):
+                if signature.startswith(prefix):
+                    signature = signature[len(prefix):]
+                    break
+            if not is_method and " -> " in signature:
+                signature = signature.split(" -> ", 1)[0].strip()
+            label = f"{target.name}()" if is_method else (signature or f"{target.name}()")
             return {
                 "kind": "free_function",
                 "callableKind": "method" if is_method else "function",
                 "ownerClassId": owner_class_id,
                 "ownerClassName": target.class_name,
-                "label": f"{target.name}()",
+                "label": label,
                 "functionId": target.id,
                 "targetFunctionId": target.id,
                 "capabilityId": None,

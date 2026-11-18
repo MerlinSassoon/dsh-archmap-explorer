@@ -18,7 +18,8 @@
         "app/main.py"
       ],
       "role": "service",
-      "color": "#f59e0b"
+      "color": "#f59e0b",
+      "defaultFreeFunctionSurface": "capability"
     },
     {
       "id": "service",

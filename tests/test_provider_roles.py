@@ -32,8 +32,8 @@ def test_provider_roles_and_module_composition() -> None:
         "cls:app.roles.Spinner": ("component", "structure"),
         "cls:app.roles.DecoratedWidget": ("component", "decorator"),
         "cls:app.roles.ConfigOverrideThing": ("model", "config"),
-        "fn:app.roles.helper": ("manager", "structure"),
-        "fn:app.roles.main": ("manager", "structure"),
+        "fn:app.roles.helper": ("manager", "surface"),
+        "fn:app.roles.main": ("manager", "surface"),
     }
     for provider_id, (role, source) in expected.items():
         assert nodes[provider_id]["providerRole"] == role
@@ -111,7 +111,7 @@ def test_protocol_capability_carries_provider_role_and_entry_detail_role() -> No
 
     main_detail = next(detail for detail in bundle["functionDetails"] if detail["id"] == "fn:app.roles.main")
     assert main_detail["providerRole"] == "manager"
-    assert main_detail["roleSource"] == "structure"
+    assert main_detail["roleSource"] == "surface"
     assert main_detail["isFlowEntry"] is True
     assert "entry" not in bundle["stats"]["providerRoles"]
     assert bundle["stats"]["providerRoles"]["manager"] >= 1
@@ -171,7 +171,7 @@ def test_archmap_self_roles_remove_config_model_api_noise() -> None:
 def test_roles_bundle_matches_current_schema() -> None:
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.loads(
-        (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v6-bundle.schema.json").read_text(encoding="utf-8")
+        (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v6.2-bundle.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.validate(_roles_bundle(), schema)
 

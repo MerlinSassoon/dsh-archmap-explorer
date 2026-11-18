@@ -54,6 +54,17 @@ PROVIDER_ROLE_SOURCES = {
     "entrypoint",
     "structure",
     "naming",
+    "surface",
+}
+FREE_FUNCTION_SURFACES = {"capability", "internal", "execution"}
+FREE_FUNCTION_SURFACE_SOURCES = {
+    "config",
+    "exposure",
+    "module_default",
+    "call_graph",
+    "structure",
+    "metadata",
+    "file_unit",
 }
 # Roles whose public method/protocol capabilities are module developer APIs.
 # config/model are type definitions and are projected as type cards instead.

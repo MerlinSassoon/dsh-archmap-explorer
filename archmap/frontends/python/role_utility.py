@@ -73,7 +73,20 @@ def build_provider_roles(
     project_names = {
         fn.name for fn in analysis.functions if not fn.class_name
     } | {cls.name for cls in analysis.classes}
-    owners = _infer_owner_ids(analysis, call_sites)
+    module_configs = {module.id: module for module in analysis.config.modules}
+    call_site_list = list(call_sites or [])
+    incoming_modules_by_function: dict[str, set[str]] = {}
+    function_by_id = {fn.id: fn for fn in analysis.functions}
+    for site in call_site_list:
+        if not site.resolved or not site.to_function_id:
+            continue
+        target = function_by_id.get(site.to_function_id)
+        if target is None or target.class_name:
+            continue
+        incoming_modules_by_function.setdefault(target.id, set()).add(
+            site.from_module_id
+        )
+    owners = _infer_owner_ids(analysis, call_site_list)
     roles: dict[str, ProviderRoleInfo] = {}
 
     for cls in analysis.classes:
@@ -107,28 +120,74 @@ def build_provider_roles(
             type_summary=type_summary,
         )
 
+    execution_only_ids = set(analysis.execution_only_function_ids)
     for fn in analysis.functions:
         if fn.class_name:
             continue
         provider_id = fn.id
         module = modules_by_name.get(fn.module_name)
+        module_config = module_configs.get(fn.module_id)
         configured = _configured_role(
             analysis.config, provider_id, fn.module_name, fn.qualname, fn.name
         )
+        metadata = _metadata_role(fn.node, module.lines if module else [])
+        unit_role = _code_unit_role_for_file(fn.file)
         if configured:
             role, source, confidence = configured, "config", "high"
+        elif metadata:
+            role, source, confidence = metadata
         else:
-            metadata = _metadata_role(fn.node, module.lines if module else [])
-            if metadata:
-                role, source, confidence = metadata
+            from_unit = _function_role_from_unit(
+                fn, module, unit_role, configured_entries, project_names
+            )
+            role, source, confidence = from_unit or _infer_function_role(
+                fn, module, configured_entries, project_names
+            )
+
+        if provider_id in execution_only_ids:
+            surface, surface_source = "execution", "config"
+        elif fn.api_exposure == "internal":
+            surface, surface_source = "internal", "exposure"
+        elif configured:
+            surface = "internal" if configured == "utility" else "capability"
+            surface_source = "config"
+        elif metadata:
+            surface = "internal" if role == "utility" else "capability"
+            surface_source = "metadata"
+        elif unit_role in {"utility", "manager"}:
+            surface, surface_source = "internal", "file_unit"
+        elif (
+            fn.api_exposure == "public"
+            and fn.api_exposure_source in {"docstring", "comment", "decorator", "config"}
+        ):
+            surface, surface_source = "capability", "exposure"
+        else:
+            default_surface = (
+                module_config.default_free_function_surface
+                if module_config is not None
+                else "auto"
+            )
+            if default_surface == "internal":
+                surface, surface_source = "internal", "module_default"
+            elif default_surface == "capability":
+                surface, surface_source = "capability", "module_default"
             else:
-                unit_role = _code_unit_role_for_file(fn.file)
-                from_unit = _function_role_from_unit(
-                    fn, module, unit_role, configured_entries, project_names
-                )
-                role, source, confidence = from_unit or _infer_function_role(
-                    fn, module, configured_entries, project_names
-                )
+                incoming_modules = incoming_modules_by_function.get(fn.id, set())
+                if any(source_module != fn.module_id for source_module in incoming_modules):
+                    surface, surface_source = "capability", "call_graph"
+                else:
+                    surface, surface_source = "internal", "structure"
+
+        analysis.free_function_surfaces[fn.id] = surface
+        analysis.free_function_surface_sources[fn.id] = surface_source
+
+        if surface != "capability":
+            role, source, confidence = "utility", "surface", "high"
+        elif role == "utility":
+            role, source, confidence = "manager", "surface", (
+                "high" if surface_source in {"config", "module_default", "exposure"} else "medium"
+            )
+
         owner_provider_id = owners.get(fn.id)
         # Ownership compression is an implementation concern.  It hides
         # private helpers behind their facade manager but never erases a public
@@ -141,10 +200,10 @@ def build_provider_roles(
             role, source, confidence = "utility", "structure", "medium"
         elif owner_provider_id and role != "utility":
             owner_provider_id = None
-        if role == "utility":
+        if surface != "capability" or role == "utility":
             visibility = "internal"
         else:
-            visibility = _provider_visibility(role, fn.name, fn.api_exposure)
+            visibility = "public"
         roles[provider_id] = ProviderRoleInfo(
             provider_id=provider_id,
             provider_kind="function",

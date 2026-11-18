@@ -45,7 +45,7 @@ def test_entry_role_override_is_deprecated_without_changing_provider_role(tmp_pa
     bundle = build_architecture(tmp_path, config_path)
     detail = next(item for item in bundle["functionDetails"] if item["id"] == "fn:app.main.main")
     assert detail["isFlowEntry"] is True
-    assert detail["providerRole"] != "entry"
+    assert detail.get("providerRole") != "entry"
     assert any(
         item["code"] == "PROVIDER_ENTRY_ROLE_DEPRECATED"
         for item in bundle["diagnostics"]
@@ -64,7 +64,10 @@ def test_student_flow_entries_are_not_provider_roles() -> None:
         if item["id"] == "fn:student_system.app.main.main"
     )
     assert main["isFlowEntry"] is True
-    assert main["providerRole"] != "entry"
+    assert main["isExecutionOnly"] is True
+    assert main["functionSurface"] == "execution"
+    assert main["executionRole"] == "entry"
+    assert "providerRole" not in main
     assert "entry" not in bundle["stats"]["providerRoles"]
 
 

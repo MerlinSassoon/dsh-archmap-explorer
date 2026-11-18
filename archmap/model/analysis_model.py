@@ -93,6 +93,13 @@ class AnalysisResult:
     function_by_id: dict[str, FunctionInfo]
     function_by_qualname: dict[str, FunctionInfo]
     method_index: dict[tuple[str, str], FunctionInfo]
+    # Explicit module-level callable exclusions from the capability surface.
+    execution_only_function_ids: set[str] = field(default_factory=set)
+    execution_only_module_by_function: dict[str, str] = field(default_factory=dict)
+    # Effective P9 surface for module-level free functions. Values are
+    # ``capability`` / ``internal`` / ``execution``; sources explain why.
+    free_function_surfaces: dict[str, str] = field(default_factory=dict)
+    free_function_surface_sources: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

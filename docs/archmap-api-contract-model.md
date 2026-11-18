@@ -1,7 +1,7 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1-P7.5 已实现（当前 bundle schema 6.0）<br>
-> 日期：2026-11-18<br>
+> 状态：P2.1-P9 已实现（当前 bundle schema 6.2）<br>
+> 日期：2026-11-19<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 
 ## 1. 产品边界
@@ -141,6 +141,10 @@ config.providerRoles 显式覆盖
 
 P7 后入口状态由项目级 entrypoints / execution flow 承担，不修改 Provider Role。execution flow 使用标准 `entry` 节点和原子 callable/interface 节点；动态分发候选只保留在 dispatch 节点详情中。
 
+P9 增加 `defaultFreeFunctionSurface`：模块级自由函数默认采用保守能力边界，`auto` 仅在显式公开 API 或跨模块调用等强证据下进入能力面；`internal` / `capability` 可声明模块默认面，单函数继续用 `apiExposure` 例外。自由函数 FunctionDetail 输出 `functionSurface` / `functionSurfaceSource`。
+
+P8 增加 `executionOnlyCallables`：它声明属于模块源码边界、但不属于能力 Provider 面的 callable。被声明的自由函数/方法不进入 `providedApis`、`apiProviders`、`moduleComposition` 或 Provider 角色计数；仍保留在 `functionDetails`、`callSites` 和执行流节点中。类方法被排除时，其 owner class Provider 保留，但该方法从类 API 中移除。模块新增 `capabilitySurface`；能力为空时后端保留模块与 layout，前端不渲染模块卡。
+
 ## 3. 暴露级别判定
 
 优先级：
@@ -254,7 +258,24 @@ ArkTS 的 length / index signature
 
 模块右栏按 Provider 分组展示；项目卡片使用扁平 chips。
 
-### 7.1 模块组合
+### 7.1 模块能力面与组合
+
+模块图携带：
+
+```json
+{
+  "executionOnlyFunctionIds": ["fn:app.main.client"],
+  "capabilitySurface": {
+    "hasProviders": false,
+    "providerCount": 0,
+    "apiCount": 0
+  }
+}
+```
+
+`capabilitySurface.hasProviders=false` 表示排除 executionOnly 与 internal Provider 后，模块没有前端可展示的能力 Provider。该模块仍保留在后端和 layout 中，但项目页/模块页不渲染。
+
+模块组合：
 
 模块除了 `apiProviders`，还应提供按角色分组的组合：
 
@@ -290,9 +311,21 @@ ArkTS 的 length / index signature
     "moduleExports": {
       "module-id": ["cls:module.Symbol"]
     }
-  }
+  },
+  "modules": [
+    {
+      "id": "app",
+      "executionOnlyCallables": [
+        "app.main:main",
+        "app.main:run_client",
+        "app.main:run_server"
+      ]
+    }
+  ]
 }
 ```
+
+`executionOnlyCallables` 是模块级配置，不是 Provider Role；显式声明优先于自动角色推断。未知引用、跨模块引用和重复声明必须报错。
 
 ## 9. UI 映射
 
@@ -303,7 +336,11 @@ ArkTS 的 length / index signature
 - 模块页右栏：按 `apiProviders` 分组展示公开能力，并标注 Provider Role；
 - 类右栏：config/model 展示 `typeSummary` 字段表；其他角色展示提供接口，内部方法只显示数量；
 - 点击方法/函数能力：进入 Method Detail；
-- 点击协议能力：选中对应 Provider 类节点并展示能力详情。
+- 点击协议能力：选中对应 Provider 类节点并展示能力详情；
+- executionOnly callable 不生成模块能力卡；方法详情显示 `execution:entry` / `execution:orchestrator`，不显示 Provider Role；
+- `functionSurface=internal` 的自由函数不生成能力卡；方法详情显示 `surface:internal`，不显示 Provider Role；
+- `functionSurface=capability` 的自由函数才按 Provider Role 进入模块能力面；
+- `capabilitySurface.hasProviders=false` 的模块不渲染项目页模块卡，直接模块路由返回项目页。
 
 ## 10. ArkTS 扩展
 
@@ -374,7 +411,7 @@ user surface    最终用户能感知或操作的交互面
 
 项目流程规则：
 
-- 主模块默认不展示 developer API；
+- executionOnly 入口/编排 callable 不展示为模块能力 API；
 - 项目页以 flow card 展示入口来源；
 - `MenuSystem.run()` 属于 menu 模块 manager API，同时作为用户交互面被项目入口引用；
 - 不同项目用户交互面不同，必须数据驱动、支持配置覆盖。
@@ -412,6 +449,18 @@ P4    关系、组合/聚合、API/type/provider/surface impact、trace、user s
       - User Surface 投影
       - Impact / Trace 查询
       - Module/Provider DSM
+
+P8    executionOnlyCallables 与空能力模块（已完成）
+      - 显式能力面排除
+      - 自由函数与类方法
+      - 空能力模块后端保留、前端隐藏
+      - schema 6.1
+
+P9    自由函数能力边界与模块默认面（已完成）
+      - 保守自由函数推断
+      - defaultFreeFunctionSurface
+      - functionSurface / surface source
+      - schema 6.2
 ```
 
 P2.2 是 P3/P4 的前置层，不应跳过。

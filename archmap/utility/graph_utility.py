@@ -113,8 +113,15 @@ def _method_component_id(fn: FunctionInfo) -> str:
 
 
 def _method_summary(
-    fn: FunctionInfo, owner_class_id: str, override_of_function_id: str | None = None
+    fn: FunctionInfo,
+    owner_class_id: str,
+    override_of_function_id: str | None = None,
+    *,
+    execution_only_ids: set[str] | None = None,
+    flow_entry_ids: set[str] | None = None,
 ) -> dict[str, Any]:
+    execution_only = fn.id in (execution_only_ids or set())
+    flow_entry = fn.id in (flow_entry_ids or set())
     return {
         "id": fn.id,
         "kind": "method",
@@ -134,6 +141,12 @@ def _method_summary(
         "endLine": fn.end_line,
         "functionDetailId": fn.id,
         "overrideOfFunctionId": override_of_function_id,
+        "isExecutionOnly": execution_only,
+        "executionRole": (
+            "entry" if execution_only and flow_entry
+            else "orchestrator" if execution_only
+            else None
+        ),
     }
 
 
@@ -602,6 +615,14 @@ def build_bundle(
     execution_entry_ids = {
         str(item.get("functionId") or "") for item in execution_entrypoints
     }
+    execution_only_function_ids = set(analysis.execution_only_function_ids)
+    free_function_surfaces = dict(analysis.free_function_surfaces)
+    free_function_surface_sources = dict(analysis.free_function_surface_sources)
+    non_capability_function_ids = {
+        function_id
+        for function_id, surface in free_function_surfaces.items()
+        if surface != "capability"
+    } | execution_only_function_ids
     entry_source_ids = set(entry_id_set) | execution_entry_ids
     contract_model = contract_model or ContractModel()
     role_infos = contract_model.provider_roles
@@ -609,11 +630,25 @@ def build_bundle(
         if capability.function_id and capability.function_id in execution_entry_ids:
             capability.is_entry = True
     for detail in function_details:
-        detail["isEntry"] = detail.get("id") in entry_id_set
-        detail["isFlowEntry"] = detail.get("id") in execution_entry_ids
+        function_id = str(detail.get("id") or "")
+        detail["isEntry"] = function_id in entry_id_set
+        detail["isFlowEntry"] = function_id in execution_entry_ids
+        detail["isExecutionOnly"] = function_id in execution_only_function_ids
+        if function_id in free_function_surfaces:
+            detail["functionSurface"] = free_function_surfaces[function_id]
+            detail["functionSurfaceSource"] = free_function_surface_sources.get(
+                function_id, "structure"
+            )
+        if function_id in execution_only_function_ids:
+            detail["functionSurface"] = "execution"
+            detail["executionRole"] = (
+                "entry" if function_id in execution_entry_ids else "orchestrator"
+            )
     for detail in function_details:
         fn = fn_by_id.get(detail.get("id"))
         if fn is None or fn.class_name:
+            continue
+        if detail.get("functionSurface") in {"execution", "internal"}:
             continue
         info = role_infos.get(fn.id)
         if info is not None:
@@ -624,6 +659,24 @@ def build_bundle(
     capabilities_by_module = contract_model.capabilities_by_module()
     class_by_id = {_class_id(cls): cls for cls in analysis.classes}
     calls = collect_calls(analysis, call_site_list)
+    execution_only_diagnostics: list[dict[str, Any]] = []
+    for call in calls:
+        if (
+            call.to_function in execution_only_function_ids
+            and call.from_module != call.to_module
+        ):
+            execution_only_diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "EXECUTION_ONLY_CROSS_MODULE_CALLER",
+                    "message": (
+                        f"execution-only callable {call.to_function} is called from "
+                        f"module {call.from_module}; verify it is not a real capability API"
+                    ),
+                    "functionId": call.to_function,
+                    "moduleId": call.to_module,
+                }
+            )
 
     module_function_ids: dict[str, list[str]] = defaultdict(list)
     for fn in analysis.functions:
@@ -652,10 +705,45 @@ def build_bundle(
         function_ids = module_function_ids.get(module_id, [])
         module_classes = sorted(classes_by_module.get(module_id, []), key=lambda item: item.qualname)
         class_ids = [_class_id(cls) for cls in module_classes]
-        free_function_ids = [
+        all_free_function_ids = [
             fn_id for fn_id in function_ids
             if fn_id in fn_by_id and fn_by_id[fn_id].class_name is None
         ]
+        free_function_ids = [
+            fn_id for fn_id in all_free_function_ids
+            if fn_id not in execution_only_function_ids
+        ]
+        module_execution_only_ids = sorted(
+            fn_id
+            for fn_id in analysis.execution_only_function_ids
+            if fn_id in fn_by_id and fn_by_id[fn_id].module_id == module_id
+        )
+        capability_free_function_ids = sorted(
+            fn_id
+            for fn_id in all_free_function_ids
+            if free_function_surfaces.get(fn_id) == "capability"
+        )
+        internal_free_function_ids = sorted(
+            fn_id
+            for fn_id in all_free_function_ids
+            if free_function_surfaces.get(fn_id) == "internal"
+        )
+        execution_free_function_ids = sorted(
+            fn_id
+            for fn_id in all_free_function_ids
+            if free_function_surfaces.get(fn_id) == "execution"
+        )
+        free_function_surface_counts = {
+            surface: sum(
+                1
+                for fn_id in all_free_function_ids
+                if free_function_surfaces.get(fn_id, "internal") == surface
+            )
+            for surface in ("capability", "internal", "execution")
+        }
+        default_free_function_surface = (
+            configured.default_free_function_surface if configured else "auto"
+        )
         method_function_ids = [
             fn_id for fn_id in function_ids
             if fn_id in fn_by_id and fn_by_id[fn_id].class_name is not None
@@ -688,6 +776,12 @@ def build_bundle(
             "role": role,
             "functions": function_ids,
             "freeFunctions": free_function_ids,
+            "defaultFreeFunctionSurface": default_free_function_surface,
+            "capabilityFreeFunctionIds": capability_free_function_ids,
+            "internalFreeFunctionIds": internal_free_function_ids,
+            "executionFreeFunctionIds": execution_free_function_ids,
+            "executionOnlyFunctionIds": sorted(module_execution_only_ids),
+            "freeFunctionSurfaceCounts": free_function_surface_counts,
             "entryFunctionIds": sorted(
                 fn_id for fn_id in function_ids if fn_id in entry_source_ids
             ),
@@ -802,6 +896,8 @@ def build_bundle(
                             ),
                             None,
                         ),
+                        execution_only_ids=analysis.execution_only_function_ids,
+                        flow_entry_ids=execution_entry_ids,
                     )
                     for method in methods
                 ],
@@ -843,7 +939,16 @@ def build_bundle(
             }
 
         module_api_providers = _provider_groups(module_id, module_capabilities, role_infos)
+        public_provider_count = sum(
+            len(provider_ids) for provider_ids in public_composition.values()
+        )
+        capability_surface = {
+            "hasProviders": public_provider_count > 0,
+            "providerCount": public_provider_count,
+            "apiCount": len(module_capabilities),
+        }
         module_node["providedApiCount"] = len(module_capabilities)
+        module_node["capabilitySurface"] = capability_surface
 
         internal_records = [
             record
@@ -902,6 +1007,13 @@ def build_bundle(
                 "flowEntryFunctionIds": sorted(
                     fn_id for fn_id in function_ids if fn_id in execution_entry_ids
                 ),
+                "defaultFreeFunctionSurface": default_free_function_surface,
+                "capabilityFreeFunctionIds": capability_free_function_ids,
+                "internalFreeFunctionIds": internal_free_function_ids,
+                "executionFreeFunctionIds": execution_free_function_ids,
+                "executionOnlyFunctionIds": sorted(module_execution_only_ids),
+                "freeFunctionSurfaceCounts": free_function_surface_counts,
+                "capabilitySurface": capability_surface,
                 "typeRelations": [
                     relation.as_dict()
                     for relation in contract_model.class_relations
@@ -984,14 +1096,50 @@ def build_bundle(
             }
         )
 
+    flow_function_ids = {
+        str(node.get("functionId") or "")
+        for flow in execution_flows
+        for node in flow.get("nodes", [])
+    } | {
+        str(node.get("targetFunctionId") or "")
+        for flow in execution_flows
+        for node in flow.get("nodes", [])
+    }
+    for function_id in sorted(execution_only_function_ids):
+        if function_id not in flow_function_ids:
+            execution_only_diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "EXECUTION_ONLY_NOT_IN_FLOW",
+                    "message": (
+                        f"execution-only callable {function_id} is not reachable from "
+                        "any execution flow; it remains in facts but has no primary UI entry"
+                    ),
+                    "functionId": function_id,
+                }
+            )
+
     user_surfaces = build_user_surfaces(
         analysis, call_site_list, entrypoints, role_infos
     )
     surfaces_by_module: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for surface in user_surfaces:
         surfaces_by_module[str(surface.get("moduleId") or "")].append(surface)
+    def surface_stays_in_module_surface(surface: dict[str, Any]) -> bool:
+        evidence_ids = [
+            str(item) for item in surface.get("evidenceFunctionIds", []) if item
+        ]
+        return not evidence_ids or any(
+            function_id not in non_capability_function_ids
+            for function_id in evidence_ids
+        )
+
     for graph in module_graphs:
-        graph["userSurfaces"] = surfaces_by_module.get(str(graph.get("moduleId")), [])
+        graph["userSurfaces"] = [
+            surface
+            for surface in surfaces_by_module.get(str(graph.get("moduleId")), [])
+            if surface_stays_in_module_surface(surface)
+        ]
     surfaces_by_function: dict[str, list[str]] = defaultdict(list)
     for surface in user_surfaces:
         for function_id in surface.get("evidenceFunctionIds", []):
@@ -1014,6 +1162,11 @@ def build_bundle(
         "executionFlows": execution_flows,
         "flowCards": flow_cards,
         "modules": project_module_nodes,
+        "capabilityModuleIds": [
+            str(module.get("id"))
+            for module in project_module_nodes
+            if (module.get("capabilitySurface") or {}).get("hasProviders")
+        ],
         "edges": project_edges,
         "typeRelations": [relation.as_dict() for relation in contract_model.class_relations],
         "userSurfaces": user_surfaces,
@@ -1025,9 +1178,29 @@ def build_bundle(
         *config.config_diagnostics,
         *execution_entrypoint_diagnostics,
         *execution_diagnostics,
+        *execution_only_diagnostics,
     ]
     stats = {
         "modules": len(project_module_nodes),
+        "capabilityModules": sum(
+            1
+            for module in project_module_nodes
+            if (module.get("capabilitySurface") or {}).get("hasProviders")
+        ),
+        "emptyCapabilityModules": sum(
+            1
+            for module in project_module_nodes
+            if not (module.get("capabilitySurface") or {}).get("hasProviders")
+        ),
+        "executionOnlyCallables": len(execution_only_function_ids),
+        "freeFunctionSurfaces": {
+            surface: sum(
+                1
+                for value in free_function_surfaces.values()
+                if value == surface
+            )
+            for surface in ("capability", "internal", "execution")
+        },
         "classes": len(analysis.classes),
         "functions": len(function_details),
         "methods": sum(1 for fn in analysis.functions if fn.class_name),
@@ -1069,7 +1242,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "6.0",
+        "schemaVersion": "6.2",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,
@@ -1114,6 +1287,13 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "providerRoleCounts": module.get("providerRoleCounts", {}),
                     "moduleComposition": module.get("moduleComposition", {}),
                     "providedApiCount": module.get("providedApiCount", 0),
+                    "defaultFreeFunctionSurface": module.get("defaultFreeFunctionSurface"),
+                    "capabilityFreeFunctionIds": sorted(module.get("capabilityFreeFunctionIds", [])),
+                    "internalFreeFunctionIds": sorted(module.get("internalFreeFunctionIds", [])),
+                    "executionFreeFunctionIds": sorted(module.get("executionFreeFunctionIds", [])),
+                    "executionOnlyFunctionIds": sorted(module.get("executionOnlyFunctionIds", [])),
+                    "freeFunctionSurfaceCounts": module.get("freeFunctionSurfaceCounts", {}),
+                    "capabilitySurface": module.get("capabilitySurface", {}),
                     "functions": sorted(module["functions"]),
                     "freeFunctions": sorted(module.get("freeFunctions", [])),
                     "classes": sorted(module.get("classes", [])),

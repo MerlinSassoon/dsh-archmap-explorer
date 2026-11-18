@@ -31,7 +31,10 @@
       ],
       "note": "脚本入口、python -m 入口与终端主菜单/对局交互入口。",
       "color": "#f59e0b",
-      "role": "component"
+      "role": "component",
+      "executionOnlyCallables": [
+        "gomoku.cli:GameCli.run"
+      ]
     },
     {
       "id": "terminal-ui",
@@ -42,7 +45,8 @@
       ],
       "note": "输入解析、坐标格式化和终端棋盘渲染组件。",
       "color": "#fb7185",
-      "role": "component"
+      "role": "component",
+      "defaultFreeFunctionSurface": "internal"
     },
     {
       "id": "application",

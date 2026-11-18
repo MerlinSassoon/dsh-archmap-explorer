@@ -36,3 +36,21 @@ def test_macro_layout_has_valid_geometry() -> None:
                 continue
             path = layout["edges"][edge["id"]]["d"]
             assert path.startswith("M ")
+
+
+def test_execution_flow_layout_has_valid_geometry() -> None:
+    bundle = build_architecture(ROOT)
+    flows = bundle["projectGraph"]["executionFlows"]
+    assert flows
+    for flow in flows:
+        layout = flow["layout"]
+        assert layout["mode"] == "execution-flow"
+        assert layout["nodes"]
+        rects = list(layout["nodes"].values())
+        for index, first in enumerate(rects):
+            for second in rects[index + 1:]:
+                assert not _overlap(first, second)
+        for edge in flow["edges"]:
+            if edge["from"] not in layout["nodes"] or edge["to"] not in layout["nodes"]:
+                continue
+            assert layout["edges"][edge["id"]]["d"].startswith("M ")

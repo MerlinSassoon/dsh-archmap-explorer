@@ -11,9 +11,16 @@
   const moduleGraphById = new Map(moduleGraphs.map(item => [item.moduleId, item]));
   const functionDetailById = new Map(functionDetails.map(item => [item.id, item]));
   const projectModuleById = new Map((projectGraph.modules || []).map(item => [item.id, item]));
+  function visibleProjectModules() {
+    return (projectGraph.modules || []).filter(
+      module => module.capabilitySurface?.hasProviders !== false
+    );
+  }
   const STORAGE_KEY = "archmap-v3-layout-v1";
   const OVERRIDE_VERSION = 1;
-  const GEOMETRY_VERSION = 1;
+  // Bump whenever default card geometry or layout namespaces change.  Old
+  // saved coordinates are ignored instead of being applied to the new grid.
+  const GEOMETRY_VERSION = 2;
 
   const $ = id => document.getElementById(id);
   const viewport = $("viewport");
@@ -77,6 +84,7 @@
     const base = defaultOverride();
     if (!value || typeof value !== "object") return base;
     if (Number(value.version) !== OVERRIDE_VERSION) return base;
+    if (Number(value.geometryVersion) !== GEOMETRY_VERSION) return base;
     base.project.nodes = value.project?.nodes && typeof value.project.nodes === "object" ? value.project.nodes : {};
     base.project.singleModule = Boolean(value.project?.singleModule);
     base.modules = value.modules && typeof value.modules === "object" ? value.modules : {};
@@ -88,7 +96,14 @@
   function loadOverrides() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? normalizeOverride(JSON.parse(raw)) : defaultOverride();
+      if (!raw) return defaultOverride();
+      const stored = JSON.parse(raw);
+      const normalized = normalizeOverride(stored);
+      // Remove stale coordinates so they cannot be reapplied on every load.
+      if (Number(stored?.version) !== OVERRIDE_VERSION || Number(stored?.geometryVersion) !== GEOMETRY_VERSION) {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      return normalized;
     } catch (error) {
       return defaultOverride();
     }
@@ -769,7 +784,7 @@
       detailScroll.innerHTML = `<div class="eyebrow">Project composition map</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(DATA.project.name)}</h2>
         <div class="detail-note">项目页提供独立主流程入口与模块能力卡片。流程与模块能力分开浏览，互不混用同一页面。</div>
-        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>执行流 <b>${flowCount}</b></span><span>类型关系 <b>${(projectGraph.typeRelations || []).length}</b></span><span>执行流节点 <b>${executionFlow?.nodeCount || 0}</b></span></div>
+        <div class="port-detail"><span>模块 <b>${visibleProjectModules().length}</b></span><span>执行流 <b>${flowCount}</b></span><span>类型关系 <b>${(projectGraph.typeRelations || []).length}</b></span><span>执行流节点 <b>${executionFlow?.nodeCount || 0}</b></span></div>
         ${annotationBlock(DATA.project.name)}
         <div class="empty-hint">打开主流程入口查看执行流；双击模块卡片查看能力视图。</div>`;
       return;
@@ -1157,9 +1172,10 @@
     flowPicker.classList.remove("is-visible");
     world.innerHTML = "";
     world.classList.remove("page-enter");
-    const visibleModuleIds = state.singleModule && projectGraph.modules.length
-      ? [projectGraph.modules[0].id]
-      : projectGraph.modules.map(item => item.id);
+    const capabilityModules = visibleProjectModules();
+    const visibleModuleIds = state.singleModule && capabilityModules.length
+      ? [capabilityModules[0].id]
+      : capabilityModules.map(item => item.id);
     state.nodes = new Map();
     // The project page is one card grid: project-level flow cards and
     // capability module cards are peers.  Dependency evidence stays in facts.
@@ -1168,7 +1184,7 @@
         state.nodes.set(card.id, { ...card, kind: "flow" });
       });
     }
-    projectGraph.modules.forEach(module => {
+    capabilityModules.forEach(module => {
       if (visibleModuleIds.includes(module.id)) {
         state.nodes.set(module.id, { ...module, kind: "module" });
       }
@@ -1632,8 +1648,10 @@
 
   function renderModulePage(moduleId) {
     const graph = moduleGraphById.get(moduleId);
-    if (!graph) {
+    const projectModule = projectModuleById.get(moduleId);
+    if (!graph || projectModule?.capabilitySurface?.hasProviders === false) {
       navigate({ kind: "project" }, false);
+      if (graph) showToast("该模块仅承载执行流，无能力视图");
       return;
     }
     state.pageKind = "module";
@@ -1832,9 +1850,19 @@
       ? (moduleGraphById.get(detail.moduleId)?.nodes || []).find(node => node.id === detail.ownerClassId)
       : null;
     const module = projectModuleById.get(detail.moduleId);
-    const providerRole = detail.providerRole || ownerClass?.providerRole || "";
+    const executionOnly = detail.isExecutionOnly === true;
+    const nonCapabilitySurface = detail.functionSurface === "execution" || detail.functionSurface === "internal";
+    const providerRole = nonCapabilitySurface ? "" : (detail.providerRole || ownerClass?.providerRole || "");
+    const executionRole = detail.executionRole
+      ? `execution:${detail.executionRole}`
+      : executionOnly ? "execution:orchestrator" : "";
+    const surfaceBadge = detail.functionSurface && !executionOnly
+      ? `surface:${detail.functionSurface}`
+      : "";
     const badges = [
       detail.methodKind || "function",
+      executionRole,
+      surfaceBadge,
       providerRole ? `role:${providerRole}` : "",
       detail.visibility || "public",
       `api:${detail.apiExposure || "public"}`,
@@ -1973,6 +2001,7 @@
   $("zoomIn").addEventListener("click", () => zoomAt(1.16));
   $("zoomOut").addEventListener("click", () => zoomAt(1 / 1.16));
   singleModeBtn.addEventListener("click", () => {
+    if (!visibleProjectModules().length) return;
     state.singleModule = !state.singleModule;
     override.project.singleModule = state.singleModule;
     singleModeBtn.setAttribute("aria-pressed", String(state.singleModule));

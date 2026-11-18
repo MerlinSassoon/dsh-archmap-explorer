@@ -1,7 +1,7 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：P5 首版已实现；P5.1-P5.5 已完成。P7.5 当前 schema 6.0：保留标准 flow `entry` 节点，Provider Role 不再包含 entry，模块页不输出调用边。本文涉及旧 schema 的段落仅作为历史说明。<br>
-> 版本：ArchMap 2.1.0（P5 历史 schema 4.1；P7.5 当前 schema 6.0）<br>
+> 状态：P5 首版已实现；P5.1-P5.5 已完成。P9 当前 schema 6.2：保留标准 flow `entry` 节点，Provider Role 不再包含 entry，模块页不输出调用边；executionOnlyCallables 可继续作为 flow 原子节点。<br>
+> 版本：ArchMap 2.3.0（P5 历史 schema 4.1；P9 当前 schema 6.2）<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
 
@@ -367,7 +367,7 @@ BREAK 是循环体内终止标记，无出边。
 
 ## 9. 数据契约
 
-P7.5 当前 bundle schema 为 6.0，JSON Schema 位于 [`docs/schema/archmap-v6-bundle.schema.json`](schema/archmap-v6-bundle.schema.json)。P5 的 4.1 schema 保留在 [`docs/schema/archmap-v4-bundle.schema.json`](schema/archmap-v4-bundle.schema.json) 供历史追溯。
+P9 当前 bundle schema 为 6.2，JSON Schema 位于 [`docs/schema/archmap-v6.2-bundle.schema.json`](schema/archmap-v6.2-bundle.schema.json)。P5 的 4.1 schema 保留在 [`docs/schema/archmap-v4-bundle.schema.json`](schema/archmap-v4-bundle.schema.json) 供历史追溯。
 
 新增：
 
@@ -449,7 +449,7 @@ terminalKind
 }
 ```
 
-schema 6.0 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
+schema 6.2 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
 
 ### 9.4 统计
 
@@ -602,7 +602,7 @@ tests/test_execution_flow.py
 
 ## 13. 验收标准
 
-- schema 6.0 通过校验；
+- schema 6.2 通过校验；
 - `mainFlows` 不再存在；
 - 项目页标准流程卡片、独立主流程页与统一模块能力页通过浏览器冒烟；
 - student_system 执行流满足第 8 节快照；

@@ -24,7 +24,8 @@
       ],
       "note": "P2.2 角色投影与 API 过滤测试",
       "color": "#22d3ee",
-      "role": "service"
+      "role": "service",
+      "defaultFreeFunctionSurface": "capability"
     }
   ]
 }

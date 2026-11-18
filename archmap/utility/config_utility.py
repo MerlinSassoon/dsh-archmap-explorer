@@ -83,6 +83,21 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
             role = "service"
         if not role and (legacy_main or module_id == legacy_main_module):
             role = "service"
+        default_free_function_surface = str(
+            item.get("defaultFreeFunctionSurface") or "auto"
+        ).strip().lower()
+        if default_free_function_surface not in {"auto", "internal", "capability"}:
+            config_diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "DEFAULT_FREE_FUNCTION_SURFACE_INVALID",
+                    "message": (
+                        f"module {module_id} defaultFreeFunctionSurface="
+                        f"{default_free_function_surface!r} is invalid; falling back to auto"
+                    ),
+                }
+            )
+            default_free_function_surface = "auto"
         modules.append(
             ModuleConfig(
                 id=module_id,
@@ -91,6 +106,8 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
                 note=str(item.get("note") or ""),
                 color=str(item.get("color") or "#f59e0b"),
                 role=role,
+                default_free_function_surface=default_free_function_surface,
+                execution_only_callables=_as_list(item.get("executionOnlyCallables"), []),
             )
         )
 

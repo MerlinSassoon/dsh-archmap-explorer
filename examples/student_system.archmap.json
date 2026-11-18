@@ -23,7 +23,13 @@
       ],
       "note": "程序入口、角色选择与客户端/服务端顶层编排。",
       "color": "#f59e0b",
-      "role": "service"
+      "role": "service",
+      "executionOnlyCallables": [
+        "student_system.app.main:main",
+        "student_system.app.main:client",
+        "student_system.app.main:server"
+      ],
+      "defaultFreeFunctionSurface": "internal"
     },
     {
       "id": "network",
@@ -83,7 +89,8 @@
       ],
       "note": "独立的学生表格打印验证脚本。",
       "color": "#f472b6",
-      "role": "test"
+      "role": "test",
+      "defaultFreeFunctionSurface": "internal"
     }
   ],
   "contract": {

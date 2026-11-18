@@ -19,7 +19,8 @@
       ],
       "note": "程序入口模块",
       "color": "#f59e0b",
-      "role": "service"
+      "role": "service",
+      "defaultFreeFunctionSurface": "capability"
     },
     {
       "id": "service",
@@ -29,7 +30,8 @@
       ],
       "note": "业务编排模块",
       "color": "#60a5fa",
-      "role": "service"
+      "role": "service",
+      "defaultFreeFunctionSurface": "capability"
     },
     {
       "id": "repo",
@@ -39,7 +41,8 @@
       ],
       "note": "数据读写模块",
       "color": "#8bdc64",
-      "role": "service"
+      "role": "service",
+      "defaultFreeFunctionSurface": "capability"
     }
   ]
 }

@@ -47,6 +47,13 @@ class ModuleConfig:
     note: str = ""
     color: str = "#f59e0b"
     role: str = ""
+    # Default capability presentation for module-level free functions.
+    # ``auto`` uses conservative evidence; explicit public API tags and
+    # cross-module calls still win.
+    default_free_function_surface: str = "auto"
+    # Callables that remain part of the module's source boundary and execution
+    # flows but are transparent to the module capability surface.
+    execution_only_callables: list[str] = field(default_factory=list)
 
 
 @dataclass
