@@ -87,3 +87,39 @@ def test_validator_detects_broken_provided_api() -> None:
     graph["providedApis"][0]["functionId"] = "fn:missing.api"
     issues = validate_bundle(bundle)
     assert any(issue["code"] == "PROVIDED_API_FUNCTION_MISSING" for issue in issues)
+
+
+def test_empty_capability_modules_do_not_create_project_grid_holes() -> None:
+    """Visible project cards occupy the compact grid before hidden empty modules."""
+
+    repo_root = Path(__file__).parent.parent
+    bundle = build_architecture(
+        repo_root / "Projects" / "student_system",
+        repo_root / "examples" / "student_system.archmap.json",
+    )
+    project = bundle["projectGraph"]
+    layout = project["layout"]
+    visible_modules = {
+        module["id"]
+        for module in project["modules"]
+        if (module.get("capabilitySurface") or {}).get("hasProviders")
+    }
+    flow_card_ids = {card["id"] for card in project["flowCards"]}
+    visible_ids = visible_modules | flow_card_ids
+    hidden_ids = {
+        module["id"]
+        for module in project["modules"]
+        if not (module.get("capabilitySurface") or {}).get("hasProviders")
+    }
+    ordered_ids = [
+        node_id
+        for node_id, _position in sorted(
+            layout["nodes"].items(),
+            key=lambda item: (item[1]["y"], item[1]["x"]),
+        )
+    ]
+    assert hidden_ids
+    assert set(ordered_ids[: len(visible_ids)]) == visible_ids
+    assert set(ordered_ids[len(visible_ids):]) == hidden_ids
+    assert layout["visibleCount"] == len(visible_ids)
+    assert layout["columns"] == 3

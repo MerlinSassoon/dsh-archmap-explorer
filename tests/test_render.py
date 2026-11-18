@@ -205,7 +205,7 @@ def test_render_ignores_layout_overrides_from_old_geometry() -> None:
     """Saved drag coordinates must not survive a default-geometry change."""
 
     html = render_html(build_architecture(ROOT))
-    assert "const GEOMETRY_VERSION = 2;" in html
+    assert "const GEOMETRY_VERSION = 3;" in html
     assert "Number(value.geometryVersion) !== GEOMETRY_VERSION" in html
     assert "localStorage.removeItem(STORAGE_KEY)" in html
 

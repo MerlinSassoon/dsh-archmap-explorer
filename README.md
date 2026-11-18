@@ -56,7 +56,7 @@ P10   一级接口 scope 下钻与 schema 6.3      已完成
 - 所有模块都是普通能力模块；schema 6.3 不再有主模块或 `moduleKind`。
 - 模块配置可用 `executionOnlyCallables` 显式声明流程入口/编排 callable；它们对模块能力面透明，但仍保留在源码、调用关系和执行流中。
 - 模块级自由函数默认采用保守推断；`defaultFreeFunctionSurface` 可按模块声明 `auto` / `internal` / `capability`，用于避免内部 helper 被误识别为 `manager`。
-- 排除 `executionOnlyCallables` 和 internal Provider 后能力为空的模块，后端保留模块与 layout，前端不渲染模块卡。
+- 排除 `executionOnlyCallables` 和 internal Provider 后能力为空的模块，后端保留模块与 layout，前端不渲染模块卡；空模块在默认布局中排到可见卡片之后，避免可见网格出现空洞。
 - 主流程是项目级视图，不属于任何模块。
 - 主流程只展开入口函数控制骨架；调用目标作为原子执行步骤，不穿透实现。
 - 模块能力页只展示 Provider/Capability 与结构关系，不默认展示调用边。
@@ -512,7 +512,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         128 passed, 1 skipped
+pytest:         129 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -553,8 +553,8 @@ modules:              5
 classes:              34
 functions:            276
 methods:              81
-callSites:            4234
-resolvedCalls:        720
+callSites:            4219
+resolvedCalls:        715
 typeRelations:        66
 structuralRelations:  66
 userSurfaces:         0
@@ -718,7 +718,8 @@ P2–P9 过程交接、阶段计划、分支说明、迁移计划、旧验收记
 - 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。
 - 当前 bundle schema 为 6.3；6.2/6.1/6.0/5.0/4.1/4.0 旧产物需要重新 build，历史 schema 仅用于追溯。
 - executionOnly callable 与模块默认自由函数面均由维护者显式配置；自动推断只使用显式公开 API 和跨模块调用等强证据。
-- 空能力模块后端保留与默认 layout 位置，前端直接路由会回到项目页；网格可能保留空位。
+- 空能力模块后端保留与默认 layout 位置，前端直接路由会回到项目页；默认布局把空模块追加到可见卡片之后，可见网格不留空洞。
 - P10 scope 只覆盖直接外部接口和内部 helper 接口提示；静态解析不到的接口不会伪造，预算截断会显式标记。
 - P10.1 起功能接口节点是黑盒边界，不生成 scope；scope root 只允许 `free_function` 编排 callable。
 - P10.2 普通语句不再作为独立节点，而是控制臂/边摘要；这保持控制骨架边界并避免语句级节点爆炸。
+- 空能力模块仍保留在 projectGraph.layout 中，但默认布局只让可见 flow card / capability module 占用前部网格，空模块追加到尾部。

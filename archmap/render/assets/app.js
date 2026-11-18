@@ -20,7 +20,7 @@
   const OVERRIDE_VERSION = 1;
   // Bump whenever default card geometry or layout namespaces change.  Old
   // saved coordinates are ignored instead of being applied to the new grid.
-  const GEOMETRY_VERSION = 2;
+  const GEOMETRY_VERSION = 3;
 
   const $ = id => document.getElementById(id);
   const viewport = $("viewport");

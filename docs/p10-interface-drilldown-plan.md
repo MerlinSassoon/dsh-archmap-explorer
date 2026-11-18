@@ -297,3 +297,14 @@ P10.2 在不增加 statement / state_update / basic_block 节点的前提下补�
 - 画布平移通过移动阈值与空白点击区分，拖拽不会误清除选择；
 - Esc 继续作为键盘清除选择入口；
 - 项目页保留默认不按关系邻域 dim 的既有语义，关系模式下和其他图页面一样支持 focus / 清除。
+
+## 16. 空能力模块布局收口
+
+空能力模块继续保留在 `projectGraph.modules` 和 `projectGraph.layout.nodes` 中，但默认布局改为：
+
+1. 先排列 `flowCards`；
+2. 再排列 `capabilitySurface.hasProviders=true` 的模块；
+3. 最后排列空能力模块；
+4. 网格列数按可见卡片数量计算，而不是全部模块数量。
+
+因此前端过滤空模块后，可见卡片仍占据连续的前部网格，不会在默认项目页留下空洞。`layout.visibleCount` / `layout.columns` 输出当前布局使用的可见数量和列数。用户已有本地拖拽覆盖仍按其自定义坐标显示；重置布局后恢复正常紧凑默认。

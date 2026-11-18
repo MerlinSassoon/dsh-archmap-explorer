@@ -350,14 +350,22 @@ def _layout_macro(
     return {"canvas": canvas, "nodes": positions, "edges": layout_edges}
 
 
-def _layout_module_cards(modules: list[dict[str, Any]]) -> dict[str, Any]:
+def _layout_module_cards(
+    modules: list[dict[str, Any]],
+    *,
+    visible_count: int | None = None,
+) -> dict[str, Any]:
     """Lay out project-page capability cards without implying dependency flow.
 
     All capability modules use the same deterministic card grid.  There is no
-    dedicated main-module column in schema 5.0.
+    dedicated main-module column in schema 5.0.  Empty capability modules are
+    hidden by the frontend; callers therefore pass their IDs after all visible
+    flow cards/modules and provide the visible count so hidden cards do not
+    create gaps in the rendered default grid.
     """
     positions: dict[str, dict[str, Any]] = {}
-    columns = 2 if len(modules) <= 4 else MODULE_CARD_COLUMNS
+    effective_visible_count = len(modules) if visible_count is None else visible_count
+    columns = 2 if effective_visible_count <= 4 else MODULE_CARD_COLUMNS
     for index, module in enumerate(modules):
         col = index % columns
         row = index // columns
@@ -378,6 +386,8 @@ def _layout_module_cards(modules: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "nodes": positions,
         "edges": {},
+        "visibleCount": max(0, effective_visible_count),
+        "columns": columns,
     }
 
 
@@ -1150,7 +1160,24 @@ def build_bundle(
 
     # The project page is a capability-card overview.  Dependency evidence is
     # retained for relation/impact views; execution flows are project-level.
-    project_layout = _layout_module_cards([*flow_cards, *project_module_nodes])
+    # Empty capability modules remain in the backend and layout contract, but
+    # are appended after visible cards so they do not punch holes in the
+    # frontend's default grid.
+    visible_project_modules = [
+        module
+        for module in project_module_nodes
+        if (module.get("capabilitySurface") or {}).get("hasProviders")
+    ]
+    empty_project_modules = [
+        module
+        for module in project_module_nodes
+        if not (module.get("capabilitySurface") or {}).get("hasProviders")
+    ]
+    visible_project_count = len(flow_cards) + len(visible_project_modules)
+    project_layout = _layout_module_cards(
+        [*flow_cards, *visible_project_modules, *empty_project_modules],
+        visible_count=visible_project_count,
+    )
     project_graph = {
         "kind": "archmap.project-graph",
         "project": {

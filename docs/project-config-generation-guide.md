@@ -675,7 +675,7 @@ python3 -m archmap check <output>/architecture.json
 - 每个 `executionFlow` 恰好一个 `entry` 节点；
 - 每个 execution flow 节点数大于 0；
 - `projectGraph.flowCards` 数量与 execution flows 一致；
-- 后端 `projectGraph.layout.nodes` 同时包含 flow card 和 module card（包括前端不渲染的空能力模块）；
+- 后端 `projectGraph.layout.nodes` 同时包含 flow card 和 module card（包括前端不渲染的空能力模块）；空模块在布局顺序中追加到可见卡片之后；
 - flow card 的 `flowId` 可解析；
 - 模块卡不包含 flow navigation 语义；
 - executionOnly / internal free function 不在 `providedApis` / `apiProviders` / 角色计数中；
@@ -683,7 +683,7 @@ python3 -m archmap check <output>/architecture.json
 - `freeFunctionSurfaceCounts` 与 `capabilityFreeFunctionIds` / `internalFreeFunctionIds` / `executionFreeFunctionIds` 一致；
 - executionOnly callable 仍有 `functionDetails` 和 execution flow 引用；
 - 空能力模块仍在后端 `projectGraph.modules` 与 `layout.nodes` 中；
-- 空能力模块不在前端项目页渲染；
+- 空能力模块不在前端项目页渲染，也不会在默认可见网格中留下空位；
 - `projectGraph.capabilityModuleIds` 与可见模块一致。
 
 机器审计建议：
@@ -856,7 +856,7 @@ rendering
 | 入口/编排函数被推断为 manager 并进入 providedApis | 能力面污染 | 在所属模块声明 `executionOnlyCallables` |
 | 模块内部 helper 被推断为 manager | 能力面污染 | 用 `defaultFreeFunctionSurface=internal` 或单函数 `apiExposure=internal` |
 | `providerRoles: {"fn": "utility"}` 批量隐藏 helper | 角色模型被当成隐藏开关 | 改用模块默认自由函数面或 `apiExposure=internal` |
-| 模块能力为空但前端仍显示卡片 | 项目页噪音 | 后端保留模块与 layout，前端过滤空能力模块 |
+| 模块能力为空但前端仍显示卡片 | 项目页噪音 | 后端保留模块与 layout，前端过滤空能力模块；空模块默认排到可见卡片之后 |
 
 ## 12. 最终目标
 

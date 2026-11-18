@@ -39,7 +39,7 @@
 - 项目页默认不绘制 `projectGraph.edges`；模块间调用/数据证据保留，供可选“关系”模式与后续查询使用。
 - 项目页包括 `projectGraph.flowCards` 与 `projectGraph.modules` 两类标准卡片；两者都进入 `projectGraph.layout.nodes`。
 - 自由函数默认采用保守能力边界：`defaultFreeFunctionSurface` 支持 `auto` / `internal` / `capability`，单函数用 `apiExposure` 例外；
-- `projectGraph.capabilityModuleIds` 给出能力非空、应由前端渲染的模块集合；`capabilitySurface.hasProviders=false` 的模块仍保留在后台模块与 layout 中，但前端不渲染模块卡。
+- `projectGraph.capabilityModuleIds` 给出能力非空、应由前端渲染的模块集合；`capabilitySurface.hasProviders=false` 的模块仍保留在后台模块与 layout 中，但前端不渲染模块卡；默认布局将空模块追加到可见卡片之后，并按可见数量计算网格列数，避免前端过滤后出现网格空洞。
 - 默认几何由 Python 以统一卡片网格生成（`layout.mode = "module-cards"` 当前兼容保留，实际同时布局 flow cards 与 module cards），前端只负责渲染与用户拖拽覆盖。
 - P6.2 起 `projectGraph.mainFlows` / `primaryFlowId` 已删除；项目级执行视图保留 `executionFlows`、`flowCards` / `primaryExecutionFlowId`。
 

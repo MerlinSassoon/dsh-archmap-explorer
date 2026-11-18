@@ -248,7 +248,7 @@ service / adapter / component / test / other
 - 每个源码文件、Provider 和模型有且仅有一个 owner 模块；
 - 不允许建立 `contracts` / `shared` / `common` / `misc` 这类技术层兜底模块；
 - 模块被其他模块消费是依赖关系，不改变 owner；
-- 模块可以没有可见能力 Provider；后端保留模块边界与 layout，前端不渲染空能力模块卡。
+- 模块可以没有可见能力 Provider；后端保留模块边界与 layout，前端不渲染空能力模块卡；默认布局把空模块追加到可见卡片之后，避免网格空洞。
 
 执行流约束：
 
