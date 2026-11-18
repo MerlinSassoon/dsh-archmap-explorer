@@ -203,7 +203,7 @@
   function focusPage() {
     const nodes = [...world.querySelectorAll(".node-card")];
     const edges = [...world.querySelectorAll(".graph-edge, .macro-edge, .execution-edge")];
-    const focusUid = state.hoveredUid || state.selectedUid;
+    const focusUid = state.selectedUid || state.hoveredUid;
     nodes.forEach(node => node.classList.toggle("is-selected", node.dataset.uid === focusUid));
     if (!focusUid) {
       nodes.forEach(node => node.classList.remove("is-dim", "is-highlight"));
@@ -1481,19 +1481,6 @@
       const text = executionArmSummaryText(summary, "");
       if (text) rows.push({ label: port === "true" ? "是" : "否", text });
     });
-    if (Array.isArray(node.caseSummaries)) {
-      node.caseSummaries.forEach((summary, index) => {
-        const caseLabel = node.cases?.[index]?.label || `case ${index + 1}`;
-        const text = executionArmSummaryText(summary, "保持原状态");
-        rows.push({ label: `case ${index + 1}`, text, title: caseLabel });
-      });
-    }
-    if (node.defaultSummary) {
-      rows.push({
-        label: "默认",
-        text: executionArmSummaryText(node.defaultSummary, "保持原状态"),
-      });
-    }
     if (node.implicitNext === "loop_iteration") {
       rows.push({ label: "↻", text: "隐式进入下一轮循环" });
     }
@@ -2205,16 +2192,23 @@
 
   let panning = false;
   let panStart = null;
+  let panOrigin = null;
+  let suppressBackgroundClick = false;
   viewport.addEventListener("pointerdown", event => {
     if (state.pageKind === "method") return;
     if (event.button !== 0 || event.target.closest(".node-card, button, input, .detail-panel")) return;
     panning = true;
+    panOrigin = { x: event.clientX, y: event.clientY };
     panStart = { x: event.clientX - state.x, y: event.clientY - state.y };
+    suppressBackgroundClick = false;
     viewport.classList.add("is-panning");
     viewport.setPointerCapture(event.pointerId);
   });
   viewport.addEventListener("pointermove", event => {
     if (!panning) return;
+    if (panOrigin && Math.hypot(event.clientX - panOrigin.x, event.clientY - panOrigin.y) > 4) {
+      suppressBackgroundClick = true;
+    }
     state.x = event.clientX - panStart.x;
     state.y = event.clientY - panStart.y;
     applyTransform();
@@ -2222,9 +2216,19 @@
   const endPan = () => { panning = false; viewport.classList.remove("is-panning"); };
   viewport.addEventListener("pointerup", endPan);
   viewport.addEventListener("pointercancel", endPan);
+  viewport.addEventListener("click", event => {
+    if (state.pageKind === "method") return;
+    if (event.target.closest(".node-card, button, input, .detail-panel")) return;
+    if (suppressBackgroundClick) {
+      suppressBackgroundClick = false;
+      return;
+    }
+    if (state.selectedUid || state.hoveredUid) clearSelection();
+  });
   viewport.addEventListener("dblclick", event => {
     if (state.pageKind === "method") return;
-    if (event.target.closest(".node-card, button, input")) return;
+    if (event.target.closest(".node-card, button, input, .detail-panel")) return;
+    if (state.selectedUid || state.hoveredUid) clearSelection();
     fitView();
   });
 

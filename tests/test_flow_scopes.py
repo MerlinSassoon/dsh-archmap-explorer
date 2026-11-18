@@ -238,13 +238,6 @@ def test_gomoku_control_arms_keep_statement_semantics_without_new_nodes() -> Non
         if node["kind"] == "multi_branch" and node.get("line") == 157
     )
     assert multi["implicitNext"] == "loop_iteration"
-    assert len(multi["caseSummaries"]) == 2
-    assert multi["caseSummaries"][0]["statements"] == [
-        "last_move = handled.last_move",
-        "winning_line = handled.winning_line",
-    ]
-    assert multi["caseSummaries"][1]["statements"] == [
-        "last_move = None",
-        "winning_line = ()",
-    ]
-    assert multi["defaultSummary"]["next"] == "fallthrough"
+    assert "caseSummaries" not in multi
+    assert "defaultSummary" not in multi
+    assert all("summary" not in case for case in multi["cases"])

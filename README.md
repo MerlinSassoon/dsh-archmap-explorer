@@ -159,8 +159,9 @@ P10 在主流程之上增加一层受控的接口视图：
 - scope root 必须是 `free_function`；`interface` 节点不展开内部实现；
 - scope 路由为 `#/flow/<flowId>/scope/<nodeId>`，独立聚焦展示，不在主画布递归套图；
 - scope 内展示目标函数控制骨架、直接外部能力接口、以及内部 helper 直接触达的接口提示；
-- P10.2 普通赋值/非调用表达式不新增节点：branch 输出 `armSummaries`，multi_branch 输出 `caseSummaries` / `defaultSummary`，跨控制边的普通语句写入 edge `statements`；
-- 循环体末尾分支通过 `implicitNext=loop_iteration` 表达隐式进入下一轮循环；
+- P10.2 普通赋值/非调用表达式不新增节点：branch 输出 `armSummaries`，跨控制边的普通语句写入 edge `statements`；
+- 多分支不展示 case 内部赋值注释，只保留 case 条件与 `implicitNext=loop_iteration` 隐式循环提示；
+- 画布选择高亮优先于 hover；单击空白 / 双击空白 / Esc 均可清除选择；
 - scope 深度硬限制为 `1`，内部节点不可再次下钻；
 - `maxScopesPerFlow`、`maxNodesPerScope`、`maxEdgesPerScope` 控制预算，截断会写入 scope diagnostics；
 - 更深实现统一进入 Method Detail。
@@ -539,7 +540,7 @@ browser smoke:  1 passed（显式开启）
 - P9 保守自由函数推断、`defaultFreeFunctionSurface`、单函数 exposure 例外、自由函数表面计数与校验。
 - P10 一级 flow scope、外部接口摘要、scope 预算/诊断、独立下钻路由、schema 6.3 与浏览器下钻回归。
 - P10.1 interface 黑盒边界、scope root 仅限编排 callable、interface root 拒绝与 validator 不变量。
-- P10.2 控制臂语句摘要、edge statement 标签、多分支 case summary、隐式循环继续语义，以及无 statement/basic-block 节点的回归。
+- P10.2 控制臂语句摘要、edge statement 标签、隐式循环继续语义、无 statement/basic-block 节点，以及画布空白点击/双击清除选择高亮的回归。
 
 浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 

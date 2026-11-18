@@ -216,12 +216,6 @@ def _validate_execution_flow(
                         issues.append(_issue("error", "EXEC_ARM_LINES", f"execution flow {flow_id} node {node_id} arm {arm_name} sourceLines must be an array"))
                     if not isinstance(summary.get("next"), str):
                         issues.append(_issue("error", "EXEC_ARM_NEXT", f"execution flow {flow_id} node {node_id} arm {arm_name} next must be a string"))
-        case_summaries = node.get("caseSummaries")
-        if case_summaries is not None and not isinstance(case_summaries, list):
-            issues.append(_issue("error", "EXEC_CASE_SUMMARIES", f"execution flow {flow_id} node {node_id} caseSummaries must be an array"))
-        default_summary = node.get("defaultSummary")
-        if default_summary is not None and not isinstance(default_summary, dict):
-            issues.append(_issue("error", "EXEC_DEFAULT_SUMMARY", f"execution flow {flow_id} node {node_id} defaultSummary must be an object"))
         if node.get("implicitNext") is not None and not isinstance(node.get("implicitNext"), str):
             issues.append(_issue("error", "EXEC_IMPLICIT_NEXT", f"execution flow {flow_id} node {node_id} implicitNext must be a string"))
         interface_hints = node.get("interfaceHints")

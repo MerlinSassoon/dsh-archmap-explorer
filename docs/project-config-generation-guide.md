@@ -918,7 +918,7 @@ P10 起可在配置中声明一级接口 scope：
 - 主流程执行节点新增 `drilldown` 接口摘要和 `interfaceHints` helper 提示；
 - 新增 `flowScopes` 配置：enabled / roots / maxScopesPerFlow / maxNodesPerScope / maxEdgesPerScope；
 - P10.1 收紧 scope root：只允许 `free_function` 编排节点，interface 节点禁止生成 scope；
-- P10.2 普通语句通过 `armSummaries` / `caseSummaries` / edge `statements` / `implicitNext` 表达，不新增 statement 节点；
+- P10.2 普通语句通过 branch `armSummaries` / edge `statements` / `implicitNext` 表达，不新增 statement 节点；多分支不展示 case 内部赋值注释；
 - scope 视图与主流程分离，路由为 `#/flow/<flowId>/scope/<nodeId>`；
 - scope 深度硬限制为 1，预算截断进入 scope diagnostics；
 - student_system 与 gomoku 样例配置已启用 scope roots。

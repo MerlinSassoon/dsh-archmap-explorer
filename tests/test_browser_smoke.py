@@ -380,6 +380,21 @@ def test_browser_smoke() -> None:
         assert clipped_scope_bodies == []
         assert execute("return document.querySelectorAll('.execution-node.kind-statement, .execution-node.kind-state_update, .execution-node.kind-basic_block').length") == 0
         assert execute("return document.querySelectorAll('.exec-drilldown-l1').length") == 0
+        selected = execute("""return (() => {
+          const node = document.querySelector('.execution-node');
+          node.click();
+          return {
+            selected: node.classList.contains('is-selected'),
+            dimmed: document.querySelectorAll('.execution-node.is-dim').length,
+          };
+        })()""")
+        assert selected["selected"] is True
+        assert selected["dimmed"] > 0
+        execute("document.getElementById('viewport').click(); return true")
+        assert execute("return document.querySelectorAll('.execution-node.is-selected, .execution-node.is-dim').length") == 0
+        execute("document.querySelector('.execution-node').click(); return true")
+        execute("document.getElementById('viewport').dispatchEvent(new MouseEvent('dblclick', {bubbles: true})); return true")
+        assert execute("return document.querySelectorAll('.execution-node.is-selected, .execution-node.is-dim').length") == 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # The self-build main flow is an execution-only page.  Capability and

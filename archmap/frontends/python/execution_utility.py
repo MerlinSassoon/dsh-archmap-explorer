@@ -556,32 +556,19 @@ class ExecutionSkeletonBuilder:
             endpoints = [*true_endpoints, *false_endpoints]
         else:
             endpoints: list[_Endpoint] = []
-            case_summaries: list[dict[str, Any]] = []
-            for case in cases:
-                case["summary"] = {}
-            for index, (condition, body, _) in enumerate(conditions):
-                arm_endpoints = self._visit_stmts(
-                    body,
-                    [self._endpoint(control_id, "case", _unparse(condition))],
+            for condition, body, _ in conditions:
+                endpoints.extend(
+                    self._visit_stmts(
+                        body,
+                        [self._endpoint(control_id, "case", _unparse(condition))],
+                    )
                 )
-                summary = self._arm_summary(body, arm_endpoints)
-                case_summaries.append(summary)
-                if index < len(cases):
-                    cases[index]["summary"] = summary
-                endpoints.extend(arm_endpoints)
-            default_endpoints = self._visit_stmts(
-                else_body,
-                [self._endpoint(control_id, "default", "默认")],
+            endpoints.extend(
+                self._visit_stmts(
+                    else_body,
+                    [self._endpoint(control_id, "default", "默认")],
+                )
             )
-            self._update_node(
-                control_id,
-                {
-                    "cases": cases,
-                    "caseSummaries": case_summaries,
-                    "defaultSummary": self._arm_summary(else_body, default_endpoints),
-                },
-            )
-            endpoints.extend(default_endpoints)
         return endpoints
 
     def _visit_match(self, stmt: ast.Match, incoming: list[_Endpoint]) -> list[_Endpoint]:

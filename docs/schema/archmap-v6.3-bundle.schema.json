@@ -1883,15 +1883,6 @@
             "$ref": "#/$defs/controlArmSummary"
           }
         },
-        "caseSummaries": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/controlArmSummary"
-          }
-        },
-        "defaultSummary": {
-          "$ref": "#/$defs/controlArmSummary"
-        },
         "implicitNext": {
           "type": "string"
         }

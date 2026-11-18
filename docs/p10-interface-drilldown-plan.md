@@ -278,10 +278,22 @@ P10.1 修正了 P10 初版中 `autoDetect` 把跨模块 capability 节点转成 
 P10.2 在不增加 statement / state_update / basic_block 节点的前提下补足普通语句语义：
 
 - branch 节点新增 `armSummaries`，记录 true/false 臂内不可见普通语句、源码行和下一控制动作；
-- multi_branch 的 `cases[]` 和 `caseSummaries` 记录每个 case 的语句摘要，`defaultSummary` 记录默认路径；
 - 普通语句如果位于控制节点与后续可见节点之间，通过 edge `statements` / `statementLines` 表达；
+- 多分支不生成 case 内部语句摘要；case 只保留条件标签，避免重复条件和误导性截断；
 - 循环体末尾 endpoint 标记 `implicitNext=loop_iteration`，UI 显示“隐式进入下一轮循环”；
+- 选中高亮优先于 hover；单击空白、双击空白或 Esc 清除选择；
 - 主流程和 scope 均复用同一摘要机制；
 - 不新增执行节点 kind，不改变既有控制流算法和分支 fan-in 规则；
-- 新增 schema 可选字段：`armSummaries` / `caseSummaries` / `defaultSummary` / `implicitNext` / edge `statements` / `statementLines`；
+- 新增 schema 可选字段：`armSummaries` / `implicitNext` / edge `statements` / `statementLines`；
 - 浏览器回归覆盖 edge 语句标签、控制臂摘要和节点裁剪检查。
+
+## 15. P10.2 交互收口
+
+- 多分支 case 内部注释已回退；不再生成或渲染 `caseSummaries` / `defaultSummary`；
+- `implicitNext=loop_iteration` 保留，用于解释循环体末尾分支的隐式继续；
+- `focusPage` 改为 selected 优先于 hovered，避免鼠标经过其他节点时选中焦点丢失；
+- 单击画布空白清除选择；
+- 双击画布空白清除选择并保留适应画布；
+- 画布平移通过移动阈值与空白点击区分，拖拽不会误清除选择；
+- Esc 继续作为键盘清除选择入口；
+- 项目页保留默认不按关系邻域 dim 的既有语义，关系模式下和其他图页面一样支持 focus / 清除。

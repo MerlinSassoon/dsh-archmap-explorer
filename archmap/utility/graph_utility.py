@@ -1350,8 +1350,6 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                     "candidateSource": node.get("candidateSource"),
                                     "unresolvedReason": node.get("unresolvedReason"),
                                     "armSummaries": node.get("armSummaries", {}),
-                                    "caseSummaries": node.get("caseSummaries", []),
-                                    "defaultSummary": node.get("defaultSummary"),
                                     "implicitNext": node.get("implicitNext"),
                                 }
                                 for node in flow.get("nodes", [])
@@ -1392,8 +1390,6 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                                 "moduleId": node.get("moduleId"),
                                                 "label": node.get("label"),
                                                 "armSummaries": node.get("armSummaries", {}),
-                                                "caseSummaries": node.get("caseSummaries", []),
-                                                "defaultSummary": node.get("defaultSummary"),
                                                 "implicitNext": node.get("implicitNext"),
                                             }
                                             for node in scope.get("nodes", [])

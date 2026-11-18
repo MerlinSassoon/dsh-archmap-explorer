@@ -50,10 +50,6 @@ def _node_size(node: dict[str, Any]) -> tuple[float, float]:
             if isinstance(value, dict)
             and (value.get("statements") or value.get("next") not in {None, "fallthrough", ""})
         )
-    if isinstance(node.get("caseSummaries"), list):
-        arm_rows += len(node["caseSummaries"])
-    if node.get("defaultSummary"):
-        arm_rows += 1
     if node.get("implicitNext"):
         arm_rows += 1
     if arm_rows:
