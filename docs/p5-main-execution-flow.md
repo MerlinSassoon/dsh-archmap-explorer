@@ -1,7 +1,7 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：已立项，尚未实现<br>
-> 目标版本：ArchMap 1.9.0 / bundle schema 4.0（计划）<br>
+> 状态：首版已实现<br>
+> 版本：ArchMap 1.9.0 / bundle schema 4.0<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
 
@@ -37,7 +37,7 @@ P5 需要把主流程的主叙事重新拉回执行顺序，同时必须避免�
 | 逐语句数据流图 | P5 不生成数据流边，也不生成列表操作节点 |
 | 异常控制图 | P5 不建模 `try/except/finally` 分支 |
 | 仅 UI 改造 | P5 同时涉及数据契约、Python 前端、布局、校验、UI 和测试 |
-| 已实现能力 | 本文档只完成立项和边界定义；代码尚未开始 |
+| 已实现能力 | P5 首版已实现并在 README 中记录验收数据；本文档继续保持同一产品边界 |
 
 ## 3. 防止滑坡：P5 的硬边界
 
@@ -150,7 +150,7 @@ P5 实现后，主模块页提供两个视图：
 - `mainFlows` 是调用与组合叙事；
 - Method Detail 是源码事实。
 
-在 P5 实现完成前，当前默认主流程仍然是 P2.4 的调用/组合视图，README 不得写成执行流已上线。
+P5 实现后，主模块默认进入执行流视图，调用/组合视图保留为“调用总览”。
 
 ## 5. 节点契约
 
@@ -287,7 +287,7 @@ sourceHash（可取得时）
 
 ## 8. student_system 目标快照
 
-P5 实现后，student_system 的主执行流应类似：
+student_system 的主执行流目标快照如下，并已成为验收基线：
 
 ```text
 ENTRY main()
@@ -319,9 +319,9 @@ LOOP while True
 - 双击 `server()` / `client()` / 接口节点进入源码页面；
 - 调用总览仍保留原有 student_system 主流程内容。
 
-## 9. 数据契约计划
+## 9. 数据契约
 
-P5 计划升级到 bundle schema 4.0。
+P5 已升级到 bundle schema 4.0。JSON Schema 位于 [`docs/schema/archmap-v4-bundle.schema.json`](schema/archmap-v4-bundle.schema.json)。
 
 新增：
 
@@ -462,7 +462,22 @@ executionEdges
 - 不允许 Provider、action、statement、list 或 try/except 节点混入；
 - 不允许执行边使用 `call` / `call_path` / `composition`。
 
-## 12. 实施计划
+## 12. 实施阶段
+
+P5 首版实现落在以下模块：
+
+```text
+archmap/model/execution_model.py
+archmap/frontends/python/execution_utility.py
+archmap/utility/execution_flow_utility.py
+archmap/utility/execution_layout_utility.py
+archmap/utility/graph_utility.py
+archmap/utility/validate_utility.py
+archmap/render/assets/app.js
+archmap/render/assets/app.css
+docs/schema/archmap-v4-bundle.schema.json
+tests/test_execution_flow.py
+```
 
 ### M0：契约与样例
 

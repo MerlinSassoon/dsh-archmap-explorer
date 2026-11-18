@@ -42,7 +42,7 @@ class LanguageFrontend(Protocol):
     def build_contracts(self, analysis: Any, call_sites: Any = None) -> Any:
         """Build the language-neutral API contract projection.
 
-        The result must be an ``archmap.contracts.ContractModel``.  Frontends
+        The result must be an ``archmap.model.contract_model.ContractModel``.  Frontends
         own language-specific exposure tags, naming rules, Provider Role
         inference, type summaries and protocol detection; graph.py only
         consumes canonical capabilities and role metadata.

@@ -16,7 +16,7 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 def test_build_bundle_contract() -> None:
     bundle = build_architecture(ROOT)
     assert bundle["kind"] == "archmap.bundle"
-    assert bundle["schemaVersion"] == "3.8"
+    assert bundle["schemaVersion"] == "4.0"
     assert bundle["project"]["name"] == "student_demo"
     assert len(bundle["projectGraph"]["modules"]) == 3
     assert len(bundle["functionDetails"]) == 5
@@ -73,7 +73,7 @@ def test_bundle_matches_v3_schema() -> None:
 
     jsonschema = pytest.importorskip("jsonschema")
     bundle = build_architecture(ROOT)
-    schema_path = Path(__file__).parent.parent / "docs" / "schema" / "archmap-v3-bundle.schema.json"
+    schema_path = Path(__file__).parent.parent / "docs" / "schema" / "archmap-v4-bundle.schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     jsonschema.validate(bundle, schema)
 

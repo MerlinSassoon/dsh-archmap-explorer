@@ -1,6 +1,6 @@
-# ArchMap v3.8
+# ArchMap v4.0
 
-> 版本：ArchMap 1.8.0 / bundle schema 3.8<br>
+> 版本：ArchMap 1.9.0 / bundle schema 4.0<br>
 > 最后更新：2026-11-18
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
@@ -28,7 +28,7 @@ P2.3  架构规范、自身代码迁移、旧 shim 清理    已完成
 P2.4  主模块/功能模块/主流程 DAG              已完成
 P3    继承、接口、多态与继承 API              已完成
 P4    结构关系、User Surface、Impact/Trace/DSM 已完成
-P5    主流程执行流（文档已立项，待实现）
+P5    主流程执行流（首版）                 已完成
 ```
 
 当前产品边界：
@@ -37,8 +37,8 @@ P5    主流程执行流（文档已立项，待实现）
 - 主模块展示函数级主流程 DAG；功能模块只暴露 Provider/Capability，不再拥有输入输出端口。
 - 主流程只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止。
 - 主流程是函数级调用/模块组合视图，不是语句级执行顺序图。
-- P5 已立项但尚未实现；当前默认主流程仍为 P2.4 的函数级调用/模块组合视图。
-- P5 不会恢复旧语句级 FunctionFlow；执行流边界见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
+- 主模块默认展示 P5 有界执行流；调用总览保留为辅助视图。
+- P5 执行流不会恢复旧语句级 FunctionFlow；边界见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 - 类焦点页和类内方法图不在当前产品计划中。
 - 旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
 - 旧 Python import 兼容 shim 已删除；源码只使用 canonical 目录。
@@ -84,26 +84,27 @@ yield/student_system/
 ## 三层视图
 
 - **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。P4 User Surface 也在项目页/模块契约区展示。
-- **主模块页**：默认展示 entry → orchestrator/provider/interface 的主流程 DAG；可切换到能力视图查看类与自由函数。上下文管理器等协议用法会在 Provider 边界节点上携带 `capabilityKind`、`protocols` 与 `usageKind`，例如显示 `with Spinner(...)`。
+- **主模块页**：默认展示 P5 有界执行流；可切换到“调用总览”查看 entry → orchestrator/provider/interface 的调用 DAG，或切换到能力视图查看类与自由函数。上下文管理器等协议用法会在 Provider 边界节点上携带 `capabilityKind`、`protocols` 与 `usageKind`，例如显示 `with Spinner(...)`。
 - **功能模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示类节点、模块级自由函数节点；不再有模块输入/输出端口。config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
 - 项目页与模块页节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存项目页/模块页的用户覆盖；可用“适应画布”或“重置布局”找回节点。
-- 不再生成或渲染函数内部语句级执行流图；函数实现以源码为最终事实来源。
+- P5 执行流只展开 entrypoint 的控制骨架；自由函数和功能模块接口均为原子节点，双击进入源码。
+- 不生成或渲染函数内部完整 CFG、逐语句执行流图；函数实现以源码为最终事实来源。
 
-## P5 主流程执行流（已立项，未实现）
+## P5 主流程执行流（首版已实现）
 
-P5 计划把主模块默认流程从“函数级调用/模块组合 DAG”升级为**有界执行流图**：
+P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**有界执行流图**：
 
 - 只展示 selected entrypoint 函数内部的控制骨架；
 - 主模块自由函数、功能模块公开接口都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
 - 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch` / `merge`；
 - 不生成逐语句节点、列表操作节点、`try/except` 异常控制、数据流边或图内下钻；
-- 计划新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`，同时保留 `mainFlows` 作为辅助的调用总览；
-- 当前仅完成文档立项，尚未修改 schema、分析流水线、布局或 UI。
+- 新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 保留为辅助的“调用总览”；
+- bundle schema 升级到 4.0，新增执行流校验、确定性布局和浏览器交互。
 
-P5 的防误解与防滑坡边界、student_system 目标快照、数据契约计划和验收标准见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
+P5 的防误解与防滑坡边界、student_system 目标快照、数据契约和验收标准见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 
 ## 配置
 
@@ -420,7 +421,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         88 passed, 1 skipped
+pytest:         93 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -428,7 +429,8 @@ browser smoke:  1 passed（显式开启）
 
 - 三层 bundle 契约和交叉引用。
 - 唯一主模块、0..N 功能模块与无 I/O 端口不变量。
-- 主流程 DAG、分支、dispatch 候选和 composition 虚线语义。
+- P5 有界执行流：entrypoint 控制骨架、原子自由函数/接口、分支/多分支/循环/break/continue/return。
+- 调用总览 DAG、分支、dispatch 候选和 composition 虚线语义。
 - 继承/实现结构边、C3 MRO、有效抽象性、继承 API、override 和多态 candidates。
 - 类型关系 validator 不变量与 polymorphic dispatch 低置信度 composition。
 - `instantiates/uses/aggregates/composes` 结构关系与角色元数据。
@@ -439,11 +441,11 @@ browser smoke:  1 passed（显式开启）
 - CallSite 提取、callers/callees、模块级聚合边。
 - API exposure、协议能力合成、Provider 分组和契约校验。
 - Provider Role 判定、模块组合、config/model 类型卡片与 API 过滤。
-- 宏布局几何、指纹稳定性和布局无关性。
+- 宏布局几何、执行流正交布局、指纹稳定性和布局无关性。
 - 自包含 HTML、方法详情页和 LLM 注解嵌入。
 - CLI build/check/method 闭环。
 
-浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页、模块页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
+浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页、执行流/调用总览切换、模块页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
 ### 当前验收数据
 
@@ -451,14 +453,17 @@ ArchMap 自举：
 
 ```text
 modules:              6
-classes:              26
-functions:            229
-methods:              48
-callSites:            3230
-resolvedCalls:        522
-typeRelations:        45
-structuralRelations:  45
+classes:              31
+functions:            269
+methods:              70
+callSites:            3862
+resolvedCalls:        673
+typeRelations:        57
+structuralRelations:  57
 userSurfaces:         0
+executionFlows:       1
+executionNodes:       5
+executionEdges:       4
 diagnostics:          0
 self build/check:     OK
 ```
@@ -475,6 +480,9 @@ resolvedCalls:        50
 typeRelations:        4
 structuralRelations:  4
 userSurfaces:         14
+executionFlows:       1
+executionNodes:       11
+executionEdges:       14
 diagnostics:          0
 build/check:          OK
 ```
@@ -518,9 +526,10 @@ ArkTS 接入时需要：
 | [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、八角色语义、依赖方向、主模块/主流程边界与可见性规范 |
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
 | [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | 唯一主模块、功能模块、主流程 DAG、dispatch 候选与 composition 契约 |
-| [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流：封闭节点、原子函数/接口、防误解与防滑坡边界、schema 4.0 计划 |
+| [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流：封闭节点、原子函数/接口、防误解与防滑坡边界、schema 4.0 实现与验收 |
 | [`docs/约定编程skill.md`](docs/约定编程skill.md) | 项目无关的约定编程 Skill：分层架构、契约、功能备注、测试与提交检查清单 |
-| [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 当前 bundle JSON Schema 3.8 |
+| [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 当前 bundle JSON Schema 4.0，包含 P5 executionFlows |
+| [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 
 ### 历史归档
 
@@ -533,7 +542,7 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 ## 文档维护规则
 
 1. 当前产品状态只写入根 `README.md` 和 `docs/` 下的当前权威文档；历史材料只进入 `docs/旧文档/`，不反向修改为“当前设计”。
-2. 数据契约以 `docs/archmap-v3-design.md`、`docs/p2.4-main-module-flow.md` 和 `docs/schema/archmap-v3-bundle.schema.json` 为准；P5 执行流契约以 `docs/p5-main-execution-flow.md` 为准，直至 schema 4.0 落地。
+2. 数据契约以 `docs/archmap-v3-design.md`、`docs/p2.4-main-module-flow.md`、`docs/p5-main-execution-flow.md` 和 `docs/schema/archmap-v4-bundle.schema.json` 为准。
 3. P1.5 之后的实现页统一称 **Method Detail**；不要再把 FunctionFlow 写回主产品路径。
 4. 新增 P5 及以后能力时，先更新数据契约和当前文档，再更新根 README 的使用说明与验收数据。
 5. 文档中的示例命令若引用自举配置，应同时核对 `examples/archmap_v3.archmap.json` 是否仍与源码模块一致。
@@ -557,6 +566,6 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 - 多态 candidates 只覆盖项目内已解析后代，`candidateSetComplete=false`。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
 - ArkTS 前端尚未实现。
-- P5 主流程执行流已完成文档立项，尚未实现；当前仍使用 P2.4 调用/组合视图，不能把计划中的 `executionFlows` 当作现有产物。
-- P5 明确不实现逐语句节点、列表操作节点、`try/except` 异常控制、数据流边和图内下钻；细节通过 Method Detail / 源码查看。
+- P5 执行流只提取 entrypoint 控制骨架，不展开主模块自由函数或功能模块接口；更多内部逻辑通过 Method Detail / 源码查看。
+- P5 明确不实现逐语句节点、列表操作节点、`try/except` 异常控制、数据流边和图内下钻；这些是产品边界，不是待补延期项。
 - 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

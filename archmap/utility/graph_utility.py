@@ -37,6 +37,7 @@ from ..model.call_model import CallSite
 from ..model.contract_model import ApiCapability, ContractModel, ProviderRoleInfo
 from ..model.graph_model import CallRecord
 from .analysis_utility import ENTRY_METHOD_NAMES
+from .execution_flow_utility import build_execution_flows
 from .main_flow_utility import build_main_flows
 from ..frontends.python.surface_utility import build_user_surfaces
 
@@ -988,10 +989,22 @@ def build_bundle(
         module_graphs,
         config.dispatch_hints,
     )
+    execution_flows, primary_execution_flow_id, execution_diagnostics = build_execution_flows(
+        analysis,
+        call_site_list,
+        entrypoints,
+        module_graphs,
+        contract_model,
+    )
     if primary_flow_id:
         for module_node in project_module_nodes:
             if module_node.get("moduleKind") == "main":
                 module_node["mainFlowId"] = primary_flow_id
+                break
+    if primary_execution_flow_id:
+        for module_node in project_module_nodes:
+            if module_node.get("moduleKind") == "main":
+                module_node["executionFlowId"] = primary_execution_flow_id
                 break
 
     user_surfaces = build_user_surfaces(
@@ -1023,6 +1036,8 @@ def build_bundle(
         "mainModuleId": main_module_id,
         "primaryFlowId": primary_flow_id,
         "mainFlows": main_flows,
+        "primaryExecutionFlowId": primary_execution_flow_id,
+        "executionFlows": execution_flows,
         "modules": project_module_nodes,
         "edges": project_edges,
         "typeRelations": [relation.as_dict() for relation in contract_model.class_relations],
@@ -1030,7 +1045,7 @@ def build_bundle(
         "layout": project_layout,
     }
 
-    diagnostics = [*analysis.diagnostics, *flow_diagnostics]
+    diagnostics = [*analysis.diagnostics, *flow_diagnostics, *execution_diagnostics]
     stats = {
         "modules": len(project_module_nodes),
         "classes": len(analysis.classes),
@@ -1042,6 +1057,9 @@ def build_bundle(
         "providedApis": sum(len(graph["providedApis"]) for graph in module_graphs),
         "apiProviders": sum(len(graph.get("apiProviders", [])) for graph in module_graphs),
         "mainFlows": len(main_flows),
+        "executionFlows": len(execution_flows),
+        "executionNodes": sum(len(flow.get("nodes", [])) for flow in execution_flows),
+        "executionEdges": sum(len(flow.get("edges", [])) for flow in execution_flows),
         "typeRelations": len(contract_model.class_relations),
         "structuralRelations": sum(
             1 for relation in contract_model.class_relations
@@ -1071,7 +1089,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "3.8",
+        "schemaVersion": "4.0",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,
@@ -1106,6 +1124,7 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
         "projectGraph": {
             "mainModuleId": bundle["projectGraph"].get("mainModuleId"),
             "primaryFlowId": bundle["projectGraph"].get("primaryFlowId"),
+            "primaryExecutionFlowId": bundle["projectGraph"].get("primaryExecutionFlowId"),
             "modules": [
                 {
                     "id": module["id"],
@@ -1161,6 +1180,47 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                         ),
                     }
                     for flow in bundle["projectGraph"].get("mainFlows", [])
+                ],
+                key=lambda item: item["id"] or "",
+            ),
+            "executionFlows": sorted(
+                [
+                    {
+                        "id": flow.get("id"),
+                        "entrypointId": flow.get("entrypointId"),
+                        "nodes": sorted(
+                            [
+                                {
+                                    "id": node.get("id"),
+                                    "kind": node.get("kind"),
+                                    "functionId": node.get("functionId"),
+                                    "targetFunctionId": node.get("targetFunctionId"),
+                                    "capabilityId": node.get("capabilityId"),
+                                    "moduleId": node.get("moduleId"),
+                                    "label": node.get("label"),
+                                    "condition": node.get("condition"),
+                                    "cases": node.get("cases", []),
+                                    "loopKind": node.get("loopKind"),
+                                    "mayExit": node.get("mayExit"),
+                                }
+                                for node in flow.get("nodes", [])
+                            ],
+                            key=lambda item: item["id"] or "",
+                        ),
+                        "edges": sorted(
+                            [
+                                {
+                                    "from": edge.get("from"),
+                                    "to": edge.get("to"),
+                                    "kind": edge.get("kind"),
+                                    "label": edge.get("label"),
+                                }
+                                for edge in flow.get("edges", [])
+                            ],
+                            key=lambda item: (item["from"], item["to"], item["kind"], item["label"] or ""),
+                        ),
+                    }
+                    for flow in bundle["projectGraph"].get("executionFlows", [])
                 ],
                 key=lambda item: item["id"] or "",
             ),

@@ -92,12 +92,162 @@ def _validate_provider_role_fields(
     if item.get("providerVisibility") not in {"public", "internal"}:
         issues.append(_issue("error", "PROVIDER_VISIBILITY", f"{label} has invalid/missing providerVisibility"))
     return issues
+EXECUTION_NODE_KINDS = {
+    "entry",
+    "exit",
+    "free_function",
+    "interface",
+    "branch",
+    "multi_branch",
+    "loop",
+    "break",
+    "continue",
+    "return",
+    "dispatch",
+    "merge",
+}
+EXECUTION_EDGE_KINDS = {
+    "next",
+    "true",
+    "false",
+    "case",
+    "default",
+    "loop_body",
+    "loop_complete",
+    "back",
+    "break",
+    "continue",
+    "return",
+    "dispatch",
+}
+
+
+def _validate_execution_flow(
+    flow: dict[str, Any],
+    *,
+    detail_by_id: dict[str, Any],
+    module_ids: set[str],
+    capability_by_id: dict[str, tuple[str, dict[str, Any]]],
+    call_site_ids: set[str],
+) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    flow_id = flow.get("id")
+    if flow.get("kind") != "archmap.execution-flow":
+        issues.append(_issue("error", "EXEC_FLOW_KIND", f"execution flow {flow_id} has invalid kind"))
+    nodes = flow.get("nodes") or []
+    edges = flow.get("edges") or []
+    node_ids = {str(node.get("id")) for node in nodes}
+    if len(node_ids) != len(nodes):
+        issues.append(_issue("error", "EXEC_NODE_DUPLICATE", f"execution flow {flow_id} has duplicate node ids"))
+    entry_nodes = [node for node in nodes if node.get("kind") == "entry"]
+    if len(entry_nodes) != 1:
+        issues.append(_issue("error", "EXEC_ENTRY_COUNT", f"execution flow {flow_id} must contain exactly one entry"))
+    elif entry_nodes[0].get("functionId") != flow.get("entrypointId"):
+        issues.append(_issue("error", "EXEC_ENTRY_MISMATCH", f"execution flow {flow_id} entry does not match entrypointId"))
+    if not any(node.get("kind") == "exit" for node in nodes):
+        issues.append(_issue("error", "EXEC_EXIT_MISSING", f"execution flow {flow_id} must contain an exit"))
+    outgoing: dict[str, list[dict[str, Any]]] = {}
+    incoming: dict[str, list[dict[str, Any]]] = {}
+    for edge in edges:
+        source = str(edge.get("from") or "")
+        target = str(edge.get("to") or "")
+        if source not in node_ids or target not in node_ids:
+            issues.append(_issue("error", "EXEC_EDGE_ENDPOINT", f"execution flow {flow_id} edge endpoint missing: {edge.get('id')}"))
+        if edge.get("kind") not in EXECUTION_EDGE_KINDS:
+            issues.append(_issue("error", "EXEC_EDGE_KIND", f"execution flow {flow_id} edge {edge.get('id')} has invalid kind: {edge.get('kind')}"))
+        outgoing.setdefault(source, []).append(edge)
+        incoming.setdefault(target, []).append(edge)
+    for node in nodes:
+        node_id = node.get("id")
+        kind = node.get("kind")
+        if kind not in EXECUTION_NODE_KINDS:
+            issues.append(_issue("error", "EXEC_NODE_KIND", f"execution flow {flow_id} node {node_id} has invalid kind: {kind}"))
+        if node.get("expandable") is not False:
+            issues.append(_issue("error", "EXEC_NODE_EXPANDABLE", f"execution flow {flow_id} node {node_id} must set expandable=false"))
+        module_id = node.get("moduleId")
+        if module_id and module_id not in module_ids:
+            issues.append(_issue("error", "EXEC_NODE_MODULE", f"execution flow {flow_id} node {node_id} references missing module {module_id}"))
+        if kind == "free_function":
+            target_id = node.get("targetFunctionId")
+            if target_id not in detail_by_id:
+                issues.append(_issue("error", "EXEC_FREE_FUNCTION_TARGET", f"execution flow {flow_id} free function {node_id} references missing target {target_id}"))
+            if node.get("callSiteId") not in call_site_ids:
+                issues.append(_issue("error", "EXEC_CALL_SITE", f"execution flow {flow_id} free function {node_id} references missing call site"))
+        if kind == "interface":
+            capability_id = str(node.get("capabilityId") or "")
+            capability = capability_by_id.get(capability_id)
+            if capability is None:
+                issues.append(_issue("error", "EXEC_INTERFACE_CAPABILITY", f"execution flow {flow_id} interface {node_id} references missing capability"))
+            else:
+                capability_module_id, _payload = capability
+                if capability_module_id != module_id:
+                    issues.append(_issue("error", "EXEC_INTERFACE_MODULE", f"execution flow {flow_id} interface {node_id} module mismatch"))
+            target_id = node.get("targetFunctionId")
+            if target_id and target_id not in detail_by_id:
+                issues.append(_issue("error", "EXEC_INTERFACE_TARGET", f"execution flow {flow_id} interface {node_id} references missing target {target_id}"))
+            if node.get("callSiteId") not in call_site_ids:
+                issues.append(_issue("error", "EXEC_CALL_SITE", f"execution flow {flow_id} interface {node_id} references missing call site"))
+        if kind == "dispatch":
+            if not isinstance(node.get("candidateCount"), int) or node.get("candidateCount") < 0:
+                issues.append(_issue("error", "EXEC_DISPATCH_CANDIDATES", f"execution flow {flow_id} dispatch {node_id} has invalid candidateCount"))
+            if not isinstance(node.get("candidateSetComplete"), bool):
+                issues.append(_issue("error", "EXEC_DISPATCH_COMPLETE", f"execution flow {flow_id} dispatch {node_id} must define candidateSetComplete"))
+        if kind in {"break", "continue"}:
+            loop_id = node.get("loopId")
+            loop_node = next((item for item in nodes if item.get("id") == loop_id), None)
+            if loop_node is None or loop_node.get("kind") != "loop":
+                issues.append(_issue("error", "EXEC_LOOP_JUMP_TARGET", f"execution flow {flow_id} {kind} {node_id} must reference a loop"))
+        if kind == "branch":
+            kinds = [edge.get("kind") for edge in outgoing.get(str(node_id), [])]
+            if kinds.count("true") != 1 or kinds.count("false") != 1:
+                issues.append(_issue("error", "EXEC_BRANCH_PORTS", f"execution flow {flow_id} branch {node_id} must have one true and one false edge"))
+        if kind == "multi_branch":
+            kinds = [edge.get("kind") for edge in outgoing.get(str(node_id), [])]
+            if kinds.count("case") < 1:
+                issues.append(_issue("error", "EXEC_MULTI_CASE", f"execution flow {flow_id} multi_branch {node_id} must have at least one case edge"))
+            if kinds.count("default") > 1:
+                issues.append(_issue("error", "EXEC_MULTI_DEFAULT", f"execution flow {flow_id} multi_branch {node_id} has multiple default edges"))
+        if kind == "loop":
+            kinds = [edge.get("kind") for edge in outgoing.get(str(node_id), [])]
+            if kinds.count("loop_body") != 1 or kinds.count("loop_complete") != 1:
+                issues.append(_issue("error", "EXEC_LOOP_PORTS", f"execution flow {flow_id} loop {node_id} must have body and complete edges"))
+        if kind == "merge" and not incoming.get(str(node_id)):
+            issues.append(_issue("error", "EXEC_MERGE_INPUT", f"execution flow {flow_id} merge {node_id} must have at least one incoming edge"))
+        if kind == "return":
+            target_kinds = {
+                next((item.get("kind") for item in nodes if item.get("id") == edge.get("to")), None)
+                for edge in outgoing.get(str(node_id), [])
+                if edge.get("kind") == "return"
+            }
+            if "exit" not in target_kinds:
+                issues.append(_issue("error", "EXEC_RETURN_TARGET", f"execution flow {flow_id} return {node_id} must target exit"))
+    for edge in edges:
+        if edge.get("kind") == "back":
+            target = next((node for node in nodes if node.get("id") == edge.get("to")), None)
+            if target is None or target.get("kind") != "loop":
+                issues.append(_issue("error", "EXEC_BACK_TARGET", f"execution flow {flow_id} back edge {edge.get('id')} must target a loop"))
+        if edge.get("kind") in {"call", "call_path", "composition"}:
+            issues.append(_issue("error", "EXEC_CALL_EDGE", f"execution flow {flow_id} must not use call-graph edge kind {edge.get('kind')}"))
+    if entry_nodes:
+        reachable: set[str] = set()
+        stack = [str(entry_nodes[0].get("id"))]
+        while stack:
+            current = stack.pop()
+            if current in reachable:
+                continue
+            reachable.add(current)
+            stack.extend(str(edge.get("to")) for edge in outgoing.get(current, []) if edge.get("to") not in reachable)
+        if reachable != node_ids:
+            issues.append(_issue("error", "EXEC_UNREACHABLE", f"execution flow {flow_id} contains unreachable nodes: {sorted(node_ids - reachable)}"))
+    return issues
+
+
 def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "3.8":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 3.8"))
+    if str(bundle.get("schemaVersion")) != "4.0":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 4.0"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []
@@ -530,6 +680,28 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
             expected = int(node.get("candidateCount") or 0)
             if actual != expected:
                 issues.append(_issue("error", "DISPATCH_CANDIDATE_EDGE_COUNT", f"flow {flow_id} dispatch node {node.get('id')} has {actual} composition edges, expected {expected}"))
+
+    execution_flows = project_graph.get("executionFlows")
+    if not isinstance(execution_flows, list):
+        issues.append(_issue("error", "EXECUTION_FLOWS", "projectGraph.executionFlows must be an array"))
+        execution_flows = []
+    execution_flow_ids = {str(flow.get("id")) for flow in execution_flows}
+    primary_execution_flow_id = project_graph.get("primaryExecutionFlowId")
+    if primary_execution_flow_id is not None and primary_execution_flow_id not in execution_flow_ids:
+        issues.append(_issue("error", "PRIMARY_EXEC_FLOW_MISSING", f"primaryExecutionFlowId does not reference an execution flow: {primary_execution_flow_id}"))
+    if execution_flows and primary_execution_flow_id is None:
+        issues.append(_issue("error", "PRIMARY_EXEC_FLOW_MISSING", "primaryExecutionFlowId is required when executionFlows is non-empty"))
+    call_site_ids = {str(site.get("id")) for site in call_sites}
+    for flow in execution_flows:
+        issues.extend(
+            _validate_execution_flow(
+                flow,
+                detail_by_id=detail_by_id,
+                module_ids=module_ids,
+                capability_by_id=capability_by_id,
+                call_site_ids=call_site_ids,
+            )
+        )
 
     for graph in module_graphs:
         module_id = graph.get("moduleId")

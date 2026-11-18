@@ -1,7 +1,7 @@
 # ArchMap 旧文档归档
 
 > 封存日期：2026-11-18<br>
-> 当前版本：ArchMap 1.8.0 / bundle schema 3.8
+> 当前版本：ArchMap 1.9.0 / bundle schema 4.0
 
 本目录用于封存 ArchMap 各阶段的**过程文档、历史设计、旧交接、迁移记录、旧验收和旧原型**。
 这些材料用于追溯需求演进、设计取舍和验证历史，不代表当前产品契约。
@@ -9,11 +9,12 @@
 当前权威文档请从根文档入口开始：
 
 - [项目 README](../../README.md)
-- [v3.8 数据契约](../archmap-v3-design.md)
+- [v3.8 基础数据契约](../archmap-v3-design.md)
+- [P5 主流程执行流契约](../p5-main-execution-flow.md)
 - [架构与编码规范](../archmap-architecture-spec.md)
 - [API 契约模型](../archmap-api-contract-model.md)
 - [主模块与主流程契约](../p2.4-main-module-flow.md)
-- [当前 bundle schema](../schema/archmap-v3-bundle.schema.json)
+- [当前 bundle schema](../schema/archmap-v4-bundle.schema.json)
 
 ## 归档文档
 

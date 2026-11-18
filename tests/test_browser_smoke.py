@@ -110,6 +110,11 @@ def test_browser_smoke() -> None:
         execute("document.getElementById('relationModeBtn').click(); return true")
         execute("location.hash='#/module/entry'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        assert execute("return document.querySelectorAll('.execution-edge').length") > 0
+        assert execute("return document.querySelectorAll('.execution-node.kind-provider, .execution-node.kind-action, .execution-node.kind-statement').length") == 0
+        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
+        time.sleep(.3)
         assert execute("return document.querySelectorAll('.main-flow-node').length") > 0
         assert execute("return document.querySelectorAll('.boundary-node').length") == 0
         assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
@@ -186,6 +191,17 @@ def test_browser_smoke() -> None:
         request("POST", f"/session/{session}/url", {"url": f"{student_html.resolve().as_uri()}#/module/main"})
         time.sleep(.8)
         assert execute("return window.__ARCHMAP_ERRORS__") == []
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        execution_labels = execute("return Array.from(document.querySelectorAll('.execution-node .exec-node-label')).map(node => node.textContent)")
+        assert "server()" in execution_labels
+        assert "client()" in execution_labels
+        assert "NetworkAdapter.init_connection()" in execution_labels
+        assert "with Spinner(message: str='加载中')" not in execution_labels
+        assert "with Database(password: str)" not in execution_labels
+        assert "Database.actions(client_input: bytes)" not in execution_labels
+        assert "MenuSystem.run()" not in execution_labels
+        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
+        time.sleep(.3)
         assert execute("return document.querySelectorAll('.flow-edge').length") == 10
         labels = execute("return Array.from(document.querySelectorAll('.flow-node-label')).map(node => node.textContent)")
         assert "with Spinner(message: str='加载中')" in labels
@@ -231,6 +247,9 @@ def test_browser_smoke() -> None:
         self_html.write_text(render_html(self_bundle), encoding="utf-8")
         request("POST", f"/session/{session}/url", {"url": f"{self_html.resolve().as_uri()}#/module/main-pipeline"})
         time.sleep(.8)
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
+        time.sleep(.3)
         card_bounds = execute("""return (() => {
           const card = Array.from(document.querySelectorAll('.main-flow-node'))
             .find(node => node.querySelector('.flow-node-label')?.textContent.startsWith('RenderManager.render'));
@@ -314,6 +333,8 @@ def test_browser_smoke() -> None:
         time.sleep(.6)
         execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
+        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
+        time.sleep(.25)
         assert execute("return document.querySelectorAll('.flow-dispatch').length") == 1
         assert execute("return document.querySelectorAll('.graph-edge.kind-composition').length") == 2
         assert execute("return document.querySelectorAll('.graph-edge.kind-composition.is-low').length") == 2
@@ -329,6 +350,8 @@ def test_browser_smoke() -> None:
         time.sleep(.6)
         execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
+        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
+        time.sleep(.25)
         assert execute("return document.querySelectorAll('.flow-dispatch').length") == 2
         assert execute("return document.querySelectorAll('.graph-edge.kind-composition.is-low').length") == 3
         execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
