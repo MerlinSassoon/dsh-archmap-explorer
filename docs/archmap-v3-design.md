@@ -26,7 +26,7 @@
 > **P10 已实施（2026-11-20）**：bundle schema 升级为 6.3；新增一级 `executionScopes` 投影。主流程调用节点仍原子化，但可携带 `drilldown.interfaceSummary`；scope 以独立 `#/flow/<flowId>/scope/<nodeId>` 视图展示目标函数控制骨架、直接外部能力接口和内部 helper 接口提示。scope 深度硬限制为 1，受 `maxScopesPerFlow` / `maxNodesPerScope` / `maxEdgesPerScope` 预算约束，不递归展开。详见 [`p10-interface-drilldown-plan.md`](p10-interface-drilldown-plan.md)。
 > **P11 已实施（2026-11-19）**：bundle schema 升级为 6.4；新增 `executionFlows[].dispatchGroups[]` 与 dispatch 节点 `drilldown.kind=dispatch`。dispatch 仍是主流程原子路由边界，完整候选以独立 `origin=dispatch_candidate` 的一级 scope 展示；候选 scope 不递归生成 dispatch group，不在主画布新增候选控制边。支持 `dispatchCandidates` 配置、双预算、候选来源/完整性展示和 `#/flow/<flowId>/dispatch/<nodeId>/candidate/<candidateScopeId>` 路由。详见 [`p11-dispatch-candidate-journeys-plan.md`](p11-dispatch-candidate-journeys-plan.md)。
 >
-> **P12 已实施（2026-11-19）**：前端导航与指示中文化，通用 UI 字号提升；右侧详情栏支持拖拽调宽并独立持久化；模块能力页顶部栏目改为响应式网格，模块画布改为矩形卡片网格；API 与 dispatch 候选签名下方展示人类注释；移除“关系”和“单模块”入口。后端不再生成项目级模块依赖边，`projectGraph.edges` 固定为空数组以兼容 schema。
+> **P12 已实施（2026-11-19）**：前端导航与指示中文化，通用 UI 字号提升；右侧详情栏支持拖拽调宽并独立持久化；模块能力页顶部改为紧凑状态条，类型关系与用户交互面通过顶部抽屉展开，提供接口只在右侧详情栏展示；模块画布改为矩形卡片网格；API 与 dispatch 候选签名下方展示人类注释；移除“关系”和“单模块”入口。后端不再生成项目级模块依赖边，`projectGraph.edges` 固定为空数组以兼容 schema。
 
 ## 1. 三层投影
 

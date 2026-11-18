@@ -68,6 +68,7 @@
     executionScopeId: null,
     executionEdgeLayouts: {},
     executionEdgeLabels: new Map(),
+    moduleContractsExpanded: false,
   };
 
   let override = loadOverrides();
@@ -1287,39 +1288,70 @@
     });
   }
 
+  function setModuleContractsExpanded(expanded, targetPanel = "") {
+    state.moduleContractsExpanded = Boolean(expanded);
+    const drawer = moduleContracts.querySelector("#moduleContractsDrawer");
+    const toggle = moduleContracts.querySelector("[data-contracts-toggle]");
+    if (!drawer || !toggle) return;
+    drawer.hidden = !state.moduleContractsExpanded;
+    moduleContracts.classList.toggle("is-expanded", state.moduleContractsExpanded);
+    moduleContracts.querySelectorAll("[data-contracts-toggle], [data-contracts-target]").forEach(button => {
+      button.setAttribute("aria-expanded", String(state.moduleContractsExpanded));
+      button.classList.toggle("is-open", state.moduleContractsExpanded);
+    });
+    toggle.innerHTML = state.moduleContractsExpanded
+      ? `收起概览 <span class="contracts-toggle-icon">▴</span>`
+      : `展开概览 <span class="contracts-toggle-icon">▾</span>`;
+    if (state.moduleContractsExpanded && targetPanel) {
+      const panel = drawer.querySelector(`[data-contracts-panel="${targetPanel}"]`);
+      if (panel) {
+        requestAnimationFrame(() => panel.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+      }
+    }
+    requestAnimationFrame(() => fitView(false));
+  }
+
   function renderModuleContracts(moduleId) {
     if (!moduleContracts) return;
     const graph = moduleGraphById.get(moduleId);
-    const apis = graph?.providedApis || [];
     if (!graph) {
       moduleContracts.innerHTML = "";
-      moduleContracts.classList.remove("is-visible");
+      moduleContracts.classList.remove("is-visible", "is-expanded");
       return;
     }
+    const typeRelationCount = (graph.typeRelations || []).length;
+    const surfaceCount = (graph.userSurfaces || []).length;
     moduleContracts.style.setProperty("--mc-rgb", rgbFromHex(graph.color || "#60a5fa"));
     moduleContracts.innerHTML = `<div class="contracts-topline">
         <div class="contracts-title-group">
           <span class="contracts-label">模块能力</span>
-          <span class="contracts-subtitle">按 Provider 能力边界组织的模块概览</span>
+          <span class="contracts-subtitle">Provider 结构概览</span>
         </div>
         <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>
+        <div class="contracts-summary-actions">
+          <button class="contracts-count-btn" type="button" data-contracts-target="types" aria-expanded="false" aria-controls="moduleContractsDrawer">类型关系 <b>${typeRelationCount}</b></button>
+          <button class="contracts-count-btn" type="button" data-contracts-target="surfaces" aria-expanded="false" aria-controls="moduleContractsDrawer">用户交互面 <b>${surfaceCount}</b></button>
+          <button class="contracts-toggle" type="button" data-contracts-toggle aria-expanded="false" aria-controls="moduleContractsDrawer">展开概览 <span class="contracts-toggle-icon">▾</span></button>
+        </div>
       </div>
-      <div class="contracts-sections">
-        <section class="contracts-section contracts-section-api">
-          <div class="contracts-section-head"><span class="contracts-label">提供接口</span><span class="contracts-count">${apis.length} 个</span></div>
-          <div class="contracts-grid">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
+      <div class="contracts-drawer" id="moduleContractsDrawer" hidden>
+        <section class="contracts-drawer-section" data-contracts-panel="types">
+          <div class="contracts-section-head"><span class="contracts-label">类型关系</span><span class="contracts-count">${typeRelationCount} 条</span></div>
+          <div class="contracts-grid type-relation-track">${typeRelationChips(graph, typeRelationCount || 1)}</div>
         </section>
-        <section class="contracts-section contracts-section-types">
-          <div class="contracts-section-head"><span class="contracts-label">类型关系</span><span class="contracts-count">${(graph.typeRelations || []).length} 条</span></div>
-          <div class="contracts-grid type-relation-track">${typeRelationChips(graph)}</div>
-        </section>
-        <section class="contracts-section contracts-section-surfaces">
-          <div class="contracts-section-head"><span class="contracts-label">用户交互面</span><span class="contracts-count">${(graph.userSurfaces || []).length} 个</span></div>
-          <div class="contracts-grid user-surface-track">${userSurfaceChips(graph.userSurfaces || [])}</div>
+        <section class="contracts-drawer-section" data-contracts-panel="surfaces">
+          <div class="contracts-section-head"><span class="contracts-label">用户交互面</span><span class="contracts-count">${surfaceCount} 个</span></div>
+          <div class="contracts-grid user-surface-track">${userSurfaceChips(graph.userSurfaces || [], surfaceCount || 1)}</div>
         </section>
       </div>`;
     moduleContracts.classList.add("is-visible");
-    bindApiNavigation(moduleContracts);
+    moduleContracts.querySelector("[data-contracts-toggle]")?.addEventListener("click", () => {
+      setModuleContractsExpanded(!state.moduleContractsExpanded);
+    });
+    moduleContracts.querySelectorAll("[data-contracts-target]").forEach(button => {
+      button.addEventListener("click", () => setModuleContractsExpanded(true, button.dataset.contractsTarget || ""));
+    });
+    setModuleContractsExpanded(false);
   }
 
   function renderFlowPicker(selectedFlow) {

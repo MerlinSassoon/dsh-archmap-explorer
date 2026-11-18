@@ -232,6 +232,10 @@ def test_render_exposes_p12_ui_shell_without_legacy_toggles() -> None:
     assert "detail-api-note" in html
     assert "项目组成图" in html
     assert "模块能力" in html
+    assert "moduleContractsDrawer" in html
+    assert "data-contracts-toggle" in html
+    assert "contracts-summary-actions" in html
+    assert "contracts-section-api" not in html
     assert "PROVIDED API" not in html
     assert "relationModeBtn" not in html
     assert "singleModeBtn" not in html

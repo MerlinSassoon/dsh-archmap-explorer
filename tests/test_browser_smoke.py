@@ -215,30 +215,54 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.function-node').length") == 1
         assert execute("return document.querySelectorAll('.execution-node').length") == 0
         assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
-        assert execute("return document.querySelectorAll('.contracts-grid .module-api-chip').length") > 0
+        assert execute("return document.querySelectorAll('.module-contracts .module-api-chip').length") == 0
+        assert execute("return document.querySelectorAll('.detail-panel .detail-api-row').length") > 0
         assert execute("return document.querySelectorAll('.macro-edge').length") == 0
         assert execute("return document.querySelectorAll('.flow-picker.is-visible, .flow-card-node').length") == 0
         module_layout = execute("""return (() => {
           const graph = window.__ARCHMAP_DATA__.moduleGraphs.find(item => item.moduleId === 'entry');
           const panel = document.querySelector('.module-contracts');
-          const sections = document.querySelector('.contracts-sections');
           const labels = [...document.querySelectorAll('.module-contracts .contracts-label')].map(item => item.textContent.trim());
           const rect = panel.getBoundingClientRect();
+          const drawer = document.getElementById('moduleContractsDrawer');
+          const toggle = document.querySelector('[data-contracts-toggle]');
           return {
             mode: graph?.layout?.mode,
-            display: getComputedStyle(sections).display,
             labels,
             noHorizontalOverflow: panel.scrollWidth <= panel.clientWidth + 1,
             withinViewport: rect.right <= window.innerWidth + 1,
+            compactHeight: rect.height,
+            drawerHidden: drawer.hidden,
+            expanded: toggle.getAttribute('aria-expanded'),
             labelFont: parseFloat(getComputedStyle(document.querySelector('.module-contracts .contracts-label')).fontSize || '0'),
           };
         })()""")
         assert module_layout["mode"] == "module-grid"
-        assert module_layout["display"] == "grid"
+        assert module_layout["compactHeight"] < 100
+        assert module_layout["drawerHidden"] is True
+        assert module_layout["expanded"] == "false"
         assert module_layout["noHorizontalOverflow"] is True
         assert module_layout["withinViewport"] is True
         assert module_layout["labelFont"] >= 10
-        assert {"模块能力", "提供接口", "类型关系", "用户交互面"}.issubset(set(module_layout["labels"]))
+        assert {"模块能力", "类型关系", "用户交互面"}.issubset(set(module_layout["labels"]))
+        assert "提供接口" not in module_layout["labels"]
+        drawer_open = execute("""return (() => {
+          document.querySelector('[data-contracts-target="types"]').click();
+          const drawer = document.getElementById('moduleContractsDrawer');
+          const panel = document.querySelector('.module-contracts');
+          return {
+            hidden: drawer.hidden,
+            expanded: document.querySelector('[data-contracts-toggle]').getAttribute('aria-expanded'),
+            sections: drawer.querySelectorAll('.contracts-drawer-section').length,
+            noHorizontalOverflow: panel.scrollWidth <= panel.clientWidth + 1,
+          };
+        })()""")
+        assert drawer_open["hidden"] is False
+        assert drawer_open["expanded"] == "true"
+        assert drawer_open["sections"] == 2
+        assert drawer_open["noHorizontalOverflow"] is True
+        execute("document.querySelector('[data-contracts-toggle]').click(); return true")
+        assert execute("return document.getElementById('moduleContractsDrawer').hidden") is True
         assert execute("return document.querySelectorAll('[data-expand]').length") == 0
         assert execute("return document.querySelectorAll('.module-mini').length") == 0
         drag_result = execute("""return (() => {
@@ -478,23 +502,30 @@ def test_browser_smoke() -> None:
         assert execute("return window.__ARCHMAP_ERRORS__") == []
         execute("location.hash='#/module/python-frontend'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.5)
+        execute("document.querySelector('[data-contracts-target=\"types\"]').click(); return true")
+        time.sleep(.2)
         dense_module_layout = execute("""return (() => {
           const panel = document.querySelector('.module-contracts');
-          const sections = panel.querySelector('.contracts-sections');
+          const drawer = document.getElementById('moduleContractsDrawer');
           const rect = panel.getBoundingClientRect();
           const labels = [...panel.querySelectorAll('.contracts-label')].map(item => item.textContent.trim());
           return {
             noHorizontalOverflow: panel.scrollWidth <= panel.clientWidth + 1,
             withinViewport: rect.right <= window.innerWidth + 1,
-            hasChineseSections: ['模块能力', '提供接口', '类型关系', '用户交互面'].every(label => labels.includes(label)),
-            sectionColumns: getComputedStyle(sections).gridTemplateColumns.split(' ').length,
-            gridColumns: [...panel.querySelectorAll('.contracts-grid')].map(grid => getComputedStyle(grid).gridTemplateColumns.split(' ').length),
+            hasChineseSections: ['模块能力', '类型关系', '用户交互面'].every(label => labels.includes(label)),
+            hasTopApiChips: panel.querySelectorAll('.module-api-chip').length > 0,
+            drawerVisible: !drawer.hidden,
+            typeGridDisplay: getComputedStyle(drawer.querySelector('.contracts-grid')).display,
+            typeChips: drawer.querySelectorAll('.type-relation-chip').length,
           };
         })()""")
         assert dense_module_layout["noHorizontalOverflow"] is True
         assert dense_module_layout["withinViewport"] is True
         assert dense_module_layout["hasChineseSections"] is True
-        assert max([dense_module_layout["sectionColumns"], *dense_module_layout["gridColumns"]]) >= 2
+        assert dense_module_layout["hasTopApiChips"] is False
+        assert dense_module_layout["drawerVisible"] is True
+        assert dense_module_layout["typeGridDisplay"] == "grid"
+        assert dense_module_layout["typeChips"] > 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # Phase 1 class layer: classes are component nodes on the module page;
@@ -537,10 +568,20 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.type-field-row').length") == 3
         role_layout = execute("""return (() => {
           const graph = window.__ARCHMAP_DATA__.moduleGraphs.find(item => item.moduleId === 'roles');
-          return {mode: graph?.layout?.mode, columns: graph?.layout?.columns};
+          document.querySelector('[data-contracts-target="types"]').click();
+          const panel = document.querySelector('.module-contracts');
+          const drawer = document.getElementById('moduleContractsDrawer');
+          return {
+            mode: graph?.layout?.mode,
+            columns: graph?.layout?.columns,
+            drawerVisible: !drawer.hidden,
+            topApiChips: panel.querySelectorAll('.module-api-chip').length,
+          };
         })()""")
         assert role_layout["mode"] == "module-grid"
         assert role_layout["columns"] >= 2
+        assert role_layout["drawerVisible"] is True
+        assert role_layout["topApiChips"] == 0
         execute("document.querySelector('.class-node[data-uid=\"cls:app.roles.OrderManager\"]').click(); return true")
         time.sleep(.2)
         api_notes = execute("""return (() => {

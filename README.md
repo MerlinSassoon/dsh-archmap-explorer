@@ -121,7 +121,7 @@ yield/student_system/
 
 - **项目页**：以与模块卡片同构的标准流程卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片；不绘制模块间依赖线，`projectGraph.edges` 仅保留为空数组用于 schema 兼容。双击模块卡片进入能力页，流程卡片进入 `#/flow`。
 - **主流程页**：只展示 P5 横向有界执行流；支持多 flow 选择、拖拽布局、节点详情和源码下钻。不再显示调用总览或模块能力契约。dispatch 节点可进入独立候选旅程，但主画布不新增候选控制边。
-- **模块能力页**：所有能力模块统一展示提供接口、Provider Role、类/自由函数与类型关系；顶部能力概览使用响应式网格，模块画布使用矩形卡片网格；不展示调用连线；config/model Provider 以类型卡片展示字段摘要。
+- **模块能力页**：所有能力模块统一展示 Provider Role、类/自由函数与类型关系；顶部只保留紧凑状态条，类型关系与用户交互面通过顶部抽屉按需展开，提供接口统一在右侧详情栏展示；模块画布使用矩形卡片网格；不展示调用连线；config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗：`#/project`、`#/flow[/<id>]`、`#/flow/<flowId>/scope/<nodeId>`、`#/flow/<flowId>/dispatch/<nodeId>/candidate/<candidateScopeId>`、`#/module/<moduleId>`、`#/module/<moduleId>/function/<functionId>`。
@@ -578,7 +578,7 @@ browser smoke:  1 passed（显式开启）
 - P10.2 控制臂语句摘要、edge statement 标签、隐式循环继续语义、无 statement/basic-block 节点，以及画布空白点击/双击清除选择高亮的回归。
 - P10.3 本地编排 callable 自动发现、显式/executionOnly 优先级、interface 排除、外部接口与控制结构门槛、自动来源标识。
 - P11 dispatch 候选旅程：候选 group、候选 free_function scope、opt-in 配置、完整性/来源展示、双预算截断、Hash 路由恢复、schema 6.4 与浏览器回归。
-- P12 UI：中文导航/指示、统一字号提升、详情栏拖拽调宽、模块顶部栏目网格、模块画布卡片网格、人类注释摘要、移除“关系/单模块”按钮与模块依赖线后端生成。
+- P12 UI：中文导航/指示、统一字号提升、详情栏拖拽调宽、紧凑模块状态条与顶部概览抽屉、模块画布卡片网格、人类注释摘要、移除“关系/单模块”按钮与模块依赖线后端生成。
 
 浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、dispatch 候选旅程、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
