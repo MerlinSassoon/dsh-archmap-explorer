@@ -305,7 +305,7 @@ mainFlow.dispatches
 - `mainFlow.dispatches` 仍可读取；
 - 旧 bundle 5.0/4.x 使用历史 schema 追溯，必须重新 build 才能得到 schema 6.0。
 
-详细生成规则见 [`project-config-generation-guide.md`](../../project-config-generation-guide.md)。
+详细生成规则见 [`archmap-config-generation.md`](../../archmap-config-generation.md)。
 
 ## 12. 交接检查清单
 

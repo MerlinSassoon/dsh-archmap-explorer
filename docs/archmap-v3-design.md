@@ -1,32 +1,8 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档记录 v3.8 基础数据契约及 P5.1-P12 增量修订，并作为实现和后续 ArkTS 扩展的依据。当前 bundle schema 为 6.4；历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)。发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
->
-> **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 4.1；P5.2 增加可选 `executionEntrypoints`，用于将主执行流起点与分析入口解耦；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
->
-> **P5.1 补充（2026-11-18）**：移除执行流 `merge` 合成节点，改为多边直接 fan-in；卡片改为内嵌端口行样式。详见 [`p5.1-execution-card-style.md`](旧文档/11月9日/p5.1-execution-card-style.md) 与 [`p5.1-execution-flow-fan-in-plan.md`](旧文档/11月9日/p5.1-execution-flow-fan-in-plan.md)。<br>
->
-> **P5.3 补充（2026-11-18）**：`return` 成为无出边的终止节点，`exit` 按真实隐式结束路径按需生成；执行边实线只表示确定直接关系、虚线只表示推断/不完整/间接关系；`free_function` 统一表示主模块本地 callable，通过 `callableKind` 区分函数与方法。<br>
->
-> **P5.4 补充（2026-11-18）**：bundle schema 升级到 4.1。执行边只保留连接关系 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；`break` / `continue` / `return` 仅作为节点终止类型且无出边；`loop_complete` 是循环唯一结构化离开出口。执行卡片改用 human note，不再渲染 signature。<br>
->
-> **P5.5 补充（2026-11-18）**：主流程页独立为 `#/flow` 项目级视图，只展示 `executionFlows`；主模块与功能模块统一进入 `#/module/<id>` 能力页。`mainFlows` 数据保留，但不再作为默认 UI 调用总览展示。<br>
->
-> **当前状态（2026-11-19）**：P0-P12 已完成，当前 bundle schema 为 6.4。类焦点页与类内方法图不在产品计划中；后续扩展以真实项目解析质量、User Surface 校准、增量扫描和 ArkTS surface 为主。
->
-> **P6 计划（2026-11-18）**：项目模型重构已批准，目标为取消主模块、项目级主流程、单一 executionFlows 投影和纵向能力模块。实施契约、阶段与验收以 [`p6-project-model-plan.md`](旧文档/11月9日/p6-project-model-plan.md) 为准。<br>
-> **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明；P11 当前契约以 schema 6.4 为准。
->
-> **P7 已实施（2026-11-18）**：bundle schema 升级为 6.0；Provider Role 删除 `entry`，模块 role 删除 `entry`；execution flow 恢复标准 `entry` 节点；项目页新增 `flowCards` 并与 module card 同布局；入口语义完全由项目级 entrypoints / execution flow 承担。
->
-> **P8 已实施（2026-11-19）**：bundle schema 升级为 6.1；模块配置新增 `executionOnlyCallables`，用于把流程入口和流程内部编排 callable 从能力面透明化；这些 callable 仍保留在 functionDetails、callSites 和执行流中。模块新增 `capabilitySurface`；能力为空时后端保留模块与 layout，前端不渲染模块卡。Provider Role 仍为七角色。
->
-> **P9 已实施（2026-11-19）**：bundle schema 升级为 6.2；模块配置新增 `defaultFreeFunctionSurface`，自由函数采用保守推断，未经显式公开 API 或跨模块调用证据不再默认成为 `manager`。自由函数 FunctionDetail 输出 `functionSurface` / `functionSurfaceSource`，ModuleGraph 输出 capability/internal/execution 自由函数 ID 和计数。
->
-> **P10 已实施（2026-11-20）**：bundle schema 升级为 6.3；新增一级 `executionScopes` 投影。主流程调用节点仍原子化，但可携带 `drilldown.interfaceSummary`；scope 以独立 `#/flow/<flowId>/scope/<nodeId>` 视图展示目标函数控制骨架、直接外部能力接口和内部 helper 接口提示。scope 深度硬限制为 1，受 `maxScopesPerFlow` / `maxNodesPerScope` / `maxEdgesPerScope` 预算约束，不递归展开。详见 [`p10-interface-drilldown-plan.md`](p10-interface-drilldown-plan.md)。
-> **P11 已实施（2026-11-19）**：bundle schema 升级为 6.4；新增 `executionFlows[].dispatchGroups[]` 与 dispatch 节点 `drilldown.kind=dispatch`。dispatch 仍是主流程原子路由边界，完整候选以独立 `origin=dispatch_candidate` 的一级 scope 展示；候选 scope 不递归生成 dispatch group，不在主画布新增候选控制边。支持 `dispatchCandidates` 配置、双预算、候选来源/完整性展示和 `#/flow/<flowId>/dispatch/<nodeId>/candidate/<candidateScopeId>` 路由。详见 [`p11-dispatch-candidate-journeys-plan.md`](p11-dispatch-candidate-journeys-plan.md)。
->
-> **P12 已实施（2026-11-19）**：前端导航与指示中文化，通用 UI 字号提升；右侧详情栏支持拖拽调宽并独立持久化；模块能力页顶部改为紧凑状态条，类型关系与用户交互面通过顶部抽屉展开，提供接口只在右侧详情栏展示；模块画布改为矩形卡片网格；API 与 dispatch 候选签名下方展示人类注释；移除“关系”和“单模块”入口。后端不再生成项目级模块依赖边，`projectGraph.edges` 固定为空数组以兼容 schema。
+> 版本：ArchMap 2.5.0 / bundle schema 6.4<br>
+> 日期：2026-11-19<br>
+> 文档性质：当前数据契约。历史阶段补充已归档到 [`旧文档/archmap-v3-design-阶段补充.md`](旧文档/archmap-v3-design-阶段补充.md)。
 
 ## 1. 三层投影
 
@@ -44,7 +20,7 @@
 - 自由函数默认采用保守能力边界：`defaultFreeFunctionSurface` 支持 `auto` / `internal` / `capability`，单函数用 `apiExposure` 例外；
 - `projectGraph.capabilityModuleIds` 给出能力非空、应由前端渲染的模块集合；`capabilitySurface.hasProviders=false` 的模块仍保留在后台模块与 layout 中，但前端不渲染模块卡；默认布局将空模块追加到可见卡片之后，并按可见数量计算网格列数，避免前端过滤后出现网格空洞。
 - 默认几何由 Python 以统一卡片网格生成（`layout.mode = "module-cards"` 当前兼容保留，实际同时布局 flow cards 与 module cards），前端只负责渲染与用户拖拽覆盖。
-- P6.2 起 `projectGraph.mainFlows` / `primaryFlowId` 已删除；项目级执行视图保留 `executionFlows`、`flowCards` / `primaryExecutionFlowId`。
+- `projectGraph.mainFlows` / `primaryFlowId` 已删除；项目级执行视图保留 `executionFlows`、`flowCards` / `primaryExecutionFlowId`。
 - 模块画布使用 `layout.mode = "module-grid"` 的矩形卡片网格，不再把所有 Provider 节点放进单列 rank。
 
 ### ExecutionFlow
@@ -59,7 +35,7 @@
 - 项目级分析不修改模块边界；
 - dispatch 节点保存候选数量、候选来源、是否完整和 unresolved 原因；
 - **执行流边界**：主流程只展开 entrypoint 自身控制骨架；调用目标均作为原子节点，不继续穿透实现；
-- P10 一级接口 scope 是显式投影：只展示目标函数直接外部接口和必要控制结构，`depth` 恒为 `1`，scope 内不得再嵌套 scope；scope root 必须是 `free_function` 编排 callable，`interface` 节点是功能模块能力边界，不得生成 scope；P10.3 的 `autoDetect` 只从主流程可见、同模块、命中外部接口与控制结构的 `free_function` 中保守发现候选；普通赋值/非调用表达式不生成节点，而通过 branch `armSummaries`、edge `statements` 与 `implicitNext` 保留控制臂语义；多分支只保留条件与隐式循环提示，不展示 case 内部赋值注释；
+- 一级接口 scope 是显式投影：只展示目标函数直接外部接口和必要控制结构，`depth` 恒为 `1`，scope 内不得再嵌套 scope；scope root 必须是 `free_function` 编排 callable，`interface` 节点是功能模块能力边界，不得生成 scope；`autoDetect` 只从主流程可见、同模块、命中外部接口与控制结构的 `free_function` 中保守发现候选；普通赋值/非调用表达式不生成节点，而通过 branch `armSummaries`、edge `statements` 与 `implicitNext` 保留控制臂语义；多分支只保留条件与隐式循环提示，不展示 case 内部赋值注释；
 - 主流程节点通过 `drilldown` 摘要给出 scope 链接和外部接口；完整 scope 存放在 `executionFlows[].scopes`；
 - dispatch 节点通过 `drilldown.kind=dispatch` 指向 `executionFlows[].dispatchGroups[]`；group 内每个候选是一级 `archmap.execution-scope`，候选根仍必须是真实 `free_function`；
 - 候选集完整性、来源、预算截断和 omitted candidate 均在 dispatch group 中显式记录；
@@ -91,7 +67,7 @@
 
 ### API 契约模型
 
-P2.1 引入语言中立的 Provider + Capability 模型：
+当前 API 契约使用语言中立的 Provider + Capability 模型：
 
 - **Provider**：类或自由函数；
 - **Capability**：`function` / `method` / `context_manager` / `async_context_manager` / `callable` / `iterable`；
@@ -114,7 +90,7 @@ P2.1 引入语言中立的 Provider + Capability 模型：
 
 详细说明见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
 
-### Provider Role（P2.2 已实现）
+### Provider Role
 
 Capability 之上增加 Provider 级角色：
 
@@ -155,9 +131,9 @@ Provider 节点、`apiProviders` 与 API capability 均带：
 
 模块图输出 `moduleComposition` / `providerRoleCounts`，以及只含公开 Provider 的 `publicModuleComposition` / `publicProviderRoleCounts`。`config` / `model` 的 `providedApis` 必须为空，其字段通过 `typeSummary` 展示；`utility` 默认 internal，不进入默认项目页/模块页，但仍保留在 FunctionDetail 与 CallSite 事实层。内部阶段函数通过 `ownerProviderId` 指向其 facade manager。
 
-### 类型关系与继承 API（P3 已实现）
+### 类型关系与继承 API
 
-P3 把 Python 基类表达式解析为 canonical 类型关系，并进入 ProjectGraph 与 ModuleGraph：
+当前实现把 Python 基类表达式解析为 canonical 类型关系，并进入 ProjectGraph 与 ModuleGraph：
 
 ```json
 {
@@ -180,7 +156,7 @@ P3 把 Python 基类表达式解析为 canonical 类型关系，并进入 Projec
 - 多态 candidates 进入主流程时使用 `candidateSource=polymorphic` 的 dispatch 节点和 `composition(low)` 虚线。
 - 本地候选集默认不标记完整，因为项目外实现不可知。
 
-### 结构关系扩展（P4 已实现）
+### 结构关系扩展
 
 `typeRelations` 在 `inherits/implements` 之外新增：
 
@@ -191,7 +167,7 @@ P3 把 Python 基类表达式解析为 canonical 类型关系，并进入 Projec
 
 每条关系带 `source`、`fromProviderId`/`toProviderId`、Provider Role、可见性、confidence 与 `evidenceFunctionIds`。无法解析的项目内类不生成结构边。
 
-### User Surface（P4 已实现）
+### User Surface
 
 需要区分：
 
@@ -226,7 +202,7 @@ user surface    最终用户能感知或操作的交互面
 
 入口来源可在项目页 flow card 中展示；能力模块仍以 developer API 为主。
 
-### Impact / Trace / DSM（P4 已实现）
+### Impact / Trace / DSM
 
 - Impact：比较两个 bundle 的函数、API、结构关系与 surface 变化，沿 caller/结构关系反向传播；
 - Trace：沿静态调用、多态 candidates 和结构关系做有界出向/入向查询；
@@ -236,7 +212,7 @@ user surface    最终用户能感知或操作的交互面
 
 ### FunctionDetail / CallSite
 
-P1.5 起，默认产品不再生成语句级 FunctionFlow：
+默认产品不再生成语句级 FunctionFlow：
 
 - 每个函数/方法生成 `FunctionDetail`，包含源码切片、签名、备注、返回/异常、callers/callees、`apiExposure` 和 `sourceHash`。
 - 每次静态调用生成 `CallSite`，记录文件、行、列、调用文本、解析状态和置信度；多态调用额外记录 `polymorphic`、`dispatchKind` 和候选函数集合。
@@ -308,7 +284,7 @@ P1.5 起，默认产品不再生成语句级 FunctionFlow：
 }
 ```
 
-v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时显示过期提示。
+ArchMap Python 核心只读取并在详情面板展示注解，不调用 LLM。后续 DSH 插件通过宿主模型生成同一侧车文件，不改变 bundle 契约。`sourceHash` 不匹配时显示过期提示。
 
 ## 6. 默认布局与用户覆盖
 
@@ -318,7 +294,7 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 - 覆盖文件由前端导入/导出为 `layout-overrides.json`。
 - 覆盖项按稳定 ID 保存，忽略过期或无效键；默认卡片几何或布局命名空间变化时必须提升前端 `geometryVersion`，旧坐标会被丢弃并回退到 Python 默认布局。
 - 覆盖不进入语义指纹。
-- P1.5 后不再存在函数级执行流布局覆盖；方法详情页以源码和调用关系为主。
+- 不再存在函数级执行流布局覆盖；方法详情页以源码和调用关系为主。
 - 类焦点页不纳入产品计划，因此不新增类页布局覆盖命名空间。
 - 方法详情页和源码面板遵循系统 `prefers-color-scheme`。
 
@@ -362,6 +338,6 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 }
 ```
 
-JSON Schema：`docs/schema/archmap-v6.4-bundle.schema.json`；6.3 / 6.2 / 6.1 / 6.0 schema 保留为历史版本。
+JSON Schema：`docs/schema/archmap-v6.4-bundle.schema.json`；6.3 / 6.2 / 6.1 / 6.0 等历史 schema 已归档到 `docs/旧文档/schema/`。
 
 单文件 HTML 内联 bundle、CSS 和 JS，无 CDN、外部字体、外部图片或网络请求。

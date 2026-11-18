@@ -120,7 +120,7 @@ def test_execution_edge_contract_is_tightened_and_v4_0_is_archived() -> None:
     import json
     from pathlib import Path as FilePath
 
-    schema_dir = FilePath(__file__).parent.parent / "docs" / "schema"
+    schema_dir = FilePath(__file__).parent.parent / "docs" / "旧文档" / "schema"
     current = json.loads((schema_dir / "archmap-v4-bundle.schema.json").read_text(encoding="utf-8"))
     historical = json.loads(
         (schema_dir / "archmap-v4.0-bundle.schema.json").read_text(encoding="utf-8")

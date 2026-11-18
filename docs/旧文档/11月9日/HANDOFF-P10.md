@@ -223,7 +223,7 @@ archmap/frontends/python/execution_utility.py
 archmap/render/assets/app.js
 archmap/render/assets/app.css
 docs/p10-interface-drilldown-plan.md
-docs/project-config-generation-guide.md
+docs/archmap-config-generation.md
 docs/schema/archmap-v6.3-bundle.schema.json
 tests/test_flow_scopes.py
 tests/test_browser_smoke.py

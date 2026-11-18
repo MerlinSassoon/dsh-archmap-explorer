@@ -125,7 +125,7 @@ executionOnly callable：
 ### P8.3 样例与文档
 
 - student_system、gomoku、self 配置；
-- `project-config-generation-guide.md`；
+- `archmap-config-generation.md`；
 - README、数据契约、schema、验收与交接。
 
 ## 8. 验收

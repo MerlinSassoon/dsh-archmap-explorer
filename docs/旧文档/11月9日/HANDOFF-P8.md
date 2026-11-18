@@ -125,7 +125,7 @@ archmap/utility/graph_utility.py
 archmap/utility/execution_flow_utility.py
 archmap/utility/validate_utility.py
 archmap/render/assets/app.js
-docs/project-config-generation-guide.md
+docs/archmap-config-generation.md
 docs/schema/archmap-v6.1-bundle.schema.json
 examples/student_system.archmap.json
 examples/gomoku.archmap.json

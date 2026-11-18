@@ -131,7 +131,7 @@ ModuleGraph 输出：
 
 ### P9.4 文档与验收
 
-- project-config-generation-guide；
+- archmap-config-generation；
 - README、数据契约、API 契约、架构规范；
 - 全量测试、浏览器冒烟、三样例 build/check。
 

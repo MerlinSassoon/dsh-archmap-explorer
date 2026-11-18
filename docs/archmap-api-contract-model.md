@@ -1,8 +1,9 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1-P11 已实现（当前 bundle schema 6.4）<br>
+> 版本：ArchMap 2.5.0 / bundle schema 6.4<br>
 > 日期：2026-11-19<br>
-> 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
+> 文档性质：当前 API 契约模型<br>
+> 目标：描述模块/类/函数对外提供什么能力，并保持语言中立的 Provider + Capability 模型。
 
 ## 1. 产品边界
 
@@ -59,7 +60,7 @@ Evidence     证据：函数 ID、文件、行号、注释或装饰器
 }
 ```
 
-### 2.1 Provider Role（P2.2 已实现）
+### 2.1 Provider Role
 
 仅有 Capability 还不够；还需要表达 Provider 在模块中的职责：
 
@@ -108,7 +109,7 @@ Provider 节点与能力字段：
 }
 ```
 
-`roleSource` 取值：`config` / `docstring` / `comment` / `decorator` / `entrypoint` / `structure` / `naming`；`roleConfidence` 为 `high` / `medium` / `low`。
+`roleSource` 取值：`config` / `docstring` / `comment` / `decorator` / `entrypoint` / `structure` / `naming` / `surface`；`roleConfidence` 为 `high` / `medium` / `low`。
 
 `providerVisibility` 取值为 `public` / `internal`：
 
@@ -139,11 +140,11 @@ config.providerRoles 显式覆盖
 
 `FunctionInfo` 属于 `model`；`ProjectConfig` / `ModuleConfig` 属于 `config`；`CallResolver` / `PythonFrontend` / `MenuSystem` / `Database` 属于 `manager`。
 
-P7 后入口状态由项目级 entrypoints / execution flow 承担，不修改 Provider Role。execution flow 使用标准 `entry` 节点和原子 callable/interface 节点；动态分发候选保留在 dispatch 节点详情中；P11 可将完整候选投影为独立候选 scope。
+入口状态由项目级 entrypoints / execution flow 承担，不修改 Provider Role。execution flow 使用标准 `entry` 节点和原子 callable/interface 节点；动态分发候选保留在 dispatch 节点详情中，完整候选可投影为独立候选 scope。
 
-P9 增加 `defaultFreeFunctionSurface`：模块级自由函数默认采用保守能力边界，`auto` 仅在显式公开 API 或跨模块调用等强证据下进入能力面；`internal` / `capability` 可声明模块默认面，单函数继续用 `apiExposure` 例外。自由函数 FunctionDetail 输出 `functionSurface` / `functionSurfaceSource`。
+`defaultFreeFunctionSurface` 控制模块级自由函数的默认能力边界：`auto` 仅在显式公开 API 或跨模块调用等强证据下进入能力面；`internal` / `capability` 声明模块默认面，单函数继续用 `apiExposure` 例外。自由函数 FunctionDetail 输出 `functionSurface` / `functionSurfaceSource`。
 
-P8 增加 `executionOnlyCallables`：它声明属于模块源码边界、但不属于能力 Provider 面的 callable。被声明的自由函数/方法不进入 `providedApis`、`apiProviders`、`moduleComposition` 或 Provider 角色计数；仍保留在 `functionDetails`、`callSites` 和执行流节点中。类方法被排除时，其 owner class Provider 保留，但该方法从类 API 中移除。模块新增 `capabilitySurface`；能力为空时后端保留模块与 layout，前端不渲染模块卡。
+`executionOnlyCallables` 声明属于模块源码边界、但不属于能力 Provider 面的 callable。被声明的自由函数/方法不进入 `providedApis`、`apiProviders`、`moduleComposition` 或 Provider 角色计数；仍保留在 `functionDetails`、`callSites` 和执行流节点中。类方法被排除时，其 owner class Provider 保留，但该方法从类 API 中移除。模块新增 `capabilitySurface`；能力为空时后端保留模块与 layout，前端不渲染模块卡。
 
 ## 3. 暴露级别判定
 
@@ -184,7 +185,7 @@ config 显式覆盖
 
 ## 4. 支持的 Capability
 
-P2.1 第一版：
+当前支持的 Capability：
 
 | kind | 来源 | 示例 |
 |---|---|---|
@@ -199,7 +200,7 @@ P2.1 第一版：
 
 ## 5. 明确延期：序列协议
 
-以下能力**不在 P2.1 实现**，避免靠启发式误报：
+以下能力**当前不进入能力模型**，避免靠启发式误报：
 
 ```text
 __len__
@@ -217,7 +218,7 @@ ArkTS 的 length / index signature
 - 静态分析难以确认对象是否真的作为序列契约使用；
 - 容易产生低置信度噪声。
 
-后续如需支持，应在独立 protocol 扩展阶段增加，并具备明确证据、置信度和配置入口。
+后续如需支持，应以独立协议扩展形式加入，并具备明确证据、置信度和配置入口。
 
 ## 6. 构造签名
 
@@ -423,55 +424,3 @@ user surface    最终用户能感知或操作的交互面
 - socket / HTTP server → network；
 - ArkTS `@Entry` / `@Component` / `@Builder` / `TextInput` / `Button` → UI；
 - 沿 entrypoint 调用路径传播，带 confidence，不硬编码具体项目函数名。
-
-## 13. 阶段规划
-
-```text
-P2.2  Provider Role 与模块组合（已完成）
-      - role 判定、config/model/manager 展示过滤
-      - moduleComposition + providerRoleCounts
-      - 类型卡片与 manager API 卡片分离
-
-P2.3  ArchMap 自身 config/model/manager 重构（已完成）
-      - 四类物理文件规范
-      - config/model/manager/utility 目录迁移
-      - providerVisibility 与 public 投影
-      - 旧 import shim 已在最终清理中删除
-
-P3    类型契约、Manager 接口与继承 API（已完成）
-      - inherits / implements
-      - 继承 API + override 来源
-      - 多态 candidates 与 polymorphic dispatch
-      - 不新增类焦点页
-
-P4    关系、组合/聚合、API/type/provider/surface impact、trace、user surface 传播与 DSM（已完成）
-      - 角色感知结构关系
-      - User Surface 投影
-      - Impact / Trace 查询
-      - Module/Provider DSM
-
-P8    executionOnlyCallables 与空能力模块（已完成）
-      - 显式能力面排除
-      - 自由函数与类方法
-      - 空能力模块后端保留、前端隐藏
-      - schema 6.1
-
-P9    自由函数能力边界与模块默认面（已完成）
-      - 保守自由函数推断
-      - defaultFreeFunctionSurface
-      - functionSurface / surface source
-      - schema 6.3
-```
-
-P2.2 是 P3/P4 的前置层，不应跳过。
-
-
-## 14. P2.2 实现记录
-
-- 语言前端新增 Python Provider Role 判定，优先级为显式配置、注释/装饰器、结构规则、命名弱提示；
-- 支持 `contract.providerRoles` 显式覆盖；
-- Provider 节点、`apiProviders`、API capability 与自由函数 FunctionDetail 输出角色字段；
-- `moduleComposition` 与 `providerRoleCounts` 进入 ModuleGraph 和项目模块卡片；
-- config/model 类生成 `typeSummary`，并把方法能力从 `providedApis` 中过滤；
-- 常量、枚举、dataclass/NamedTuple/TypedDict、ABC/Protocol、协议组件、外部 IO、manager 状态与静态工具类均有结构判定；
-- schemaVersion 升级为 3.5，校验器新增角色、组合覆盖率、公开组合、providerVisibility、ownerProviderId 与 config/model/utility API 泄漏检查。

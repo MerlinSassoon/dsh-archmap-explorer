@@ -186,7 +186,7 @@ archmap/utility/graph_utility.py
 archmap/utility/validate_utility.py
 archmap/utility/execution_flow_utility.py
 archmap/render/assets/app.js
-docs/project-config-generation-guide.md
+docs/archmap-config-generation.md
 docs/schema/archmap-v6.2-bundle.schema.json
 examples/gomoku.archmap.json
 examples/gomoku_v2.archmap.json
@@ -218,7 +218,7 @@ tests/test_execution_only.py
 - [x] validator 表面一致性、API 泄漏、空能力模块不变量；
 - [x] 方法详情 surface / execution badge；
 - [x] examples + fixtures 更新；
-- [x] `project-config-generation-guide.md` P9 收口；
+- [x] `archmap-config-generation.md` P9 收口；
 - [x] 全量测试、浏览器冒烟、self/student/gomoku build/check。
 
 ## 11. 后续方向

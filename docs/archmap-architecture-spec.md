@@ -1,9 +1,9 @@
 # ArchMap 架构与编码规范
 
-> 状态：P2.3 规范已落盘，P2.4-P9 已按该规范完成<br>
 > 版本：ArchMap 2.5.0 / bundle schema 6.4<br>
 > 日期：2026-11-19<br>
-> 适用范围：ArchMap 自身源码、后续语言前端和架构分析扩展。
+> 文档性质：当前架构与编码规范<br>
+> 适用范围：ArchMap 自身源码、被分析项目代码和后续语言前端扩展。
 
 ## 1. 两层分类：物理代码单元与逻辑 Provider Role
 
@@ -14,7 +14,7 @@ ArchMap 使用两层分类，禁止把两者混为一谈：
 逻辑 Provider Role：config / model / manager / adapter / component / contract / utility
 ```
 
-物理文件决定代码放在哪里；逻辑角色决定它在架构图中代表什么。P6.2 起模块按业务能力纵向组织，禁止用顶层 `config/`、`model/`、`utility/` 目录作为模块边界。
+物理文件决定代码放在哪里；逻辑角色决定它在架构图中代表什么。模块按业务能力纵向组织，禁止用顶层 `config/`、`model/`、`utility/` 目录作为模块边界。
 
 ```text
 物理代码单元是“存储位置”
@@ -51,11 +51,11 @@ Visibility 是“是否进入默认架构视图”
 contract > adapter > component > manager > config > model > utility
 ```
 
-> P7.1 起 Provider Role `entry` 已删除。入口状态属于 execution flow，不属于模块/Provider Role。
+> Provider Role `entry` 已删除。入口状态属于 execution flow，不属于模块/Provider Role。
 >
-> P8 起，只参与执行流的 callable 通过模块配置 `executionOnlyCallables` 显式声明；它们对能力面透明，但仍是源码、调用关系和 execution flow 事实。
+> 只参与执行流的 callable 通过模块配置 `executionOnlyCallables` 显式声明；它们对能力面透明，但仍是源码、调用关系和 execution flow 事实。
 >
-> P9 起，模块级自由函数默认采用保守能力边界；`defaultFreeFunctionSurface` 声明模块默认面，单个函数通过 `apiExposure` 例外。
+> 模块级自由函数默认采用保守能力边界；`defaultFreeFunctionSurface` 声明模块默认面，单个函数通过 `apiExposure` 例外。
 
 ### 2.1 config
 
@@ -120,7 +120,7 @@ contract > adapter > component > manager > config > model > utility
 
 物理归属：默认 `<domain>_model.py`；接口很多时使用 `<domain>_contract.py`。
 
-展示：独立 contract 卡片；P3 中承载 `inherits` / `implements` 关系。
+展示：独立 contract 卡片，并承载 `inherits` / `implements` 关系。
 
 ### 2.4 utility
 
@@ -140,7 +140,7 @@ contract > adapter > component > manager > config > model > utility
 - utility 默认是 internal；
 - utility 不进入默认项目页/模块页；
 - utility 不作为模块公开 API；
-- utility 仍是事实层数据，供 Method Detail、callSites 和 P4 impact/trace 使用；
+- utility 仍是事实层数据，供 Method Detail、callSites、impact/trace 使用；
 - 如果需要模块公开能力，应由 manager 或 entry 暴露，而不是把 utility 直接公开。
 
 物理归属：`<domain>_utility.py`。
@@ -233,7 +233,7 @@ adapter → contract
 
 ## 4. 普通能力模块与项目级主流程
 
-P6.2 起所有模块都是普通能力模块：
+所有模块都是普通能力模块：
 
 ```text
 service / adapter / component / test / other
@@ -257,21 +257,21 @@ service / adapter / component / test / other
 - 每条 flow 生成一个标准 `entry` 节点，与 loop / branch 同级；不使用异形样式；
 - 执行边只表达控制连接；不输出 composition/call 调用边；
 - dispatch 候选必须显式标记完整性，无法推断时保留 unresolved；
-- P11 起完整 dispatch 候选可在 `dispatchGroups[]` 中生成独立一级候选 scope，但主画布不生成候选控制边，scope 内不递归下钻；
+- 完整 dispatch 候选可在 `dispatchGroups[]` 中生成独立一级候选 scope，但主画布不生成候选控制边，scope 内不递归下钻；
 - 执行流只展开 entrypoint 自身控制骨架，调用目标作为原子节点，不继续穿透实现；
-- 内部实现由 Method Detail、CallSite 和 P4 trace/impact 承担；
+- 内部实现由 Method Detail、CallSite 和 trace/impact 承担；
 - `executionOnlyCallables` 中的入口/编排 callable 只在 execution flow 与 Method Detail 中作为主要 UI 入口，不进入模块能力面。
 
 项目页以标准卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片。模块能力页只展示 Provider / Capability / 类型关系，不默认绘制调用边；主流程页只展示执行流，不嵌入模块契约或调用总览。
 
 ```text
 Project
-└─ Module
-   ├─ Submodule
-   │  ├─ config/model/contract providers
-   │  ├─ manager/adapter/component/contract providers
-   │  └─ internal utility implementation
-   └─ Submodule
+├─ flow cards / execution flows（项目级视图）
+└─ Module（当前为扁平能力模块）
+   ├─ config/model/contract providers
+   ├─ manager/adapter/component providers
+   ├─ public free functions
+   └─ internal utility implementation
 ```
 
 领域拆分条件：
@@ -283,9 +283,7 @@ Project
 - 对外契约可独立描述；
 - 与其他领域只有少量共享逻辑。
 
-不得仅因为文件数量多而拆子模块。
-
-共享内部工具进入共享 utility 子模块，不强行归属于某个 manager。
+不得仅因为文件数量多而拆模块。当前模块模型是扁平的，不建模父子模块；内部工具留在其 owner 模块中，通过 `providerVisibility=internal` 和 `providerRole=utility` 表达，不创建 `shared` 模块。
 
 ## 5. 可见性
 
@@ -306,7 +304,7 @@ presentationGroup   public_surface / internal_implementation
 - 模块级自由函数通过 `defaultFreeFunctionSurface` 和 `apiExposure` 解析 effective surface；
 - `functionSurface=capability` 才进入能力 API，`internal` / `execution` 均不进入；
 - 项目页角色计数只统计公开 Provider；
-- 内部函数仍保留在 `functionDetails` / `callSites` / callers/callees 中，供 P4 impact/trace 使用；
+- 内部函数仍保留在 `functionDetails` / `callSites` / callers/callees 中，供 impact/trace 使用；
 - 单个 facade manager 拥有的阶段函数通过 `ownerProviderId` 归属，不生成独立卡片。
 
 ## 5.1 Facade manager 约定
@@ -360,7 +358,7 @@ ownerProviderId = 对应 facade manager
 1. **规范模式**：文件名后缀和目录结构提供确定性的代码单元类型；
 2. **兼容模式**：不符合规范时回退到通用 AST 启发式，并输出 diagnostics。
 
-P2.3 先完成代码迁移，不在迁移过程中反复重写识别器。迁移完成后，再根据本规范实现规范模式识别：
+规范模式使用：
 
 ```text
 path + file suffix → code unit type
@@ -369,14 +367,14 @@ entrypoint/config/contract/protocol evidence → derived role
 visibility → default presentation
 ```
 
-禁止继续使用“有循环 + 调用一个项目类 = manager”这类宽松规则作为主要判定依据。
+识别器不得把“有循环 + 调用一个项目类 = manager”这类宽松规则作为主要判定依据，也不得用 public 命名自动决定模块能力。
 
-## 7. P2.3 迁移原则
+## 7. 当前实现与验证要求
 
-- 先冻结契约，再迁移代码；
-- 先 config/model，再 utility，再 manager；
-- 旧 import shim 最终已删除，所有内部引用使用新目录；
-- CLI、bundle schema、HTML 行为保持稳定；
+- 所有源码使用 canonical 目录，不保留旧 import shim；
+- 新增或修改代码必须同步功能备注、测试、配置和当前文档；
+- 配置字段必须符合 schema 6.4 与当前配置生成指南；
 - utility 默认不进入主视图；
-- 迁移完成后更新自举配置和文档；
-- P3/P4 已在 P2.3 验收后完成，并继续遵守本规范。
+- Provider Role、能力面和 execution flow 的变更必须补回归测试；
+- `archmap build/check` 必须通过，diagnostics 为 0 或有明确原因；
+- 架构演进形成的新过程记录先进入当前工作区，阶段收口后归档到 `docs/旧文档/`。

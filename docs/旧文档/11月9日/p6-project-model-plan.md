@@ -7,7 +7,7 @@
 >
 > 本文是 P6 实施的当前计划入口。讨论背景见
 > [`p6-project-model-discussion.md`](p6-project-model-discussion.md)，配置生成约束见
-> [`project-config-generation-guide.md`](../../project-config-generation-guide.md)。
+> [`archmap-config-generation.md`](../../archmap-config-generation.md)。
 
 ## 1. 目标
 
