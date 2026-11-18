@@ -23,60 +23,91 @@ def _node_size(node: dict[str, Any]) -> tuple[float, float]:
     kind = str(node.get("kind") or "")
     if kind == "multi_branch":
         cases = len(node.get("cases") or [])
-        return 260.0, max(104.0, 82.0 + cases * 20.0)
-    if kind in {"entry", "free_function", "interface", "dispatch"}:
-        return 240.0, 96.0
-    if kind == "branch":
-        return 244.0, 112.0
+        return 300.0, max(168.0, 122.0 + cases * 28.0)
+    if kind == "dispatch":
+        return 300.0, 190.0
+    if kind in {"free_function", "interface", "branch"}:
+        return 300.0, 160.0
     if kind == "loop":
+        return 300.0, 186.0
+    if kind in {"break", "continue", "return"}:
+        return 250.0, 128.0
+    if kind in {"entry", "exit"}:
         return 260.0, 128.0
-    if kind in {"break", "continue"}:
-        return 112.0, 44.0
-    if kind == "return":
-        return 150.0, 50.0
-    if kind == "merge":
-        return 28.0, 28.0
-    if kind == "exit":
-        return 126.0, 50.0
-    return 180.0, 64.0
+    return 280.0, 156.0
 
 
 def _port_specs(node: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Return relative port anchors and display metadata for a node."""
+    """Return relative port anchors and display metadata for a node.
+
+    P5.1 renders ports as ordinary in-card rows.  These coordinates are the
+    deterministic fallback used before the browser measures the real DOM row
+    centers; the browser recalibrates edge endpoints after rendering and while
+    dragging.
+    """
 
     kind = str(node.get("kind") or "")
     w = float(node.get("w") or 0)
     h = float(node.get("h") or 0)
+
+    def row_y(index: int, *, first: float = 105.5, step: float = 28.0) -> float:
+        return min(h - 12.0, first + index * step)
+
     ports: dict[str, dict[str, Any]] = {
         "in": {"x": 0.0, "y": h * 0.5, "side": "left", "shape": "triangle", "label": ""},
     }
+    if kind == "entry":
+        return {
+            "out": {"x": w, "y": row_y(0), "side": "right", "shape": "triangle", "label": "开始"},
+        }
     if kind == "exit":
-        return ports
+        return {
+            "in": {"x": 0.0, "y": row_y(0), "side": "left", "shape": "triangle", "label": "进入"},
+        }
+    if kind in {"break", "continue", "return"}:
+        return {
+            "in": {"x": 0.0, "y": row_y(0), "side": "left", "shape": "triangle", "label": "进入"},
+        }
     if kind == "branch":
-        ports["true"] = {"x": w, "y": h * 0.36, "side": "right", "shape": "circle", "label": "是"}
-        ports["false"] = {"x": w, "y": h * 0.68, "side": "right", "shape": "circle", "label": "否"}
-        return ports
+        return {
+            "in": {"x": 0.0, "y": row_y(0), "side": "left", "shape": "triangle", "label": "进入分支"},
+            "true": {"x": w, "y": row_y(0), "side": "right", "shape": "circle", "label": "是"},
+            "false": {"x": w, "y": row_y(1), "side": "right", "shape": "circle", "label": "否"},
+        }
     if kind == "multi_branch":
         cases = list(node.get("cases") or [])
-        count = max(1, len(cases))
+        ports: dict[str, dict[str, Any]] = {
+            "in": {"x": 0.0, "y": row_y(0), "side": "left", "shape": "triangle", "label": "进入分支"},
+        }
         for index, case in enumerate(cases):
-            ratio = 0.36 + (0.48 * index / max(1, count - 1))
             ports[f"case:{index}"] = {
-                "x": w, "y": h * ratio, "side": "right", "shape": "circle",
+                "x": w,
+                "y": row_y(index),
+                "side": "right",
+                "shape": "circle",
                 "label": str(case.get("label") or case.get("key") or f"case {index + 1}"),
                 "caseIndex": index,
             }
-        ports["default"] = {"x": w, "y": h * 0.88, "side": "right", "shape": "diamond", "label": "默认"}
+        ports["default"] = {
+            "x": w,
+            "y": row_y(len(cases)),
+            "side": "right",
+            "shape": "diamond",
+            "label": "默认",
+        }
         return ports
     if kind == "loop":
-        ports["in"] = {"x": 0.0, "y": h * 0.18, "side": "left", "shape": "triangle", "label": ""}
-        ports["loop_body"] = {"x": w, "y": h * 0.33, "side": "right", "shape": "triangle", "label": "循环体"}
-        ports["loop_complete"] = {"x": w, "y": h * 0.64, "side": "right", "shape": "triangle", "label": "循环完成"}
-        ports["loop_break"] = {"x": 0.0, "y": h * 0.50, "side": "left", "shape": "triangle", "label": "跳出循环"}
-        ports["loop_start"] = {"x": 0.0, "y": h * 0.82, "side": "left", "shape": "circle", "label": "循环起始值"}
-        ports["loop_current"] = {"x": w, "y": h * 0.82, "side": "right", "shape": "circle", "label": "当前循环值"}
-        return ports
-    ports["out"] = {"x": w, "y": h * 0.5, "side": "right", "shape": "triangle", "label": ""}
+        return {
+            "in": {"x": 0.0, "y": row_y(0), "side": "left", "shape": "triangle", "label": "进入循环"},
+            "loop_body": {"x": w, "y": row_y(0), "side": "right", "shape": "triangle", "label": "循环体"},
+            "loop_complete": {"x": w, "y": row_y(1), "side": "right", "shape": "triangle", "label": "循环完成"},
+        }
+    if kind == "dispatch":
+        return {
+            "in": {"x": 0.0, "y": row_y(0), "side": "left", "shape": "triangle", "label": "进入"},
+            "out": {"x": w, "y": row_y(1), "side": "right", "shape": "triangle", "label": "分发"},
+        }
+    ports["out"] = {"x": w, "y": row_y(0), "side": "right", "shape": "triangle", "label": "返回"}
     return ports
 
 

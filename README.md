@@ -29,6 +29,7 @@ P2.4  主模块/功能模块/主流程 DAG              已完成
 P3    继承、接口、多态与继承 API              已完成
 P4    结构关系、User Surface、Impact/Trace/DSM 已完成
 P5    主流程执行流（首版）                 已完成
+P5.1  执行流直接 fan-in 与项目节点卡片样式  已完成
 ```
 
 当前产品边界：
@@ -99,9 +100,10 @@ P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**�
 
 - 只展示 selected entrypoint 函数内部的控制骨架；
 - 主模块自由函数、功能模块公开接口都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
-- 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch` / `merge`；
+- 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；
+- 汇合不再生成 `merge` 节点，多条路径直接 fan-in 到同一个真实后继节点或 `exit`；
 - 横向主脊布局，分支上下展开，循环节点通过 `循环体` 端口连接循环体，不再绘制回边 lane；
-- 节点使用保守的千星奇域风格卡片、显式端口、深色边标签胶囊和贝塞尔曲线；
+- 节点使用项目执行流卡片：彩色标题栏、深色主体、内嵌端口行、贝塞尔曲线；端口行无方框和独立背景，卡片外不再挂边标签胶囊；
 - 节点位置可在浏览器中拖拽覆盖，关联曲线实时重算并持久化；
 - 不生成逐语句节点、列表操作节点、`try/except` 异常控制、数据流边或图内下钻；
 - 新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 保留为辅助的“调用总览”；
@@ -459,8 +461,8 @@ modules:              6
 classes:              31
 functions:            269
 methods:              70
-callSites:            3880
-resolvedCalls:        668
+callSites:            3850
+resolvedCalls:        648
 typeRelations:        57
 structuralRelations:  57
 userSurfaces:         0
@@ -484,8 +486,8 @@ typeRelations:        4
 structuralRelations:  4
 userSurfaces:         14
 executionFlows:       1
-executionNodes:       12
-executionEdges:       14
+executionNodes:       9
+executionEdges:       11
 diagnostics:          0
 build/check:          OK
 ```
@@ -530,6 +532,8 @@ ArkTS 接入时需要：
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
 | [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | 唯一主模块、功能模块、主流程 DAG、dispatch 候选与 composition 契约 |
 | [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流：封闭节点、原子函数/接口、防误解与防滑坡边界、schema 4.0 实现与验收 |
+| [`docs/p5.1-execution-card-style.md`](docs/p5.1-execution-card-style.md) | P5.1 执行流项目节点样式：卡片结构、内嵌端口、端口语义与实现位置 |
+| [`docs/p5.1-execution-flow-fan-in-plan.md`](docs/p5.1-execution-flow-fan-in-plan.md) | 汇入与边束的分层设计：直接 fan-in 已实现，视觉边束与模块级边束为未来方向 |
 | [`docs/约定编程skill.md`](docs/约定编程skill.md) | 项目无关的约定编程 Skill：分层架构、契约、功能备注、测试与提交检查清单 |
 | [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 当前 bundle JSON Schema 4.0，包含 P5 executionFlows |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |

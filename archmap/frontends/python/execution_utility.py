@@ -64,7 +64,6 @@ class ExecutionSkeletonBuilder:
         self.diagnostics: list[dict[str, Any]] = []
         self._node_seq = 0
         self._edge_seq = 0
-        self._merge_seq = 0
         self._loop_stack: list[dict[str, Any]] = []
         self._try_diagnostic_emitted = False
         self._calls_by_position: dict[tuple[int, int], CallSite] = {}
@@ -357,7 +356,7 @@ class ExecutionSkeletonBuilder:
                 cursor = cursor.orelse[0]
             else:
                 cursor = None
-        else_body = list(stmt.orelse) if not (len(stmt.orelse) == 1 and isinstance(stmt.orelse[0], ast.If)) else []
+
         # Recover the terminal else body from the last chain node.
         cursor = stmt
         while len(cursor.orelse) == 1 and isinstance(cursor.orelse[0], ast.If):
@@ -409,59 +408,37 @@ class ExecutionSkeletonBuilder:
         )
         self._connect(incoming, control_id)
 
-        merge_id = self._next_node_id("merge", stmt.lineno, stmt.col_offset + 1)
-        incoming_to_merge = 0
+        # P5.1: no synthetic merge node.  Each continuing arm returns its own
+        # endpoint; the next real statement (or exit) becomes the fan-in target.
+        endpoints: list[_Endpoint] = []
         if len(conditions) == 1:
-            body_endpoints = self._visit_stmts(conditions[0][1], [self._endpoint(control_id, "true", "是")])
-            if body_endpoints:
-                self._connect(body_endpoints, merge_id)
-                incoming_to_merge += len(body_endpoints)
-            else_endpoints = self._visit_stmts(else_body, [self._endpoint(control_id, "false", "否")])
-            if else_endpoints:
-                self._connect(else_endpoints, merge_id)
-                incoming_to_merge += len(else_endpoints)
+            endpoints.extend(
+                self._visit_stmts(
+                    conditions[0][1],
+                    [self._endpoint(control_id, "true", "是")],
+                )
+            )
+            endpoints.extend(
+                self._visit_stmts(
+                    else_body,
+                    [self._endpoint(control_id, "false", "否")],
+                )
+            )
         else:
             for index, (condition, body, _) in enumerate(conditions):
-                case_key = f"case:{index + 1}"
-                body_endpoints = self._visit_stmts(body, [self._endpoint(control_id, "case", _unparse(condition))])
-                if body_endpoints:
-                    self._connect(body_endpoints, merge_id)
-                    incoming_to_merge += len(body_endpoints)
-            else_endpoints = self._visit_stmts(else_body, [self._endpoint(control_id, "default", "默认")])
-            if else_endpoints:
-                self._connect(else_endpoints, merge_id)
-                incoming_to_merge += len(else_endpoints)
-
-        if incoming_to_merge == 0:
-            return []
-        merge_data = {
-            "functionId": self.entry.id,
-            "moduleId": self.entry.module_id,
-            "moduleName": self._entry_module.get("name", self.entry.module_id),
-            "color": self._entry_module.get("color", "#f59e0b"),
-            "ports": ["in", "out"],
-            "expandable": False,
-            "execution": True,
-            "flowId": self.flow_id,
-        }
-        self._add_node(
-            node_id=merge_id,
-            kind="merge",
-            label="汇合",
-            line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-            end_line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-            column=stmt.col_offset + 1,
-            data=merge_data,
-        )
-        # If the final else was absent, the multi-branch default should flow to
-        # the merge so the graph does not silently lose the no-match path.
-        if not else_body:
-            if len(conditions) == 1:
-                self._add_edge(control_id, merge_id, "false", label="否")
-            else:
-                self._add_edge(control_id, merge_id, "default", label="默认")
-            incoming_to_merge += 1
-        return [self._endpoint(merge_id)]
+                endpoints.extend(
+                    self._visit_stmts(
+                        body,
+                        [self._endpoint(control_id, "case", _unparse(condition))],
+                    )
+                )
+            endpoints.extend(
+                self._visit_stmts(
+                    else_body,
+                    [self._endpoint(control_id, "default", "默认")],
+                )
+            )
+        return endpoints
 
     def _visit_match(self, stmt: ast.Match, incoming: list[_Endpoint]) -> list[_Endpoint]:
         control_id = self._next_node_id("multi_branch", stmt.lineno, stmt.col_offset + 1)
@@ -494,40 +471,21 @@ class ExecutionSkeletonBuilder:
             },
         )
         self._connect(incoming, control_id)
-        merge_id = self._next_node_id("merge", stmt.lineno, stmt.col_offset + 1)
-        incoming_to_merge = 0
+
+        # Direct fan-in: every case body returns endpoints unchanged.  If there
+        # is no wildcard/default arm, the unmatched path itself is an endpoint
+        # that will connect to the next real statement or exit.
+        endpoints: list[_Endpoint] = []
         for index, case in enumerate(stmt.cases):
-            endpoints = self._visit_stmts(
-                list(case.body),
-                [self._endpoint(control_id, "case", _unparse(case.pattern))],
+            endpoints.extend(
+                self._visit_stmts(
+                    list(case.body),
+                    [self._endpoint(control_id, "case", _unparse(case.pattern))],
+                )
             )
-            if endpoints:
-                self._connect(endpoints, merge_id)
-                incoming_to_merge += len(endpoints)
         if not has_default:
-            self._add_edge(control_id, merge_id, "default", label="默认")
-            incoming_to_merge += 1
-        if incoming_to_merge == 0:
-            return []
-        self._add_node(
-            node_id=merge_id,
-            kind="merge",
-            label="汇合",
-            line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-            end_line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-            column=stmt.col_offset + 1,
-            data={
-                "functionId": self.entry.id,
-                "moduleId": self.entry.module_id,
-                "moduleName": self._entry_module.get("name", self.entry.module_id),
-                "color": self._entry_module.get("color", "#f59e0b"),
-                "ports": ["in", "out"],
-                "expandable": False,
-                "execution": True,
-                "flowId": self.flow_id,
-            },
-        )
-        return [self._endpoint(merge_id)]
+            endpoints.append(self._endpoint(control_id, "default", "默认"))
+        return endpoints
 
     def _visit_loop(self, stmt: ast.For | ast.AsyncFor | ast.While, incoming: list[_Endpoint]) -> list[_Endpoint]:
         loop_id = self._next_node_id("loop", stmt.lineno, stmt.col_offset + 1)
@@ -565,11 +523,9 @@ class ExecutionSkeletonBuilder:
                 "condition": condition,
                 "iterable": iterable,
                 "loopVariable": loop_variable,
-                "loopStart": iterable or condition,
-                "loopCurrent": loop_variable,
                 "mayExit": False,
                 "hasBreak": False,
-                "ports": ["in", "loop_body", "loop_break", "loop_complete", "loop_start", "loop_current"],
+                "ports": ["in", "loop_body", "loop_complete"],
                 "expandable": False,
                 "execution": True,
                 "flowId": self.flow_id,
@@ -579,41 +535,13 @@ class ExecutionSkeletonBuilder:
         loop_context: dict[str, Any] = {"node_id": loop_id, "break_nodes": []}
         self._loop_stack.append(loop_context)
         try:
-            body_endpoints = self._visit_stmts(
+            self._visit_stmts(
                 list(stmt.body),
                 [self._endpoint(loop_id, "loop_body", "循环体")],
             )
         finally:
             self._loop_stack.pop()
-        # P5 visual model follows the Qixing-style loop node: the loop node
-        # exposes a ``loop_body`` port, but the body does not draw a back lane.
-        # Iteration is implicit in the loop node itself.
-        # Preserve the body/complete pair when the body only contains opaque
-        # statements (for example a print call) and therefore emitted no node.
-        if not any(
-            edge.get("from") == loop_id and edge.get("kind") == "loop_body"
-            for edge in self.edges
-        ):
-            body_merge = self._next_node_id("merge", stmt.lineno, stmt.col_offset + 1)
-            self._add_node(
-                node_id=body_merge,
-                kind="merge",
-                label="空循环体",
-                line=stmt.lineno,
-                end_line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-                column=stmt.col_offset + 1,
-                data={
-                    "functionId": self.entry.id,
-                    "moduleId": self.entry.module_id,
-                    "moduleName": self._entry_module.get("name", self.entry.module_id),
-                    "color": self._entry_module.get("color", "#f59e0b"),
-                    "ports": ["in", "out"],
-                    "expandable": False,
-                    "execution": True,
-                    "flowId": self.flow_id,
-                },
-            )
-            self._add_edge(loop_id, body_merge, "loop_body", label="循环体")
+
         if stmt.orelse:
             self.diagnostics.append(
                 {
@@ -639,32 +567,16 @@ class ExecutionSkeletonBuilder:
                 node["hasBreak"] = has_break
                 node["breakCount"] = len(loop_context["break_nodes"])
                 break
-        # Every loop gets a visible completion junction.  The loop node
-        # exposes ``loop_complete`` and break exits converge here; the body
-        # itself never draws a back lane.
-        after_id = self._next_node_id("merge", stmt.lineno, stmt.col_offset + 1)
-        self._add_node(
-            node_id=after_id,
-            kind="merge",
-            label="循环完成",
-            line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-            end_line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-            column=stmt.col_offset + 1,
-            data={
-                "functionId": self.entry.id,
-                "moduleId": self.entry.module_id,
-                "moduleName": self._entry_module.get("name", self.entry.module_id),
-                "color": self._entry_module.get("color", "#f59e0b"),
-                "ports": ["in", "out"],
-                "expandable": False,
-                "execution": True,
-                "flowId": self.flow_id,
-            },
+
+        # The loop completion and break exits are all ordinary incoming paths
+        # to the next real statement.  They fan in directly and no synthetic
+        # "循环完成" merge node is created.
+        endpoints = [self._endpoint(loop_id, "loop_complete", "循环完成")]
+        endpoints.extend(
+            self._endpoint(break_id, "break", "跳出")
+            for break_id in loop_context["break_nodes"]
         )
-        self._add_edge(loop_id, after_id, "loop_complete", label="循环完成")
-        for break_id in loop_context["break_nodes"]:
-            self._add_edge(break_id, after_id, "break", label="跳出")
-        return [self._endpoint(after_id)]
+        return endpoints
 
     def _visit_break(self, stmt: ast.Break, incoming: list[_Endpoint]) -> list[_Endpoint]:
         if not self._loop_stack:

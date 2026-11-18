@@ -112,6 +112,9 @@ def test_browser_smoke() -> None:
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
         assert execute("return document.querySelectorAll('.execution-edge').length") > 0
+        assert execute("return document.querySelectorAll('.exec-node-header').length") > 0
+        assert execute("return document.querySelectorAll('.exec-port-item').length") > 0
+        assert execute("return document.querySelectorAll('.exec-port-dot, .execution-node.kind-merge').length") == 0
         assert execute("return document.querySelectorAll('.execution-node.kind-provider, .execution-node.kind-action, .execution-node.kind-statement').length") == 0
         execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
         time.sleep(.3)
@@ -192,7 +195,7 @@ def test_browser_smoke() -> None:
         time.sleep(.8)
         assert execute("return window.__ARCHMAP_ERRORS__") == []
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
-        assert execute("return document.querySelectorAll('.exec-edge-capsule').length") > 0
+        assert execute("return document.querySelectorAll('.exec-edge-capsule').length") == 0
         execution_labels = execute("return Array.from(document.querySelectorAll('.execution-node .exec-node-label')).map(node => node.textContent)")
         assert "server()" in execution_labels
         assert "client()" in execution_labels

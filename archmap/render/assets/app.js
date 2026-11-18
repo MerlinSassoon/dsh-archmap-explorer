@@ -944,6 +944,20 @@
     const pos = state.positions.get(nodeId);
     if (!pos) return { x: 0, y: 0 };
     const spec = pos.ports?.[portName] || pos.ports?.out || pos.ports?.in || { x: 0, y: 0 };
+    const nodeElement = world.querySelector(`.execution-node[data-uid="${cssEscape(nodeId)}"]`);
+    const portElement = nodeElement
+      ? [...nodeElement.querySelectorAll("[data-port]")].find(item => item.dataset.port === portName)
+      : null;
+    if (nodeElement && portElement) {
+      const nodeRect = nodeElement.getBoundingClientRect();
+      const portRect = portElement.getBoundingClientRect();
+      const scale = Number(state.scale || 1) || 1;
+      const side = spec.side || (portElement.classList.contains("is-left") ? "left" : "right");
+      return {
+        x: Number(pos.x || 0) + (side === "left" ? 0 : Number(pos.w || 0)),
+        y: Number(pos.y || 0) + ((portRect.top + portRect.height / 2 - nodeRect.top) / scale),
+      };
+    }
     return { x: pos.x + Number(spec.x || 0), y: pos.y + Number(spec.y || 0) };
   }
 
@@ -1331,7 +1345,6 @@
       continue: "继续循环",
       return: "返回",
       dispatch: "动态分发",
-      merge: "汇合",
     }[kind] || String(kind || "节点"));
   }
 
@@ -1339,45 +1352,64 @@
     return `execution-edge kind-${escapeHtml(edge.kind || "next")}${edge.kind === "back" || edge.kind === "continue" ? " is-back" : ""}`;
   }
 
-  function executionPortDots(pos) {
-    const ports = pos.ports || {};
-    return Object.entries(ports).map(([name, spec]) => {
-      const left = spec.side === "left" ? -4 : Number(pos.w || 0) - 4;
-      const top = Number(spec.y || 0) - 4;
-      const shape = spec.shape || "circle";
-      return `<span class="exec-port-dot port-${escapeHtml(String(name).replaceAll(":", "-"))} shape-${escapeHtml(shape)} side-${escapeHtml(spec.side || "right")}" style="left:${left}px;top:${top}px" title="${escapeHtml(spec.label || name)}"></span>`;
-    }).join("");
+  function executionPortDisplay(node, name, spec) {
+    const kind = node.kind;
+    const caseMatch = /^case:(\d+)$/.exec(String(name));
+    if (name === "in") {
+      return {
+        label: kind === "loop" ? "进入循环" : (kind === "branch" || kind === "multi_branch") ? "进入分支" : "进入",
+        detail: "in",
+        className: "port-in",
+      };
+    }
+    if (name === "out") {
+      if (kind === "entry") return { label: "开始", detail: "out", className: "port-out" };
+      if (kind === "dispatch") return { label: "分发", detail: "out", className: "port-dispatch" };
+      return { label: "返回", detail: "out", className: "port-out" };
+    }
+    if (name === "true") return { label: "是", detail: "true arm", className: "port-true" };
+    if (name === "false") return { label: "否", detail: "false arm", className: "port-false" };
+    if (name === "default") return { label: "默认", detail: "default", className: "port-default" };
+    if (name === "loop_body") return { label: "循环体", detail: "loop body", className: "port-loop_body" };
+    if (name === "loop_complete") return { label: "循环完成", detail: "loop complete", className: "port-loop_complete" };
+    if (caseMatch) {
+      const index = Number(caseMatch[1]);
+      const caseItem = (node.cases || [])[index] || {};
+      return {
+        label: String(caseItem.label || spec.label || `case ${index + 1}`),
+        detail: `case ${index + 1}`,
+        className: "port-case",
+      };
+    }
+    return {
+      label: String(spec.label || name),
+      detail: String(name),
+      className: "port-out",
+    };
   }
 
-  function executionPortRows(node) {
-    const kind = node.kind;
-    if (kind === "branch") {
-      return `<div class="exec-port-rows">
-        <div class="exec-port-row align-right"><span>是</span></div>
-        <div class="exec-port-row align-right"><span>否</span></div>
+  function executionPortGrid(node, pos) {
+    const ports = pos.ports || {};
+    const left = [];
+    const right = [];
+    Object.entries(ports).forEach(([name, spec]) => {
+      const display = executionPortDisplay(node, name, spec);
+      const side = spec.side || (name === "in" ? "left" : "right");
+      const item = `<div class="exec-port-item ${side === "left" ? "is-left" : "is-right"} ${display.className}" data-port="${escapeHtml(name)}">
+        <span class="exec-port-symbol shape-${escapeHtml(spec.shape || "circle")}" aria-hidden="true"></span>
+        <span class="exec-port-copy"><b>${escapeHtml(display.label)}</b><small>${escapeHtml(display.detail)}</small></span>
       </div>`;
-    }
-    if (kind === "multi_branch") {
-      const cases = node.cases || [];
-      const rows = cases.map(item => `<div class="exec-port-row align-right"><span>${escapeHtml(item.label || item.key || "")}</span></div>`).join("");
-      return `<div class="exec-port-rows">${rows}<div class="exec-port-row align-right is-default"><span>默认</span></div></div>`;
-    }
-    if (kind === "loop") {
-      const valueRow = (node.loopVariable || node.iterable)
-        ? `<div class="exec-port-row dual"><span>循环起始值</span><span>当前循环值</span></div>`
-        : "";
-      return `<div class="exec-port-rows">
-        <div class="exec-port-row align-right"><span>循环体</span></div>
-        <div class="exec-port-row dual"><span>跳出循环</span><span>循环完成</span></div>
-        ${valueRow}
-      </div>`;
-    }
-    return "";
+      (side === "left" ? left : right).push(item);
+    });
+    return `<div class="exec-port-grid">
+      <div class="exec-port-side is-left">${left.join("") || `<div class="exec-port-empty"></div>`}</div>
+      <div class="exec-port-side is-right">${right.join("") || `<div class="exec-port-empty"></div>`}</div>
+    </div>`;
   }
 
   function renderExecutionNode(moduleId, nodeId, node) {
     const pos = state.positions.get(nodeId);
-    const kind = node.kind || "merge";
+    const kind = node.kind || "free_function";
     const flow = currentExecutionFlow();
     const flowId = executionFlowStorageId(flow);
     const targetId = node.targetFunctionId || (
@@ -1386,19 +1418,30 @@
     const icon = ({
       entry: "▶", exit: "■", free_function: "ƒ", interface: "I",
       branch: "◇", multi_branch: "⑂", loop: "↻", break: "↩",
-      continue: "↪", return: "⤴", dispatch: "⑂", merge: "•",
+      continue: "↪", return: "⤴", dispatch: "⑂",
     }[kind] || "•");
     const meta = [];
-    if (node.condition && kind !== "branch" && kind !== "multi_branch") meta.push(`条件：${truncate(node.condition, 46)}`);
+    if (node.condition && kind !== "branch" && kind !== "multi_branch" && kind !== "loop") {
+      meta.push(`条件：${truncate(node.condition, 46)}`);
+    }
+    if (kind === "loop" && node.condition) meta.push(`条件：${truncate(node.condition, 46)}`);
     if (kind === "dispatch") meta.push(`${Number(node.candidateCount || 0)} candidates · ${node.candidateSetComplete ? "complete" : "partial"}`);
     if (kind === "loop" && node.mayExit === false) meta.push("可能不退出");
     if (node.usageKind) meta.push(node.usageKind);
-    const noteText = String(node.note || "").trim();
-    const signatureText = node.signature && !["entry", "exit", "merge", "branch", "multi_branch", "loop", "break", "continue", "return"].includes(kind)
+    const signatureText = node.signature && ["free_function", "interface"].includes(kind)
       ? String(node.signature).trim()
       : "";
+    const foot = [];
+    if (kind === "dispatch") {
+      foot.push(`low confidence`);
+      foot.push(`candidateSetComplete: ${node.candidateSetComplete ? "true" : "false"}`);
+    }
+    if (kind === "loop") {
+      foot.push(`loopKind: ${node.loopKind || "loop"}`);
+      foot.push(`mayExit: ${node.mayExit ? "true" : "false"}`);
+    }
     const element = document.createElement("article");
-    element.className = `node-card execution-node kind-${escapeHtml(kind)}${targetId ? " is-navigable" : ""}${kind === "merge" ? " is-junction" : ""}`;
+    element.className = `node-card execution-node kind-${escapeHtml(kind)}${targetId ? " is-navigable" : ""}`;
     element.dataset.uid = nodeId;
     element.dataset.kind = kind;
     element.style.left = `${pos.x}px`;
@@ -1407,24 +1450,21 @@
     element.style.height = `${pos.h}px`;
     element.style.setProperty("--mc", node.color || "#60a5fa");
     element.style.setProperty("--mc-rgb", rgbFromHex(node.color || "#60a5fa"));
-    if (kind === "merge") {
-      element.innerHTML = `<span class="exec-node-label">${escapeHtml(node.label || "汇合")}</span>${executionPortDots(pos)}`;
-    } else {
-      element.innerHTML = `
-        <div class="exec-node-header">
-          <span class="exec-node-icon">${icon}</span>
-          <span class="exec-node-kind">${escapeHtml(executionKindLabel(kind))}</span>
-          <span class="exec-node-module">${escapeHtml(node.moduleName || node.moduleId || "")}</span>
-        </div>
-        <div class="exec-node-body">
+    element.innerHTML = `
+      <div class="exec-node-header">
+        <span class="exec-node-icon">${icon}</span>
+        <span class="exec-node-kind">${escapeHtml(executionKindLabel(kind))}</span>
+        <span class="exec-node-module">${escapeHtml(node.moduleName || node.moduleId || "")}</span>
+      </div>
+      <div class="exec-node-body">
+        <div class="exec-copy">
           <div class="exec-node-label" title="${escapeHtml(node.label || "")}">${escapeHtml(node.label || "")}</div>
           ${signatureText ? `<div class="exec-node-signature" title="${escapeHtml(signatureText)}">${escapeHtml(signatureText)}</div>` : ""}
-          ${noteText ? `<div class="exec-node-note" title="${escapeHtml(noteText)}">${escapeHtml(noteText)}</div>` : ""}
           ${meta.length ? `<div class="exec-node-meta">${escapeHtml(meta.join(" · "))}</div>` : ""}
-          ${executionPortRows(node)}
         </div>
-        ${executionPortDots(pos)}`;
-    }
+        ${executionPortGrid(node, pos)}
+        ${foot.length ? `<div class="exec-foot">${foot.map(item => `<span class="exec-pill">${escapeHtml(item)}</span>`).join("")}</div>` : ""}
+      </div>`;
     world.appendChild(element);
     bindNodeHover(element, nodeId);
     element.addEventListener("click", event => {
@@ -1496,14 +1536,6 @@
       path.appendChild(title);
       path.setAttribute("d", executionCurveD(edge));
       svg.appendChild(path);
-      if (edge.label) {
-        const capsule = document.createElement("div");
-        capsule.className = `exec-edge-capsule kind-${escapeHtml(edge.kind || "next")}`;
-        capsule.dataset.edgeId = edge.id;
-        capsule.textContent = edge.label;
-        world.appendChild(capsule);
-        state.executionEdgeLabels.set(edge.id, capsule);
-      }
     });
     state.nodes.forEach((node, nodeId) => renderExecutionNode(moduleId, nodeId, node));
     refreshExecutionEdges();

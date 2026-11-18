@@ -1731,8 +1731,7 @@
             "break",
             "continue",
             "return",
-            "dispatch",
-            "merge"
+            "dispatch"
           ]
         },
         "label": {

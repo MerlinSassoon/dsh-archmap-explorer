@@ -1,6 +1,6 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：首版已实现<br>
+> 状态：P5 首版已实现；P5.1 已移除 merge 并改为内嵌端口卡片<br>
 > 版本：ArchMap 1.9.0 / bundle schema 4.0<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
@@ -59,7 +59,6 @@ break
 continue
 return
 dispatch
-merge
 ```
 
 禁止新增：
@@ -159,17 +158,16 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 | 节点 | 含义 | 输出端口 |
 |---|---|---|
 | `entry` | 入口函数 | `out` |
-| `exit` | 主流程结束 | 无 |
+| `exit` | 主流程结束 | `in` |
 | `free_function` | 主模块自由函数调用步骤 | `in / out` |
 | `interface` | 功能模块公开能力调用步骤 | `in / out` |
-| `branch` | 双分支 | `true / false` |
-| `multi_branch` | 多分支 | `case... / default` |
-| `loop` | 循环 | `body / complete` |
-| `break` | 跳出当前循环 | 控制边 |
-| `continue` | 进入下一轮 | 控制边 |
-| `return` | 函数返回 | 指向 `exit` |
-| `dispatch` | 动态调用或候选集合 | `out` |
-| `merge` | 分支汇合，自动生成 | `in / out` |
+| `branch` | 双分支 | `in / true / false` |
+| `multi_branch` | 多分支 | `in / case... / default` |
+| `loop` | 循环 | `in / loop_body / loop_complete` |
+| `break` | 跳出当前循环 | `in` |
+| `continue` | 进入下一轮 | `in` |
+| `return` | 函数返回 | `in`，边指向 `exit` |
+| `dispatch` | 动态调用或候选集合 | `in / out` |
 
 ### 5.2 关键节点语义
 
@@ -191,8 +189,9 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 #### `branch`
 
 - 用于简单 `if / else`；
-- 恰好一条 `true` 边和一条 `false` 边；
-- else 缺失时 false 边指向汇合点。
+- 最多一条 `true` 边和一条 `false` 边；
+- continuing arm 直接连接下一个真实语句；没有后继时连接 `exit`；
+- 如果 false arm 位于循环体末尾，隐式进入下一轮迭代，因此可以不产生可见出边。
 
 #### `multi_branch`
 
@@ -205,10 +204,10 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 
 - 统一表示 `for`、`while`、`async for`；
 - 携带 `loopKind`、条件/迭代表达式、循环变量、`mayExit`、`hasBreak`；
-- 端口契约参考千星奇域：`循环体`、`跳出循环`、`循环完成`；存在循环变量时展示 `循环起始值` / `当前循环值`；
-- 恰好一条 `loop_body` 边和一条 `loop_complete` 边；
+- 卡片端口为 `进入循环 / 循环体 / 循环完成`；
+- 最多一条 `loop_body` 边和一条 `loop_complete` 边；
 - 不绘制 back 回边；循环体完成后隐式回到循环节点；
-- `break` 节点连接到循环完成后的汇合节点。
+- `loop_complete` 与 `break` 路径直接 fan-in 到循环后的真实节点；没有后继时直接进入 `exit`。
 
 #### `dispatch`
 
@@ -217,11 +216,13 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 - 不把候选强制展开为执行分支；
 - 后续执行流通过 `next` 继续。
 
-#### `merge`
+#### 汇入（不是节点）
 
-- 由构建器自动生成；
-- 至少一条入边、恰好一条出边；
-- 用于分支汇合和布局对齐，不代表业务步骤。
+- 多分支/循环路径的重汇合由多个入边直接指向同一个真实后继节点表达；
+- 不生成 `merge` 节点；
+- 每条入边保留自己的 kind、label、confidence 和 evidence；
+- 没有后继时所有继续执行的路径直接指向 `exit`；
+- 循环体内部的隐式迭代不生成 back lane，也不为了补齐端口而制造合成节点。
 
 ## 6. 边契约
 
@@ -261,7 +262,7 @@ moduleId
 - `for / while / async for` → loop；
 - `break / continue` → 控制节点，解析到最内层循环；
 - `return` → return 节点并连接 exit；
-- 分支汇合、循环结束自动生成 merge/exit 相关节点。
+- 分支汇合、循环结束直接连接下一个真实节点或 exit，不生成 merge 节点。
 
 ### 7.2 调用节点提取
 
@@ -295,19 +296,18 @@ student_system 的主执行流目标快照如下，并已成为验收基线：
 ```text
 ENTRY main()
   → LOOP while True
-      ├─ 循环体 → INTERFACE NetworkAdapter.init_connection()
-      │            → MULTI_BRANCH model
-      │                ├─ SERVER → FREE_FUNCTION server()
-      │                └─ CLIENT → FREE_FUNCTION client()
-      │            → BRANCH status.upper() == "Q"
-      │                ├─ 是 → BREAK
-      │                └─ 否 → 循环体结束
-      ├─ 跳出循环 ───────────────┐
-      └─ 循环完成 ───────────────┤
-                                 └→ LOOP_COMPLETE → EXIT
+      → INTERFACE NetworkAdapter.init_connection()
+          → MULTI_BRANCH model
+              ├─ case → FREE_FUNCTION server()
+              ├─ case → FREE_FUNCTION client()
+              └─ default → BRANCH status.upper() == "Q"
+                            ├─ 是 → BREAK
+                            └─ 否 → 循环体结束（隐式迭代）
+  ├─ loop_complete ───────────────→ EXIT
+  └─ break ───────────────────────→ EXIT
 ```
 
-该图采用横向主脊：顺序节点从左向右，branch / multi_branch 的路径在上下 lane 展开，循环节点不绘制回边。
+该图采用横向主脊：顺序节点从左向右，branch / multi_branch 的路径在上下 lane 展开，循环节点不绘制回边。`loop_complete` 与 `break` 路径直接 fan-in 到 `exit`，不存在 `LOOP_COMPLETE` 或 `merge` 合成节点。
 
 明确要求：
 
@@ -419,11 +419,11 @@ executionEdges
 
 - Python 端生成确定性横向布局，浏览器不重新推导控制流；
 - 主流程从左向右推进；
-- branch 的上/下路径垂直展开，merge 回到主轴；
+- branch 的上/下路径垂直展开；
 - multi_branch 各 case 垂直展开；
 - loop 通过 `循环体` 端口连接 body，不绘制 back lane；
 - loop complete / break / 长距离边使用曲线 lane 绕开节点；
-- merge 与 branch 中心对齐；
+- 多入边直接进入同一个目标节点，不生成汇合节点；
 - 边使用贝塞尔曲线，禁止穿过卡片内容；
 - 布局节点提供真实端口锚点；
 - 嵌套结构必须有碰撞检测，卡片内容自适应高度。
@@ -431,11 +431,12 @@ executionEdges
 ### 10.2 UI
 
 - 主模块页默认显示执行流，调用总览作为辅助切换；
-- 节点使用保守的千星奇域风格：彩色标题栏、深色主体、显式端口；
-- 边标签使用深色小胶囊，优先贴近源端口；没有明确语义时不显示标签；
+- 节点使用项目执行流卡片风格：彩色标题栏、深色主体、内嵌端口行；
+- 端口行无方框、无独立背景色，流程文字和端口标签位于卡片内部；
+- 不再生成卡片外的边标签胶囊；
 - 分支显示“是/否”；
 - 多分支显示 case / default；
-- 循环显示“循环体/跳出循环/循环完成”，存在循环变量时展示起始值/当前值；
+- 循环显示“进入循环/循环体/循环完成”；
 - break / continue / return 明确可见；
 - 函数和接口节点双击打开 Method Detail；
 - 节点支持拖拽移动，关联曲线实时重算；
@@ -452,13 +453,13 @@ executionEdges
 - 至少一个 `exit`；
 - 所有节点可达；
 - 非终止路径最终可达 `exit`；
-- `branch` 恰好一条 `true` 和一条 `false`；
+- `branch` 最多一条 `true` 和一条 `false`，不得重复；
 - `multi_branch` 至少一个 case，default 最多一个；
-- `loop` 恰好一条 `body` 和一条 `complete`；
+- `loop` 最多一条 `body` 和一条 `complete`；
 - `back` 边若存在则目标必须是所属 loop；P5 v1 不生成该边；
 - `break` / `continue` 必须解析到当前最内层 loop；
 - `return` 必须指向 `exit`；
-- `merge` 至少一条入边、恰好一条出边；
+- 不允许出现 `merge` 节点；汇合由同一目标节点的多条入边表达；
 - `free_function` / `interface` 必须有 target 和 callSiteId；
 - 节点类型必须属于封闭集合；
 - 不允许 `expandable=true`；

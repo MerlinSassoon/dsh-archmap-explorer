@@ -104,7 +104,6 @@ EXECUTION_NODE_KINDS = {
     "continue",
     "return",
     "dispatch",
-    "merge",
 }
 EXECUTION_EDGE_KINDS = {
     "next",
@@ -199,8 +198,11 @@ def _validate_execution_flow(
                 issues.append(_issue("error", "EXEC_LOOP_JUMP_TARGET", f"execution flow {flow_id} {kind} {node_id} must reference a loop"))
         if kind == "branch":
             kinds = [edge.get("kind") for edge in outgoing.get(str(node_id), [])]
-            if kinds.count("true") != 1 or kinds.count("false") != 1:
-                issues.append(_issue("error", "EXEC_BRANCH_PORTS", f"execution flow {flow_id} branch {node_id} must have one true and one false edge"))
+            # A branch arm can end at an implicit loop-iteration boundary.  P5
+            # intentionally draws no back lane, so that arm may have no visible
+            # target edge while its port remains in the card.
+            if kinds.count("true") > 1 or kinds.count("false") > 1:
+                issues.append(_issue("error", "EXEC_BRANCH_PORTS", f"execution flow {flow_id} branch {node_id} has duplicate true/false edges"))
         if kind == "multi_branch":
             kinds = [edge.get("kind") for edge in outgoing.get(str(node_id), [])]
             if kinds.count("case") < 1:
@@ -209,10 +211,11 @@ def _validate_execution_flow(
                 issues.append(_issue("error", "EXEC_MULTI_DEFAULT", f"execution flow {flow_id} multi_branch {node_id} has multiple default edges"))
         if kind == "loop":
             kinds = [edge.get("kind") for edge in outgoing.get(str(node_id), [])]
-            if kinds.count("loop_body") != 1 or kinds.count("loop_complete") != 1:
-                issues.append(_issue("error", "EXEC_LOOP_PORTS", f"execution flow {flow_id} loop {node_id} must have body and complete edges"))
-        if kind == "merge" and not incoming.get(str(node_id)):
-            issues.append(_issue("error", "EXEC_MERGE_INPUT", f"execution flow {flow_id} merge {node_id} must have at least one incoming edge"))
+            # An inner loop can be the last statement of an outer loop body.
+            # Its completion is implicit in the outer iteration, so P5 does not
+            # draw a synthetic join or a back lane for it.
+            if kinds.count("loop_body") > 1 or kinds.count("loop_complete") > 1:
+                issues.append(_issue("error", "EXEC_LOOP_PORTS", f"execution flow {flow_id} loop {node_id} has duplicate body/complete edges"))
         if kind == "return":
             target_kinds = {
                 next((item.get("kind") for item in nodes if item.get("id") == edge.get("to")), None)
