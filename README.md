@@ -551,6 +551,7 @@ ArkTS 接入时需要：
 | [`docs/约定编程skill.md`](docs/约定编程skill.md) | 项目无关的约定编程 Skill：分层架构、契约、功能备注、测试与提交检查清单 |
 | [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 当前 bundle JSON Schema 4.1，包含 P5 executionFlows |
 | [`docs/schema/archmap-v4.0-bundle.schema.json`](docs/schema/archmap-v4.0-bundle.schema.json) | 历史 bundle JSON Schema 4.0，供旧产物追溯 |
+| [`docs/HANDOFF-P5.5.md`](docs/HANDOFF-P5.5.md) | P5.5 当前交接：已完成边界、下一步共享动态分发解析与数据契约收缩计划 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 
 ### 历史归档

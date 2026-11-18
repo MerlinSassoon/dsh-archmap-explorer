@@ -1,8 +1,8 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档冻结 v3.8 数据契约，并作为实现和后续 ArkTS 扩展的依据。历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)；发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
+> 本文档记录 v3.8 基础数据契约及 P5.1-P5.5 增量修订，并作为实现和后续 ArkTS 扩展的依据。当前 bundle schema 为 4.1；历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)。发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
 >
-> **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 升级到 4.0；P5.2 增加可选 `executionEntrypoints`，用于将主执行流起点与分析入口解耦；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
+> **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 4.1；P5.2 增加可选 `executionEntrypoints`，用于将主执行流起点与分析入口解耦；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
 >
 > **P5.1 补充（2026-11-18）**：移除执行流 `merge` 合成节点，改为多边直接 fan-in；卡片改为内嵌端口行样式。详见 [`p5.1-execution-card-style.md`](p5.1-execution-card-style.md) 与 [`p5.1-execution-flow-fan-in-plan.md`](p5.1-execution-flow-fan-in-plan.md)。<br>
 >
@@ -27,11 +27,11 @@
 - `providedApis` 来自 Provider + Capability 契约投影，包含公开方法、抽象契约方法和协议能力。
 - 项目页默认不绘制 `projectGraph.edges`；模块间调用/数据证据保留，供可选“关系”模式与后续查询使用。
 - 默认几何由 Python 以能力卡片网格生成（`layout.mode = "module-cards"`），前端只负责渲染与用户拖拽覆盖。
-- `projectGraph.mainFlows` 保存按 entrypoint 生成的主流程 DAG；`primaryFlowId` 指向默认流程。
+- `projectGraph.mainFlows` 保存按 entrypoint 生成的调用投影 DAG；`primaryFlowId` 指向默认调用投影。P5.5 后该投影默认不进入 UI。
 
 ### MainFlow
 
-主流程是函数级、Capability 级的只读投影：
+`mainFlows` 是函数级、Capability 级的只读调用投影，默认不进入当前 UI；P5 主流程页面使用 `executionFlows`。
 
 - 节点类型：`entry` / `orchestrator` / `provider` / `interface` / `dispatch`。
 - 边类型：`call` / `call_path` / `composition`。
@@ -322,7 +322,7 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ```json
 {
-  "schemaVersion": "3.8",
+  "schemaVersion": "4.1",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],
