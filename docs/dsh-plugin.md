@@ -48,7 +48,14 @@ dsh --profile web --dump-config
 
 pnpm 可能拦截 npm 包的 `prepare` 脚本。该脚本只做确定性自检，不联网、不跑完整测试、不生成用户项目文件、不启动浏览器。
 
-如果安装输出提示 `dsh-archmap-explorer` 的构建脚本被拦截，按 pnpm 给出的精确提示处理：在目标 profile 的 `pnpm-workspace.yaml` 中加入对应的 `allowBuilds` 条目，然后重新执行安装。
+pnpm 10 对 git-hosted 包的 `prepare` 默认返回 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`。按 pnpm 输出中给出的精确 key，在目标 profile 的 `pnpm-workspace.yaml` 中加入 `onlyBuiltDependencies`，然后重新执行安装：
+
+```yaml
+onlyBuiltDependencies:
+  - "dsh-archmap-explorer@git+ssh://git@github.com/MerlinSassoon/dsh-archmap-explorer.git#<resolved-commit>"
+```
+
+key 必须使用 pnpm 实际打印的完整值，其中包含解析后的 commit；更新插件版本后可能需要同步更新。
 
 profile 目录通常为：
 
@@ -236,7 +243,7 @@ Python 核心和 bundled Python 文件位于 npm 包内。插件运行时通过 
 | `ARCHMAP_PATH_ESCAPE` | 使用当前 DSH workspace 内的路径 |
 | `ARCHMAP_TIMEOUT` | 提高 `toolTimeoutMs` 或减少注解节点数 |
 | `ARCHMAP_SKILL_MISSING` | 重新安装插件，确认包内两份 Skill Markdown 完整 |
-| pnpm prepare 被拦截 | 按 pnpm 提示在 profile `pnpm-workspace.yaml` 加 `allowBuilds` 后重试 |
+| pnpm prepare 被拦截 | 按 pnpm 提示在 profile `pnpm-workspace.yaml` 加 `onlyBuiltDependencies` 精确 key 后重试 |
 | Python 不可用 | 安装 Python 3.10+，或设置 `pythonPath` / `ARCHMAP_PYTHON` |
 
 ## 10. 验收命令

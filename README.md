@@ -357,7 +357,7 @@ dsh --profile web --dump-config
 dsh --profile web --dump-config-schema
 ```
 
-pnpm 可能拦截包的 `prepare` 自检脚本。按安装输出提示，在目标 profile 的 `pnpm-workspace.yaml` 中加入对应的 `allowBuilds` 条目后重试。完整说明见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。
+pnpm 可能拦截包的 `prepare` 自检脚本。按安装输出提示，在目标 profile 的 `pnpm-workspace.yaml` 中加入 `onlyBuiltDependencies` 的精确 key 后重试。完整说明见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。
 
 ### 工具
 
