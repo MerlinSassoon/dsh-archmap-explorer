@@ -205,7 +205,7 @@ def test_dispatch_candidate_config_clamps_invalid_limits(tmp_path: Path) -> None
 
 
 def test_self_dispatch_candidate_journeys_keep_main_flow_bounded() -> None:
-    """ArchMap's args.func router exposes nine journeys without changing L0."""
+    """ArchMap's args.func router exposes eleven journeys without changing L0."""
 
     config_path = ROOT / "examples" / "archmap_v3.archmap.json"
     bundle = build_architecture(ROOT, config_path)
@@ -218,10 +218,10 @@ def test_self_dispatch_candidate_journeys_keep_main_flow_bounded() -> None:
     assert len(flow["edges"]) == 3
     assert len(flow["dispatchGroups"]) == 1
     group = flow["dispatchGroups"][0]
-    assert group["candidateCount"] == 9
-    assert len(group["scopes"]) == 9
+    assert group["candidateCount"] == 11
+    assert len(group["scopes"]) == 11
     assert bundle["stats"]["dispatchGroups"] == 1
-    assert bundle["stats"]["dispatchCandidateScopes"] == 9
+    assert bundle["stats"]["dispatchCandidateScopes"] == 11
     build_scope = next(
         scope
         for scope in group["scopes"]

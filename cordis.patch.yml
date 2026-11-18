@@ -1,0 +1,5 @@
+# ArchMap DSH bundle patch. The plugin only bridges DSH tools to the bundled
+# Python core; it must be installed as an npm dependency of the target profile.
+- insert:
+    - id: tool-archmap
+      name: dsh-archmap-explorer

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__
+from ..annotations import annotation_context, apply_annotations
 from ..managers.pipeline_manager import PipelineManager
 from ..managers.render_manager import RenderManager
 from ..managers.validate_manager import ValidationManager
@@ -291,6 +292,74 @@ def cmd_dsm(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_annotations_context(args: argparse.Namespace) -> int:
+    bundle_path = Path(args.bundle).resolve()
+    if not bundle_path.exists():
+        print(f"error: file not found: {bundle_path}", file=sys.stderr)
+        return 2
+    try:
+        payload = annotation_context(
+            bundle_path,
+            scope=args.scope,
+            node_ids=args.node_ids,
+            max_nodes=args.max_nodes,
+            max_chars_per_node=args.max_chars,
+            include_source=args.include_source,
+            annotations_path=Path(args.annotations).resolve() if args.annotations else None,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"error: cannot build annotation context: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+    print(f"scope:     {args.scope}")
+    print(f"nodes:     {len(payload['nodes'])}")
+    print(f"truncated: {str(payload['truncated']).lower()}")
+    if payload.get("missingNodeIds"):
+        print("missing:   " + ", ".join(payload["missingNodeIds"]))
+    for node in payload["nodes"]:
+        print(f"- {node['nodeId']} [{node['kind']}] {node['name']}")
+    return 0
+
+
+def cmd_annotations_apply(args: argparse.Namespace) -> int:
+    bundle_path = Path(args.bundle).resolve()
+    proposal_path = Path(args.proposal).resolve()
+    if not bundle_path.exists():
+        print(f"error: file not found: {bundle_path}", file=sys.stderr)
+        return 2
+    if not proposal_path.exists():
+        print(f"error: file not found: {proposal_path}", file=sys.stderr)
+        return 2
+    try:
+        proposal = _read_json(proposal_path)
+        payload = apply_annotations(
+            bundle_path,
+            proposal,
+            annotations_path=Path(args.annotations).resolve() if args.annotations else None,
+            render=not args.no_render,
+            force=args.force,
+            provider=args.provider,
+            model=args.model,
+            prompt_version=args.prompt_version,
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"error: cannot apply annotations: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+    print(f"applied: {payload['applied']}")
+    print(f"skipped: {payload['stats']['skipped']}")
+    for item in payload["skipped"][:40]:
+        print(f"- {item['nodeId']}: {item['reason']}")
+    print(f"annotations: {payload['annotationsPath']}")
+    if payload["htmlPath"]:
+        print(f"html:        {payload['htmlPath']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="archmap", description="ArchMap v3 module-first architecture analysis")
     parser.add_argument("--version", action="version", version=f"archmap {__version__}")
@@ -358,4 +427,40 @@ def build_parser() -> argparse.ArgumentParser:
     dsm.add_argument("--include-internal", action="store_true")
     dsm.add_argument("--json", action="store_true")
     dsm.set_defaults(func=cmd_dsm)
+
+    annotations = sub.add_parser(
+        "annotations", help="build model context or apply annotation sidecars"
+    )
+    annotations_sub = annotations.add_subparsers(dest="annotations_command", required=True)
+
+    annotations_context = annotations_sub.add_parser(
+        "context", help="build a bounded host-model annotation context"
+    )
+    annotations_context.add_argument("bundle")
+    annotations_context.add_argument(
+        "--scope",
+        choices=["project", "modules", "functions", "all"],
+        default="functions",
+    )
+    annotations_context.add_argument("--node-id", action="append", dest="node_ids", default=[])
+    annotations_context.add_argument("--max-nodes", type=int, default=50)
+    annotations_context.add_argument("--max-chars", type=int, default=6000)
+    annotations_context.add_argument("--no-source", action="store_false", dest="include_source")
+    annotations_context.add_argument("--annotations")
+    annotations_context.add_argument("--json", action="store_true")
+    annotations_context.set_defaults(func=cmd_annotations_context)
+
+    annotations_apply = annotations_sub.add_parser(
+        "apply", help="validate a proposal and update llm-annotations.json"
+    )
+    annotations_apply.add_argument("bundle")
+    annotations_apply.add_argument("--proposal", required=True)
+    annotations_apply.add_argument("--annotations")
+    annotations_apply.add_argument("--force", action="store_true")
+    annotations_apply.add_argument("--no-render", action="store_true")
+    annotations_apply.add_argument("--provider", default="")
+    annotations_apply.add_argument("--model", default="")
+    annotations_apply.add_argument("--prompt-version")
+    annotations_apply.add_argument("--json", action="store_true")
+    annotations_apply.set_defaults(func=cmd_annotations_apply)
     return parser

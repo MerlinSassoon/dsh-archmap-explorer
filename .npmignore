@@ -1,0 +1,14 @@
+.git/
+.dsh/
+.archmap/
+.pytest_cache/
+yield/
+Projects/
+dist/
+build/
+*.egg-info/
+**/__pycache__/
+**/*.py[cod]
+tests/
+docs/旧文档/
+examples/

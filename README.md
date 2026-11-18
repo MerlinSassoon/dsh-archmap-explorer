@@ -263,6 +263,10 @@ python -m archmap method <project> [--file FILE] [--function NAME] [--json]
 python -m archmap serve <directory> [--port 8765]
 python -m archmap diff <before.json> <after.json>
 
+# LLM 注解上下文 / 侧车写入
+python -m archmap annotations context <architecture.json> --scope functions --max-nodes 50 --json
+python -m archmap annotations apply <architecture.json> --proposal proposal.json --provider <id> --model <id> --json
+
 # 只读查询
 python -m archmap impact <before.json> <after.json> [--json]
 python -m archmap trace <architecture.json> --from <function-id> [--direction inbound]
@@ -292,6 +296,11 @@ python -m archmap dsm <architecture.json> [--level module|provider] [--json]
 }
 ```
 
+注解生成由确定性命令边界支撑：
+
+- `annotations context` 从项目、模块和函数事实生成有界上下文，包含签名、人工备注、源码摘录、权威 `sourceHash` 和已有注解摘要；不调用模型。
+- `annotations apply` 严格校验 proposal，只接受 bundle 中存在的节点；`sourceHash` 始终使用 bundle 原值。默认保留已有注解，`--force` 才允许覆盖。写入后合并 `llm-annotations.json` 并重新渲染 `architecture.html`。
+
 ## 数据契约
 
 当前 bundle 为 schema 6.4，顶层结构：
@@ -312,6 +321,7 @@ stats
 - [架构与编码规范](docs/archmap-architecture-spec.md)
 - [API 契约模型](docs/archmap-api-contract-model.md)
 - [bundle schema 6.4](docs/schema/archmap-v6.4-bundle.schema.json)
+- [DSH 插件](docs/dsh-plugin.md)
 
 历史阶段计划、旧交接、旧验收和旧 schema 统一归档在 [`docs/旧文档/`](docs/旧文档/README.md)，仅用于追溯，不代表当前契约。
 
@@ -322,23 +332,59 @@ stats
 - [`archmap-code-conventions`](docs/archmap-code-conventions.md)：源码结构、模块边界、Provider Role、能力面、入口执行流、备注和测试要求。
 - [`archmap-config-generation`](docs/archmap-config-generation.md)：从源码事实生成和校验 `archmap` 配置的固定算法、字段语义、反例和验收清单。
 
-## DSH 插件（下一阶段）
+## DSH 插件：dsh-archmap-explorer
 
-仓库已确定 DSH 插件形态，但当前版本尚未交付插件代码：
+ArchMap 同时提供 DSH bundle 插件。插件只做 DSH 适配、宿主模型调用和 Python 子进程桥接；AST、图投影、校验、注解合法性和 HTML 渲染仍由随包分发的 Python 核心完成。
 
 ```text
 npm 包名：dsh-archmap-explorer
 初始版本：0.1.0
 许可证：MIT
-安装方式：DSH bundle 插件，通过仓库地址安装
-工具：archmap_build、archmap_annotate
-Skill：archmap-config-generation、archmap-code-conventions
+目标 DSH：0.2.2-rc.1
+Python：3.10+，随 npm 包分发，无需预先 pip install
 ```
 
-插件将使用 DSH 宿主模型生成当前 HTML 中“LLM 语义说明”占位区所需的侧车注解，不自行持有 API Key，也不绕过现有 Python 核心。
+### 安装
 
-实现方案、包结构、Python 注解命令、工具契约、宿主模型路由和验收门槛见
-[`docs/旧文档/HANDOFF-DSH-PLUGIN.md`](docs/旧文档/HANDOFF-DSH-PLUGIN.md)。
+```bash
+dsh plugin --profile web add git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git
+```
+
+安装后可检查：
+
+```bash
+dsh --profile web --dump-config
+dsh --profile web --dump-config-schema
+```
+
+pnpm 可能拦截包的 `prepare` 自检脚本。按安装输出提示，在目标 profile 的 `pnpm-workspace.yaml` 中加入对应的 `allowBuilds` 条目后重试。完整说明见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。
+
+### 工具
+
+| 工具 | 作用 |
+|---|---|
+| `archmap_build` | 生成 `architecture.json` 与自包含 `architecture.html`，返回模块/函数/执行流/诊断统计 |
+| `archmap_annotate` | 通过 DSH 宿主模型生成源码语义注解，写入 `llm-annotations.json` 并重渲染 HTML |
+
+`archmap_annotate` 必须走 DSH `ctx.llm`，不读取 API Key。模型路由顺序为：
+
+```text
+插件配置 provider/model
+  → 当前会话模型
+  → 第一个可用 provider
+  → HOST_MODEL_UNAVAILABLE
+```
+
+模型只返回语义文本；`nodeId`、bundle 身份和 `sourceHash` 均由 Python 权威校验。默认保留已有/人工注解，`force` 才允许覆盖。
+
+### Bundled Skill
+
+- `archmap-config-generation`：生成和校验 `archmap.config.json`
+- `archmap-code-conventions`：编写符合 ArchMap 模块、能力面、执行流和测试约定的 Python 代码
+
+两份 Skill 正文直接读取包内权威文档。配置生成 Skill 缺失或为空时，插件加载失败。
+
+详细架构、配置、错误处理和验收命令见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。
 
 ## 当前边界
 

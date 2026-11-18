@@ -44,8 +44,8 @@ def test_execution_flow_dispatches_use_config_complete_candidates() -> None:
     dispatch = next(node for node in flow["nodes"] if node["kind"] == "dispatch")
     assert dispatch["candidateSource"] == "config"
     assert dispatch["candidateSetComplete"] is True
-    assert dispatch["candidateCount"] == 9
-    assert len(dispatch["candidates"]) == 9
+    assert dispatch["candidateCount"] == 11
+    assert len(dispatch["candidates"]) == 11
     assert all(edge["kind"] != "composition" for edge in flow["edges"])
 
 

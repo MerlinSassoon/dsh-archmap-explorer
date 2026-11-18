@@ -385,11 +385,11 @@ def test_execution_dispatch_uses_shared_config_resolution() -> None:
     execution_dispatch = next(
         node for node in execution["nodes"] if node["kind"] == "dispatch"
     )
-    assert execution_dispatch["candidateCount"] == 9
+    assert execution_dispatch["candidateCount"] == 11
     assert execution_dispatch["candidateSetComplete"] is True
     assert execution_dispatch["candidateSource"] == "config"
     assert execution_dispatch["unresolvedReason"] is None
-    assert len(execution_dispatch["candidates"]) == 9
+    assert len(execution_dispatch["candidates"]) == 11
     assert {
         edge["kind"] for edge in execution["edges"]
     } <= {"next", "true", "false", "case", "default", "loop_body", "loop_complete"}

@@ -10,3 +10,5 @@ dist/
 yield/
 .dsh/
 Projects/
+
+node_modules

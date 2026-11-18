@@ -26,7 +26,9 @@
         "archmap/config/__init__.py",
         "archmap/config/project_config.py",
         "archmap/config/contract_config.py",
-        "archmap/utility/config_utility.py"
+        "archmap/utility/config_utility.py",
+        "archmap/annotations.py",
+        "archmap/utility/annotation_utility.py"
       ],
       "note": "CLI 入口、配置加载、流水线编排与模块配置模型。",
       "color": "#f59e0b",
@@ -115,7 +117,9 @@
         "archmap.utility.cli_utility:cmd_impact",
         "archmap.utility.cli_utility:cmd_trace",
         "archmap.utility.cli_utility:cmd_surfaces",
-        "archmap.utility.cli_utility:cmd_dsm"
+        "archmap.utility.cli_utility:cmd_dsm",
+        "archmap.utility.cli_utility:cmd_annotations_context",
+        "archmap.utility.cli_utility:cmd_annotations_apply"
       ],
       "complete": true,
       "reason": "argparse_dispatch"

@@ -1,0 +1,67 @@
+{
+  "name": "dsh-archmap-explorer",
+  "version": "0.1.0",
+  "description": "DSH bundle plugin for ArchMap: build self-contained architecture maps through the bundled Python core.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsh-bundle",
+    "architecture",
+    "python",
+    "archmap"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MerlinSassoon/dsh-archmap-explorer/issues"
+  },
+  "homepage": "https://github.com/MerlinSassoon/dsh-archmap-explorer#readme",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "lib",
+    "scripts",
+    "archmap/**/*.py",
+    "archmap/render/assets/*",
+    "docs/dsh-plugin.md",
+    "docs/archmap-config-generation.md",
+    "docs/archmap-code-conventions.md",
+    "docs/archmap-v3-design.md",
+    "docs/archmap-architecture-spec.md",
+    "docs/archmap-api-contract-model.md",
+    "docs/schema/archmap-v6.4-bundle.schema.json",
+    "pyproject.toml",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepare": "node ./scripts/prepare.mjs",
+    "test": "node --test tests/node/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22",
+    "dsh": "^0.2.2-rc.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-skill": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "^3.19.0"
+  },
+  "license": "MIT"
+}

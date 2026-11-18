@@ -286,6 +286,15 @@ user surface    最终用户能感知或操作的交互面
 
 ArchMap Python 核心只读取并在详情面板展示注解，不调用 LLM。后续 DSH 插件通过宿主模型生成同一侧车文件，不改变 bundle 契约。`sourceHash` 不匹配时显示过期提示。
 
+Python 侧提供两条确定性命令：
+
+```bash
+python -m archmap annotations context <bundle> --scope functions --max-nodes 50 --json
+python -m archmap annotations apply <bundle> --proposal <json> --provider <id> --model <id> --json
+```
+
+`annotations context` 从 `functionDetails`、`moduleGraphs` 和 `projectGraph` 生成有界上下文，支持 `project` / `modules` / `functions` / `all`、显式 nodeIds、源码字符上限以及已有注解摘要。`annotations apply` 只接受 bundle 中存在的 nodeId，`sourceHash` 由 Python 从 bundle 读取并校验；默认保留已有注解，`force` 才允许覆盖。成功后合并写入侧车并重新渲染 HTML。
+
 ## 6. 默认布局与用户覆盖
 
 - 后端输出 ProjectGraph、ModuleGraph 的默认坐标与边路径。
