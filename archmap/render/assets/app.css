@@ -1116,3 +1116,6 @@
   color: #8ebcff;
   font-weight: 700;
 }
+.exec-drilldown-l1.is-auto {
+  border-style: dashed;
+}

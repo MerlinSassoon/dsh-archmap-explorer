@@ -195,17 +195,6 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         flow_scopes.enabled = bool(flow_scopes_raw.get("enabled", True))
         flow_scopes.roots = _as_list(flow_scopes_raw.get("roots"), [])
         flow_scopes.auto_detect = bool(flow_scopes_raw.get("autoDetect", False))
-        if flow_scopes.auto_detect:
-            config_diagnostics.append(
-                {
-                    "severity": "warning",
-                    "code": "FLOW_SCOPE_AUTODETECT_RESERVED",
-                    "message": (
-                        "flowScopes.autoDetect is reserved for future orchestrator discovery; "
-                        "P10.1 only creates scopes from roots and executionOnlyCallables"
-                    ),
-                }
-            )
 
         def _positive_int(name: str, fallback: int, maximum: int) -> int:
             value = flow_scopes_raw.get(name, fallback)

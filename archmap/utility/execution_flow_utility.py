@@ -422,6 +422,135 @@ def _scope_root_reason(
     return None
 
 
+def _build_scope_payload(
+    *,
+    analysis: AnalysisResult,
+    call_sites: list[CallSite],
+    flow: dict[str, Any],
+    node: dict[str, Any],
+    target,
+    reason: str,
+    scope_index: int,
+    resolver,
+    module_meta: dict[str, dict[str, Any]],
+    max_nodes: int,
+    max_edges: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Build one scope payload for a resolved free-function root."""
+
+    digest = hashlib.sha1(
+        f"{flow.get('id')}:{node.get('id')}:{target.id}".encode("utf-8")
+    ).hexdigest()[:10]
+    scope_id = f"scope:{flow.get('id')}:{scope_index}:{digest}"
+    scope_key = f"{flow.get('id')}:scope{scope_index}:{digest}"
+    skeleton = build_entry_execution_skeleton(
+        analysis,
+        call_sites,
+        target,
+        flow_id=scope_id,
+        flow_key=scope_key,
+        resolve_target=resolver,
+        module_meta=module_meta,
+    )
+    scope_nodes = list(skeleton.get("nodes") or [])
+    scope_edges = list(skeleton.get("edges") or [])
+    scope_nodes, scope_edges, omitted, budget_diagnostics = _trim_scope(
+        scope_nodes,
+        scope_edges,
+        max_nodes=max_nodes,
+        max_edges=max_edges,
+    )
+    for scope_node in scope_nodes:
+        scope_node["scopeId"] = scope_id
+    helper_hints = _helper_interface_hints(
+        analysis=analysis,
+        call_sites=call_sites,
+        resolver=resolver,
+        nodes=scope_nodes,
+        root_module_id=target.module_id,
+    )
+    interface_summary = _scope_interface_summary(scope_nodes, helper_hints)
+    scope_diagnostics = [
+        *list(skeleton.get("diagnostics") or []),
+        *budget_diagnostics,
+    ]
+    if not interface_summary:
+        scope_diagnostics.append(
+            {
+                "severity": "info",
+                "code": "FLOW_SCOPE_NO_EXTERNAL_INTERFACE",
+                "message": (
+                    f"scope {scope_id} contains no resolved external capability interface"
+                ),
+                "functionId": target.id,
+            }
+        )
+    scope = {
+        "kind": "archmap.execution-scope",
+        "id": scope_id,
+        "parentNodeId": node.get("id"),
+        "rootFunctionId": target.id,
+        "moduleId": target.module_id,
+        "depth": 1,
+        "entrypointId": target.id,
+        "name": f"{target.name}() 接口",
+        "reason": reason,
+        "autoDetected": reason == "auto_orchestrator",
+        "nodes": scope_nodes,
+        "edges": scope_edges,
+        "layout": layout_execution_flow(
+            scope_nodes,
+            scope_edges,
+            scope_id,
+        ),
+        "nodeCount": len(scope_nodes),
+        "edgeCount": len(scope_edges),
+        "truncated": bool(omitted) or any(
+            item.get("code") in {
+                "FLOW_SCOPE_NODE_BUDGET_EXCEEDED",
+                "FLOW_SCOPE_EDGE_BUDGET_EXCEEDED",
+            }
+            for item in scope_diagnostics
+        ),
+        "omittedNodeCount": omitted,
+        "diagnostics": scope_diagnostics,
+        "interfaceSummary": interface_summary,
+    }
+    return scope, scope_diagnostics
+
+
+def _scope_control_node_count(scope: dict[str, Any]) -> int:
+    """Count visible control structures in a candidate scope."""
+
+    return sum(
+        1
+        for node in scope.get("nodes", [])
+        if node.get("kind") in {"branch", "multi_branch", "loop"}
+    )
+
+
+def _scope_has_external_interface(scope: dict[str, Any], target_module_id: str) -> bool:
+    """Return whether a candidate scope reaches a capability from another module."""
+
+    return any(
+        str(item.get("moduleId") or "") != target_module_id
+        for item in scope.get("interfaceSummary", [])
+        if isinstance(item, dict)
+    )
+
+
+def _scope_has_direct_recursion(scope: dict[str, Any], target_id: str) -> bool:
+    """Detect a direct recursive call inside a candidate scope."""
+
+    for node in scope.get("nodes", []):
+        if node.get("kind") not in {"free_function", "interface"}:
+            continue
+        called_id = str(node.get("targetFunctionId") or node.get("functionId") or "")
+        if called_id == target_id:
+            return True
+    return False
+
+
 def _build_flow_scopes(
     *,
     analysis: AnalysisResult,
@@ -434,24 +563,25 @@ def _build_flow_scopes(
     max_nodes: int,
     max_edges: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Build one-level interface scopes for a single bounded execution flow."""
+    """Build one-level interface scopes for a single bounded execution flow.
+
+    Explicit roots and executionOnly callables are resolved first.  When
+    ``autoDetect`` is enabled, conservative local-orchestrator candidates are
+    considered afterwards up to the remaining scope budget.
+    """
 
     config = analysis.config.flow_scopes
     scopes: list[dict[str, Any]] = []
     diagnostics: list[dict[str, Any]] = []
     if not config.enabled:
         return scopes, diagnostics
+
+    execution_only_ids = set(analysis.execution_only_function_ids)
     seen_targets: set[str] = set()
+    explicit_roots: list[tuple[dict[str, Any], Any, str]] = []
+    auto_candidates: list[tuple[dict[str, Any], Any]] = []
+
     for node in flow.get("nodes", []):
-        if len(scopes) >= max_scopes:
-            diagnostics.append(
-                {
-                    "severity": "info",
-                    "code": "FLOW_SCOPE_COUNT_BUDGET",
-                    "message": f"flow {flow.get('id')} reached maxScopesPerFlow={max_scopes}",
-                }
-            )
-            break
         target_id = str(node.get("targetFunctionId") or node.get("functionId") or "")
         target = analysis.function_by_id.get(target_id)
         if target is None or target.synthetic:
@@ -481,96 +611,94 @@ def _build_flow_scopes(
             target_id=target_id,
             target_ref=target_ref,
             configured_roots=configured_roots,
-            execution_only_ids=set(analysis.execution_only_function_ids),
+            execution_only_ids=execution_only_ids,
         )
-        if reason is None:
+        if reason is not None:
+            explicit_roots.append((node, target, reason))
             continue
-        if target_id in seen_targets:
+        if config.auto_detect and target.module_id == str(flow.get("moduleId") or ""):
+            auto_candidates.append((node, target))
+
+    for node, target, reason in explicit_roots:
+        if len(scopes) >= max_scopes:
+            diagnostics.append(
+                {
+                    "severity": "info",
+                    "code": "FLOW_SCOPE_COUNT_BUDGET",
+                    "message": f"flow {flow.get('id')} reached maxScopesPerFlow={max_scopes}",
+                }
+            )
+            break
+        if target.id in seen_targets:
             continue
-        seen_targets.add(target_id)
-        scope_index = len(scopes) + 1
-        digest = hashlib.sha1(f"{flow.get('id')}:{node.get('id')}:{target_id}".encode("utf-8")).hexdigest()[:10]
-        scope_id = f"scope:{flow.get('id')}:{scope_index}:{digest}"
-        scope_key = f"{flow.get('id')}:scope{scope_index}:{digest}"
-        skeleton = build_entry_execution_skeleton(
-            analysis,
-            call_sites,
-            target,
-            flow_id=scope_id,
-            flow_key=scope_key,
-            resolve_target=resolver,
+        seen_targets.add(target.id)
+        scope, scope_diagnostics = _build_scope_payload(
+            analysis=analysis,
+            call_sites=call_sites,
+            flow=flow,
+            node=node,
+            target=target,
+            reason=reason,
+            scope_index=len(scopes) + 1,
+            resolver=resolver,
             module_meta=module_meta,
-        )
-        scope_nodes = list(skeleton.get("nodes") or [])
-        scope_edges = list(skeleton.get("edges") or [])
-        scope_nodes, scope_edges, omitted, budget_diagnostics = _trim_scope(
-            scope_nodes,
-            scope_edges,
             max_nodes=max_nodes,
             max_edges=max_edges,
         )
-        for scope_node in scope_nodes:
-            scope_node["scopeId"] = scope_id
-        helper_hints = _helper_interface_hints(
-            analysis=analysis,
-            call_sites=call_sites,
-            resolver=resolver,
-            nodes=scope_nodes,
-            root_module_id=target.module_id,
-        )
-        interface_summary = _scope_interface_summary(scope_nodes, helper_hints)
-        scope_diagnostics = [
-            *list(skeleton.get("diagnostics") or []),
-            *budget_diagnostics,
-        ]
-        if not interface_summary:
-            scope_diagnostics.append(
-                {
-                    "severity": "info",
-                    "code": "FLOW_SCOPE_NO_EXTERNAL_INTERFACE",
-                    "message": (
-                        f"scope {scope_id} contains no directly resolved external capability interface"
-                    ),
-                    "functionId": target_id,
-                }
-            )
-        scope = {
-            "kind": "archmap.execution-scope",
-            "id": scope_id,
-            "parentNodeId": node.get("id"),
-            "rootFunctionId": target_id,
-            "moduleId": target.module_id,
-            "depth": 1,
-            "entrypointId": target_id,
-            "name": f"{target.name}() 接口",
-            "nodes": scope_nodes,
-            "edges": scope_edges,
-            "layout": layout_execution_flow(
-                scope_nodes,
-                scope_edges,
-                scope_id,
-            ),
-            "nodeCount": len(scope_nodes),
-            "edgeCount": len(scope_edges),
-            "truncated": bool(omitted) or any(
-                item.get("code") in {
-                    "FLOW_SCOPE_NODE_BUDGET_EXCEEDED",
-                    "FLOW_SCOPE_EDGE_BUDGET_EXCEEDED",
-                }
-                for item in scope_diagnostics
-            ),
-            "omittedNodeCount": omitted,
-            "diagnostics": scope_diagnostics,
-            "interfaceSummary": interface_summary,
-        }
         scopes.append(scope)
         node["drilldown"] = {
             "status": "available",
-            "scopeId": scope_id,
+            "scopeId": scope["id"],
             "reason": reason,
-            "interfaceSummary": interface_summary,
+            "autoDetected": False,
+            "interfaceSummary": scope["interfaceSummary"],
         }
         diagnostics.extend(scope_diagnostics)
+
+    for node, target in auto_candidates:
+        if len(scopes) >= max_scopes:
+            diagnostics.append(
+                {
+                    "severity": "info",
+                    "code": "FLOW_SCOPE_COUNT_BUDGET",
+                    "message": f"flow {flow.get('id')} reached maxScopesPerFlow={max_scopes}",
+                }
+            )
+            break
+        if target.id in seen_targets:
+            continue
+        scope, scope_diagnostics = _build_scope_payload(
+            analysis=analysis,
+            call_sites=call_sites,
+            flow=flow,
+            node=node,
+            target=target,
+            reason="auto_orchestrator",
+            scope_index=len(scopes) + 1,
+            resolver=resolver,
+            module_meta=module_meta,
+            max_nodes=max_nodes,
+            max_edges=max_edges,
+        )
+        if scope.get("truncated"):
+            continue
+        if _scope_control_node_count(scope) < 1:
+            continue
+        if not _scope_has_external_interface(scope, target.module_id):
+            continue
+        if _scope_has_direct_recursion(scope, target.id):
+            continue
+        seen_targets.add(target.id)
+        scopes.append(scope)
+        node["drilldown"] = {
+            "status": "available",
+            "scopeId": scope["id"],
+            "reason": "auto_orchestrator",
+            "autoDetected": True,
+            "interfaceSummary": scope["interfaceSummary"],
+        }
+        diagnostics.extend(scope_diagnostics)
+
     unresolved_roots = sorted(
         str(ref) for ref in configured_roots
         if str(ref or "").strip() and resolve_function_ref(analysis, None, str(ref)) is None
@@ -584,7 +712,6 @@ def _build_flow_scopes(
             }
         )
     return scopes, diagnostics
-
 
 def build_execution_flows(
     analysis: AnalysisResult,

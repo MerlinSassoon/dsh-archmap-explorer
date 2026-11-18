@@ -320,6 +320,10 @@ def _validate_execution_flow(
             issues.append(_issue("error", "EXEC_SCOPE_KIND", f"execution scope {scope_id} has invalid kind"))
         if scope.get("depth") != 1:
             issues.append(_issue("error", "EXEC_SCOPE_DEPTH", f"execution scope {scope_id} must have depth=1"))
+        if scope.get("autoDetected") is not None and not isinstance(scope.get("autoDetected"), bool):
+            issues.append(_issue("error", "EXEC_SCOPE_AUTO", f"execution scope {scope_id} autoDetected must be boolean"))
+        if scope.get("reason") is not None and not isinstance(scope.get("reason"), str):
+            issues.append(_issue("error", "EXEC_SCOPE_REASON", f"execution scope {scope_id} reason must be a string"))
         if scope.get("scopes"):
             issues.append(_issue("error", "EXEC_SCOPE_NESTED", f"execution scope {scope_id} must not contain nested scopes"))
         root_function_id = str(scope.get("rootFunctionId") or "")
@@ -370,6 +374,8 @@ def _validate_execution_flow(
                 issues.append(_issue("error", "EXEC_DRILLDOWN_SCOPE", f"execution flow {flow_id} node {node.get('id')} references missing scope {linked_scope}"))
             if not isinstance(drilldown.get("interfaceSummary"), list):
                 issues.append(_issue("error", "EXEC_DRILLDOWN_SUMMARY", f"execution flow {flow_id} node {node.get('id')} drilldown summary must be an array"))
+            if drilldown.get("autoDetected") is not None and not isinstance(drilldown.get("autoDetected"), bool):
+                issues.append(_issue("error", "EXEC_DRILLDOWN_AUTO", f"execution flow {flow_id} node {node.get('id')} drilldown autoDetected must be boolean"))
     return issues
 
 

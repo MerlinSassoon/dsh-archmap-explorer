@@ -884,6 +884,7 @@ P10 起可在配置中声明一级接口 scope：
     "student_system.app.main:server",
     "student_system.app.main:client"
   ],
+  "autoDetect": true,
   "maxScopesPerFlow": 6,
   "maxNodesPerScope": 24,
   "maxEdgesPerScope": 32
@@ -895,7 +896,10 @@ P10 起可在配置中声明一级接口 scope：
 - `roots` 使用 `module:qualname` 或 canonical function id；
 - `executionOnlyCallables` 可自动成为 scope root；
 - scope root 必须是 `free_function` 编排 callable；`interface` 是模块能力边界，不能生成 scope；
-- `autoDetect` 为未来编排 callable 自动发现保留，P10.1 当前版本不启用；
+- `autoDetect=true` 时从主流程可见的 `free_function` 中保守发现同模块本地编排 callable；
+- 自动候选必须至少触达一个跨模块外部接口、至少包含一个控制结构、未超 scope 预算且非直接递归；
+- 显式 `roots` 和 `executionOnlyCallables` 优先于自动候选；
+- interface 节点永远不参与自动发现；
 - scope 深度固定为 1，scope 内节点不能再次下钻；
 - 预算触顶时优先保留控制骨架和外部接口，并在 `scope.diagnostics` 中显式标记；
 - scope 的路由为 `#/flow/<flowId>/scope/<nodeId>`；
@@ -919,6 +923,7 @@ P10 起可在配置中声明一级接口 scope：
 - 新增 `flowScopes` 配置：enabled / roots / maxScopesPerFlow / maxNodesPerScope / maxEdgesPerScope；
 - P10.1 收紧 scope root：只允许 `free_function` 编排节点，interface 节点禁止生成 scope；
 - P10.2 普通语句通过 branch `armSummaries` / edge `statements` / `implicitNext` 表达，不新增 statement 节点；多分支不展示 case 内部赋值注释；
+- P10.3 新增保守自动发现：主流程同模块 free_function + 外部接口 + 控制结构 + 预算内，显式 roots/executionOnly 优先；
 - scope 视图与主流程分离，路由为 `#/flow/<flowId>/scope/<nodeId>`；
 - scope 深度硬限制为 1，预算截断进入 scope diagnostics；
 - student_system 与 gomoku 样例配置已启用 scope roots。

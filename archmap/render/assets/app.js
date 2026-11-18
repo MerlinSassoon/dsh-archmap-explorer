@@ -817,7 +817,7 @@
       detailScroll.innerHTML = `<div class="eyebrow">Interface drilldown · L1</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(scope?.name || "接口下钻")}</h2>
         <div class="detail-note">目标函数的一级接口骨架。只展示直接外部能力接口与必要控制结构，不递归展开内部实现。</div>
-        <div class="port-detail"><span>来源主流程 <b>${escapeHtml(flow?.name || "—")}</b></span><span>节点 <b>${Number(scope?.nodeCount || 0)}</b></span><span>边 <b>${Number(scope?.edgeCount || 0)}</b></span><span>外部接口 <b>${(scope?.interfaceSummary || []).length}</b></span></div>
+        <div class="port-detail"><span>来源主流程 <b>${escapeHtml(flow?.name || "—")}</b></span><span>L1 来源 <b>${escapeHtml(drilldownReasonLabel(scope?.reason))}</b></span><span>节点 <b>${Number(scope?.nodeCount || 0)}</b></span><span>边 <b>${Number(scope?.edgeCount || 0)}</b></span><span>外部接口 <b>${(scope?.interfaceSummary || []).length}</b></span></div>
         ${(scope?.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">External interfaces</div><div class="exec-interface-list">${scope.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
         ${scope?.truncated ? `<div class="llm-stale">该 scope 已触发节点预算收缩，详情以源码与方法详情为准。</div>` : ""}
         <div class="empty-hint">点击节点查看语义；双击打开 Method Detail / 源码。</div>`;
@@ -887,7 +887,7 @@
             <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.label || macroNode.id)}</h2>
             <div class="detail-module">${escapeHtml(module?.name || macroNode.moduleName || macroNode.moduleId || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "主执行流节点")}</div>
-          <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId || "—")}</b></span>${macroNode.capabilityKind ? `<span>能力 <b>${escapeHtml(macroNode.capabilityKind)}</b></span>` : ""}${macroNode.usageKind ? `<span>用法 <b>${escapeHtml(macroNode.usageKind)}</b></span>` : ""}</div>
+          <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId || "—")}</b></span>${macroNode.drilldown?.reason ? `<span>L1 来源 <b>${escapeHtml(drilldownReasonLabel(macroNode.drilldown.reason))}</b></span>` : ""}${macroNode.capabilityKind ? `<span>能力 <b>${escapeHtml(macroNode.capabilityKind)}</b></span>` : ""}${macroNode.usageKind ? `<span>用法 <b>${escapeHtml(macroNode.usageKind)}</b></span>` : ""}</div>
           ${macroNode.kind === "interface" ? `<div class="empty-hint">功能接口是模块暴露的能力边界，不在主流程中展开内部实现；请打开方法详情或模块能力页查看。</div>` : ""}
           ${meta.length ? `<div class="source-line">${meta.map(item => escapeHtml(item)).join("<br>")}</div>` : ""}
           ${executionArmSummaryDetailHtml(macroNode)}
@@ -1440,6 +1440,14 @@
     });
   }
 
+  function drilldownReasonLabel(reason) {
+    return ({
+      configured_root: "显式配置",
+      execution_only: "executionOnly",
+      auto_orchestrator: "自动发现",
+    }[reason] || String(reason || ""));
+  }
+
   function executionKindLabel(kind) {
     return ({
       entry: "入口",
@@ -1626,7 +1634,7 @@
         </div>
         ${executionPortGrid(node, pos)}
         ${foot.length ? `<div class="exec-foot">${foot.map(item => `<span class="exec-pill">${escapeHtml(item)}</span>`).join("")}</div>` : ""}
-        ${node.kind !== "interface" && node.drilldown?.status === "available" ? `<button class="exec-drilldown-l1" type="button" data-drilldown-node="${escapeHtml(nodeId)}">L1 · ${node.drilldown.interfaceSummary?.length || 0} 接口</button>` : ""}
+        ${node.kind !== "interface" && node.drilldown?.status === "available" ? `<button class="exec-drilldown-l1${node.drilldown.reason === "auto_orchestrator" ? " is-auto" : ""}" type="button" data-drilldown-node="${escapeHtml(nodeId)}" title="${escapeHtml(drilldownReasonLabel(node.drilldown.reason))}">L1 · ${node.drilldown.interfaceSummary?.length || 0} 接口${node.drilldown.reason === "auto_orchestrator" ? " · 自动" : ""}</button>` : ""}
       </div>`;
     world.appendChild(element);
     bindNodeHover(element, nodeId);

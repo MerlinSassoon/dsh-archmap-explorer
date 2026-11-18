@@ -49,6 +49,7 @@ P7.5  schema 6.0、回归与文档收口           已完成
 P8    executionOnlyCallables、空能力模块收口 已完成
 P9    保守自由函数推断、默认函数面收口     已完成
 P10   一级接口 scope 下钻与 schema 6.3      已完成
+P10.3 本地编排 callable 自动发现（保守）    已完成
 ```
 
 当前产品边界：
@@ -156,6 +157,9 @@ P10 在主流程之上增加一层受控的接口视图：
 - 主流程节点保持原子化，`free_function` 编排节点可显示 `drilldown.interfaceSummary`；
 - 配置 `flowScopes.roots` 指定需要展开的流程编排 callable；
 - `executionOnlyCallables` 中的编排 callable 也可成为 scope root；
+- 开启 `flowScopes.autoDetect` 后，会从主流程可见的 `free_function` 中保守发现同模块本地编排 callable；
+- 自动候选必须有至少一个外部能力接口、至少一个控制结构、未触发 scope 预算且非直接递归；
+- 显式 roots / executionOnly 优先于自动候选；
 - scope root 必须是 `free_function`；`interface` 节点不展开内部实现；
 - scope 路由为 `#/flow/<flowId>/scope/<nodeId>`，独立聚焦展示，不在主画布递归套图；
 - scope 内展示目标函数控制骨架、直接外部能力接口、以及内部 helper 直接触达的接口提示；
@@ -181,6 +185,7 @@ student_system 配置下钻 `server` / `client`，gomoku 配置下钻 `_play_one
   "flowScopes": {
     "enabled": true,
     "roots": ["app.main:App.run"],
+    "autoDetect": true,
     "maxScopesPerFlow": 6,
     "maxNodesPerScope": 24,
     "maxEdgesPerScope": 32
@@ -512,7 +517,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         129 passed, 1 skipped
+pytest:         132 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -541,6 +546,7 @@ browser smoke:  1 passed（显式开启）
 - P10 一级 flow scope、外部接口摘要、scope 预算/诊断、独立下钻路由、schema 6.3 与浏览器下钻回归。
 - P10.1 interface 黑盒边界、scope root 仅限编排 callable、interface root 拒绝与 validator 不变量。
 - P10.2 控制臂语句摘要、edge statement 标签、隐式循环继续语义、无 statement/basic-block 节点，以及画布空白点击/双击清除选择高亮的回归。
+- P10.3 本地编排 callable 自动发现、显式/executionOnly 优先级、interface 排除、外部接口与控制结构门槛、自动来源标识。
 
 浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
@@ -551,10 +557,10 @@ ArchMap 自举：
 ```text
 modules:              5
 classes:              34
-functions:            276
+functions:            280
 methods:              81
-callSites:            4219
-resolvedCalls:        715
+callSites:            4273
+resolvedCalls:        723
 typeRelations:        66
 structuralRelations:  66
 userSurfaces:         0
@@ -566,7 +572,7 @@ flowScopes:          0
 flowScopeNodes:      0
 flowScopeEdges:      0
 executionOnly:        1
-freeFunctionSurface:  0 capability / 194 internal / 1 execution
+freeFunctionSurface:  0 capability / 198 internal / 1 execution
 capabilityModules:    5
 emptyModules:         0
 diagnostics:          0
@@ -721,5 +727,6 @@ P2–P9 过程交接、阶段计划、分支说明、迁移计划、旧验收记
 - 空能力模块后端保留与默认 layout 位置，前端直接路由会回到项目页；默认布局把空模块追加到可见卡片之后，可见网格不留空洞。
 - P10 scope 只覆盖直接外部接口和内部 helper 接口提示；静态解析不到的接口不会伪造，预算截断会显式标记。
 - P10.1 起功能接口节点是黑盒边界，不生成 scope；scope root 只允许 `free_function` 编排 callable。
+- P10.3 自动发现是保守候选发现：默认不自动打开 scope，只预生成可点击 L1；自动候选必须同模块、命中外部接口和控制结构且不超预算。
 - P10.2 普通语句不再作为独立节点，而是控制臂/边摘要；这保持控制骨架边界并避免语句级节点爆炸。
 - 空能力模块仍保留在 projectGraph.layout 中，但默认布局只让可见 flow card / capability module 占用前部网格，空模块追加到尾部。

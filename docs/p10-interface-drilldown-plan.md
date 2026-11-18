@@ -103,7 +103,7 @@ scope 内节点均为 terminal，不提供二级下钻。
 }
 ```
 
-非法值回退默认并产生 warning。P10.1 起不再自动把跨模块 capability/interface 节点转成 scope；自动发现仅保留 `executionOnlyCallables` 这一条可靠来源。`autoDetect` 字段为未来编排 callable 自动发现保留，当前版本设置 true 会产生 warning 且不改变结果。
+非法值回退默认并产生 warning。P10.1 起不再自动把跨模块 capability/interface 节点转成 scope；P10.3 起 `autoDetect=true` 会从主流程可见的 `free_function` 中保守发现同模块本地编排 callable。显式 roots 和 executionOnly 优先，接口节点永远不参与自动发现。
 
 ## 6. 数据契约
 
@@ -308,3 +308,21 @@ P10.2 在不增加 statement / state_update / basic_block 节点的前提下补�
 4. 网格列数按可见卡片数量计算，而不是全部模块数量。
 
 因此前端过滤空模块后，可见卡片仍占据连续的前部网格，不会在默认项目页留下空洞。`layout.visibleCount` / `layout.columns` 输出当前布局使用的可见数量和列数。用户已有本地拖拽覆盖仍按其自定义坐标显示；重置布局后恢复正常紧凑默认。
+
+## 17. P10.3 本地编排 callable 自动发现
+
+P10.3 实现了保守的 `flowScopes.autoDetect`：
+
+- 只检查当前 executionFlow 中已经出现的 `free_function` 节点；
+- 只接受与当前 flow 同模块的 target callable；
+- 排除 flow entry、interface、已显式 root、已 executionOnly、synthetic、直接递归；
+- 用现有 scope 构建器试构建，要求：
+  - 至少触达一个跨模块外部能力接口；
+  - 至少包含一个 branch / multi_branch / loop；
+  - 未触发 scope 截断；
+  - scope 节点预算内；
+- 显式 roots / executionOnly 先构建，自动候选只使用剩余 `maxScopesPerFlow` 预算；
+- 自动候选 reason 为 `auto_orchestrator`，节点 `drilldown.autoDetected=true`；
+- 默认不自动打开 scope，只预生成可点击 L1；
+- UI 在节点详情和 L1 按钮上标识“自动发现”；
+- README、配置指南、schema、validator、fingerprint 和浏览器回归同步更新。

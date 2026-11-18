@@ -350,11 +350,33 @@ def test_browser_smoke() -> None:
         # P10.2: control-arm statement semantics stay on cards/edges rather
         # than becoming statement-level flow nodes.
         gomoku_config = REPO_ROOT / "examples" / "gomoku.archmap.json"
-        gomoku_bundle = build_architecture(REPO_ROOT / "Projects" / "gomoku", gomoku_config)
+        gomoku_auto_config = browser_dir / "gomoku-auto.config.json"
+        auto_config_data = json.loads(gomoku_config.read_text(encoding="utf-8"))
+        auto_config_data["flowScopes"]["roots"] = []
+        auto_config_data["flowScopes"]["autoDetect"] = True
+        gomoku_auto_config.write_text(json.dumps(auto_config_data, ensure_ascii=False), encoding="utf-8")
+        gomoku_bundle = build_architecture(REPO_ROOT / "Projects" / "gomoku", gomoku_auto_config)
         gomoku_html = browser_dir / "gomoku-flow.html"
         gomoku_html.write_text(render_html(gomoku_bundle), encoding="utf-8")
         request("POST", f"/session/{session}/url", {"url": gomoku_html.resolve().as_uri()})
         time.sleep(.5)
+        execute("""return (() => {
+          const flow = window.__ARCHMAP_DATA__.projectGraph.executionFlows[0];
+          location.hash = '#/flow/' + encodeURIComponent(flow.id);
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+          return true;
+        })()""")
+        time.sleep(.55)
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+        assert execute("return document.querySelectorAll('.exec-drilldown-l1.is-auto').length") == 1
+        auto_detail = execute("""return (() => {
+          const node = Array.from(document.querySelectorAll('.execution-node'))
+            .find(item => item.querySelector('.exec-node-label')?.textContent === '_play_one_game()');
+          node?.click();
+          return document.getElementById('detailScroll').textContent;
+        })()""")
+        assert "自动发现" in auto_detail
+        execute("document.getElementById('viewport').click(); return true")
         execute("""return (() => {
           const flow = window.__ARCHMAP_DATA__.projectGraph.executionFlows[0];
           const scope = flow.scopes[0];

@@ -241,3 +241,75 @@ def test_gomoku_control_arms_keep_statement_semantics_without_new_nodes() -> Non
     assert "caseSummaries" not in multi
     assert "defaultSummary" not in multi
     assert all("summary" not in case for case in multi["cases"])
+
+
+def _config_with_auto_detect(tmp_path: Path, project_config: str, *, roots: list[str] | None = None) -> Path:
+    import json
+
+    config = json.loads((ROOT / "examples" / project_config).read_text(encoding="utf-8"))
+    config["flowScopes"]["roots"] = list(roots or [])
+    config["flowScopes"]["autoDetect"] = True
+    path = tmp_path / f"{Path(project_config).stem}-auto.json"
+    path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def test_auto_detect_finds_gomoku_local_orchestrator_once(tmp_path: Path) -> None:
+    """Auto detection selects _play_one_game but not leaf helpers/interfaces."""
+
+    config_path = _config_with_auto_detect(tmp_path, "gomoku.archmap.json")
+    bundle = build_architecture(ROOT / "Projects" / "gomoku", config_path)
+    flow = bundle["projectGraph"]["executionFlows"][0]
+    assert len(flow["nodes"]) == 11
+    drilldowns = {
+        node["label"]: node["drilldown"]
+        for node in flow["nodes"]
+        if node.get("drilldown")
+    }
+    assert set(drilldowns) == {"_play_one_game()"}
+    assert drilldowns["_play_one_game()"]["reason"] == "auto_orchestrator"
+    assert drilldowns["_play_one_game()"]["autoDetected"] is True
+    assert len(flow.get("scopes", [])) == 1
+    assert flow["scopes"][0]["reason"] == "auto_orchestrator"
+    assert flow["scopes"][0]["autoDetected"] is True
+    assert not [
+        item for item in bundle["diagnostics"] if item["code"].startswith("FLOW_SCOPE_AUTODETECT")
+    ]
+    assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
+
+
+def test_auto_detect_never_expands_interface_nodes(tmp_path: Path) -> None:
+    """Student interfaces remain black-box; only executionOnly roots get scopes."""
+
+    config_path = _config_with_auto_detect(tmp_path, "student_system.archmap.json")
+    bundle = build_architecture(ROOT / "Projects" / "student_system", config_path)
+    flow = bundle["projectGraph"]["executionFlows"][0]
+    assert bundle["stats"]["flowScopes"] == 2
+    assert all(
+        node.get("drilldown", {}).get("reason") == "execution_only"
+        for node in flow["nodes"]
+        if node.get("drilldown")
+    )
+    interface_node = next(
+        node for node in flow["nodes"] if node["kind"] == "interface"
+    )
+    assert "drilldown" not in interface_node
+
+
+def test_explicit_scope_root_takes_priority_over_auto_detect(tmp_path: Path) -> None:
+    """Configured roots keep their explicit reason when autoDetect is enabled."""
+
+    config_path = _config_with_auto_detect(
+        tmp_path,
+        "gomoku.archmap.json",
+        roots=["gomoku.cli:GameCli._play_one_game"],
+    )
+    bundle = build_architecture(ROOT / "Projects" / "gomoku", config_path)
+    flow = bundle["projectGraph"]["executionFlows"][0]
+    drilldown = next(
+        node["drilldown"] for node in flow["nodes"] if node.get("drilldown")
+    )
+    assert drilldown["reason"] == "configured_root"
+    assert drilldown["autoDetected"] is False
+    assert flow["scopes"][0]["reason"] == "configured_root"
+    assert flow["scopes"][0]["autoDetected"] is False

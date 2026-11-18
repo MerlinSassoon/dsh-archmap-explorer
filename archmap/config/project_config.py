@@ -62,8 +62,8 @@ class FlowScopeConfig:
 
     enabled: bool = False
     roots: list[str] = field(default_factory=list)
-    # Reserved for future orchestrator auto-discovery. P10.1 does not use
-    # interface nodes as scope roots.
+    # Conservative auto-discovery of local free_function orchestration
+    # callables. Interface nodes remain black-box and are never discovered.
     auto_detect: bool = False
     max_scopes_per_flow: int = 6
     max_nodes_per_scope: int = 24
