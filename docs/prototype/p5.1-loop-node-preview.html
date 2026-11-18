@@ -20,8 +20,6 @@
     --loop-rgb: 245, 158, 11;
     --body: #38bdf8;
     --complete: #94a3b8;
-    --break: #f472b6;
-    --value: #5eead4;
   }
 
   * { box-sizing: border-box; }
@@ -119,7 +117,6 @@
   }
   .execution-edge.kind-loop_body { stroke: var(--body); }
   .execution-edge.kind-loop_complete { stroke: var(--complete); }
-  .execution-edge.kind-break { stroke: var(--break); stroke-dasharray: 4 4; }
 
   /* Ghost neighbours exist only to demonstrate where the embedded ports meet
      the edge layer. They are intentionally muted. */
@@ -147,18 +144,19 @@
     background: rgba(var(--loop-rgb), .72);
     box-shadow: 0 0 10px rgba(var(--loop-rgb), .30);
   }
-  .ghost-node.is-left { left: 74px; top: 194px; }
-  .ghost-node.is-right { left: 820px; top: 280px; }
+  .ghost-node.is-left { left: 64px; top: 226px; }
+  .ghost-node.is-body { left: 810px; top: 206px; }
+  .ghost-node.is-next { left: 810px; top: 298px; }
 
   .execution-node.kind-loop {
     --mc: var(--loop);
     --mc-rgb: var(--loop-rgb);
     position: absolute;
     z-index: 4;
-    left: 314px;
-    top: 112px;
+    left: 300px;
+    top: 120px;
     width: 430px;
-    min-height: 302px;
+    min-height: 232px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -262,12 +260,12 @@
     position: relative;
     display: flex;
     align-items: center;
-    gap: 9px;
-    min-height: 36px;
-    padding: 5px 11px;
-    border: 1px solid rgba(148, 163, 184, .12);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, .018);
+    gap: 8px;
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
   }
   .exec-port-item.is-left { margin-right: 10px; }
   .exec-port-item.is-right { margin-left: 10px; justify-content: flex-end; text-align: right; }
@@ -275,14 +273,14 @@
     content: "";
     position: absolute;
     top: 50%;
-    width: 12px;
+    width: 15px;
     height: 1px;
     background: currentColor;
-    opacity: .30;
+    opacity: .24;
     transform: translateY(-50%);
   }
-  .exec-port-item.is-left::before { left: -12px; }
-  .exec-port-item.is-right::before { right: -12px; }
+  .exec-port-item.is-left::before { left: -15px; }
+  .exec-port-item.is-right::before { right: -15px; }
 
   .exec-port-symbol {
     position: relative;
@@ -297,9 +295,7 @@
   .exec-port-symbol.shape-triangle { border-radius: 2px; transform: rotate(45deg); }
   .exec-port-symbol.port-loop_body { background: var(--body); }
   .exec-port-symbol.port-loop_complete { background: var(--complete); }
-  .exec-port-symbol.port-loop_break { background: var(--break); }
-  .exec-port-symbol.port-loop_start,
-  .exec-port-symbol.port-loop_current { background: var(--value); }
+  .exec-port-symbol.port-in { background: #c8d4e2; }
 
   .exec-port-copy {
     min-width: 0;
@@ -320,22 +316,6 @@
     font-size: 8px;
     line-height: 1.25;
   }
-  .exec-port-value {
-    display: inline-flex;
-    align-items: center;
-    width: fit-content;
-    min-width: 68px;
-    height: 20px;
-    padding: 0 7px;
-    border: 1px solid rgba(94, 234, 212, .16);
-    border-radius: 5px;
-    background: rgba(94, 234, 212, .045);
-    color: #8de9dd;
-    font-family: var(--mono);
-    font-size: 8px;
-    line-height: 1;
-  }
-
   .exec-loop-foot {
     display: flex;
     align-items: center;
@@ -389,17 +369,20 @@
     <svg class="edge-layer" viewBox="0 0 1060 560" aria-hidden="true">
       <!-- Incoming edge: the path is allowed to continue under the card; the
            visible connector ends at the in-card port stem. -->
-      <path class="execution-edge" d="M 222 216 C 255 216 276 181 314 181"></path>
-      <path class="execution-edge kind-loop_body" d="M 744 210 C 790 210 815 270 820 280"></path>
-      <path class="execution-edge kind-loop_complete" d="M 744 254 C 780 254 796 292 820 292"></path>
-      <path class="execution-edge kind-break" d="M 314 254 C 270 254 240 330 222 330"></path>
+      <path class="execution-edge" d="M 212 248 C 244 248 268 250 300 250"></path>
+      <path class="execution-edge kind-loop_body" d="M 730 250 C 764 250 782 228 810 228"></path>
+      <path class="execution-edge kind-loop_complete" d="M 730 280 C 766 280 782 320 810 320"></path>
     </svg>
 
     <div class="ghost-node is-left">
       <span class="ghost-dot"></span>
       <span>while_entry()</span>
     </div>
-    <div class="ghost-node is-right">
+    <div class="ghost-node is-body">
+      <span class="ghost-dot"></span>
+      <span>body_step()</span>
+    </div>
+    <div class="ghost-node is-next">
       <span class="ghost-dot"></span>
       <span>next_step()</span>
     </div>
@@ -419,19 +402,11 @@
 
         <div class="exec-loop-grid">
           <div class="exec-loop-col">
-            <div class="exec-port-item is-left" data-port="loop_break">
-              <span class="exec-port-symbol shape-triangle port-loop_break" aria-hidden="true"></span>
+            <div class="exec-port-item is-left" data-port="in">
+              <span class="exec-port-symbol shape-triangle port-in" aria-hidden="true"></span>
               <span class="exec-port-copy">
-                <b>跳出循环</b>
-                <small>break → 汇聚</small>
-              </span>
-            </div>
-
-            <div class="exec-port-item is-left" data-port="loop_start">
-              <span class="exec-port-symbol shape-circle port-loop_start" aria-hidden="true"></span>
-              <span class="exec-port-copy">
-                <b>循环起始值</b>
-                <span class="exec-port-value">True</span>
+                <b>进入循环</b>
+                <small>in → loop</small>
               </span>
             </div>
           </div>
@@ -453,29 +428,22 @@
               <span class="exec-port-symbol shape-triangle port-loop_complete" aria-hidden="true"></span>
             </div>
 
-            <div class="exec-port-item is-right" data-port="loop_current">
-              <span class="exec-port-copy">
-                <b>当前循环值</b>
-                <span class="exec-port-value">—</span>
-              </span>
-              <span class="exec-port-symbol shape-circle port-loop_current" aria-hidden="true"></span>
-            </div>
           </div>
         </div>
 
         <div class="exec-loop-foot">
           <span class="exec-loop-pill">loopKind: while</span>
           <span class="exec-loop-pill">mayExit: false</span>
-          <span>循环边回到节点自身，不绘制回边 lane</span>
+          <span>仅保留进入、循环体、循环完成三个流程端口</span>
         </div>
       </div>
     </article>
 
     <aside class="spec-note">
       <b>实现映射</b>
-      <span>.exec-port-dot</span> → 行内 <span>.exec-port-item</span>；<br>
-      端口名称与 SVG 锚点继续沿用 <span>ports.*</span>；<br>
-      边标签不再悬浮在卡片外，改为卡片内部行文字。
+      <span>.exec-port-dot</span> → 无底板行内 <span>.exec-port-item</span>；<br>
+      仅保留 <span>in / loop_body / loop_complete</span> 三个流程端口；<br>
+      端口符号与 SVG 锚点继续沿用 <span>ports.*</span>。
     </aside>
   </section>
 </main>
