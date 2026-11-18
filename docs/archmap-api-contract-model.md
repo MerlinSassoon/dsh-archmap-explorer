@@ -1,6 +1,6 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1 / P2.2 / P2.3 / P2.4 / P3 / P4 / P5 已实现（bundle schema 4.0）<br>
+> 状态：P2.1 / P2.2 / P2.3 / P2.4 / P3 / P4 / P5 已实现（bundle schema 4.1）<br>
 > 日期：2026-11-18<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 

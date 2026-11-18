@@ -204,6 +204,10 @@ def test_browser_smoke() -> None:
         assert "with Database(password: str)" not in execution_labels
         assert "Database.actions(client_input: bytes)" not in execution_labels
         assert "MenuSystem.run()" not in execution_labels
+        assert execute("return document.querySelectorAll('.exec-node-signature').length") == 0
+        execution_notes = execute("return Array.from(document.querySelectorAll('.execution-node .exec-node-note')).map(node => node.textContent)")
+        assert any("服务器端" in note for note in execution_notes)
+        assert any("客户端" in note for note in execution_notes)
         clipped_execution_bodies = execute("""return Array.from(document.querySelectorAll('.execution-node:not(.is-junction) .exec-node-body'))
           .filter(body => body.scrollHeight > body.clientHeight + 1).length""")
         assert clipped_execution_bodies == 0

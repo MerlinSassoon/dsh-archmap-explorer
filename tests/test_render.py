@@ -173,7 +173,17 @@ def test_execution_edges_use_dashes_only_for_inferred_relations() -> None:
     html = render_html(build_architecture(ROOT))
 
     assert ".execution-edge.kind-default { stroke: #94a3b8; }" in html
-    assert ".execution-edge.kind-break { stroke: #f472b6; }" in html
-    assert ".execution-edge.kind-back,\n.execution-edge.kind-continue { stroke: #38bdf8; }" in html
+    assert ".execution-edge.kind-break" not in html
+    assert ".execution-edge.kind-continue" not in html
+    assert ".execution-edge.kind-return" not in html
     assert ".graph-edge.kind-composition { stroke: #f59e0b; stroke-dasharray: 7 6;" in html
     assert ".graph-edge.kind-call_path { stroke: #7dd3fc; stroke-dasharray: 2 4;" in html
+
+
+def test_execution_cards_show_notes_instead_of_signatures() -> None:
+    html = render_html(build_architecture(ROOT))
+
+    assert "exec-node-note" in html
+    assert "exec-node-signature" not in html
+    assert "const signatureText" not in html
+    assert "node.note || detail?.note" in html

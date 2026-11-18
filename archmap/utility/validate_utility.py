@@ -113,11 +113,6 @@ EXECUTION_EDGE_KINDS = {
     "default",
     "loop_body",
     "loop_complete",
-    "back",
-    "break",
-    "continue",
-    "return",
-    "dispatch",
 }
 
 
@@ -155,6 +150,10 @@ def _validate_execution_flow(
             issues.append(_issue("error", "EXEC_EDGE_ENDPOINT", f"execution flow {flow_id} edge endpoint missing: {edge.get('id')}"))
         if edge.get("kind") not in EXECUTION_EDGE_KINDS:
             issues.append(_issue("error", "EXEC_EDGE_KIND", f"execution flow {flow_id} edge {edge.get('id')} has invalid kind: {edge.get('kind')}"))
+        if edge.get("kind") == "loop_complete":
+            source_node = next((node for node in nodes if node.get("id") == source), None)
+            if source_node is None or source_node.get("kind") != "loop":
+                issues.append(_issue("error", "EXEC_LOOP_COMPLETE_SOURCE", f"execution flow {flow_id} loop_complete edge {edge.get('id')} must start at a loop"))
         outgoing.setdefault(source, []).append(edge)
         incoming.setdefault(target, []).append(edge)
     for node in nodes:
@@ -217,15 +216,8 @@ def _validate_execution_flow(
             # draw a synthetic join or a back lane for it.
             if kinds.count("loop_body") > 1 or kinds.count("loop_complete") > 1:
                 issues.append(_issue("error", "EXEC_LOOP_PORTS", f"execution flow {flow_id} loop {node_id} has duplicate body/complete edges"))
-        if kind == "return" and outgoing.get(str(node_id)):
-            issues.append(_issue("error", "EXEC_RETURN_TERMINAL", f"execution flow {flow_id} return {node_id} must not have outgoing edges"))
-        if kind == "exit" and outgoing.get(str(node_id)):
-            issues.append(_issue("error", "EXEC_EXIT_TERMINAL", f"execution flow {flow_id} exit {node_id} must not have outgoing edges"))
-    for edge in edges:
-        if edge.get("kind") == "back":
-            target = next((node for node in nodes if node.get("id") == edge.get("to")), None)
-            if target is None or target.get("kind") != "loop":
-                issues.append(_issue("error", "EXEC_BACK_TARGET", f"execution flow {flow_id} back edge {edge.get('id')} must target a loop"))
+        if kind in {"break", "continue", "return", "exit"} and outgoing.get(str(node_id)):
+            issues.append(_issue("error", "EXEC_TERMINAL_OUTGOING", f"execution flow {flow_id} {kind} {node_id} must not have outgoing edges"))
         if edge.get("kind") in {"call", "call_path", "composition"}:
             issues.append(_issue("error", "EXEC_CALL_EDGE", f"execution flow {flow_id} must not use call-graph edge kind {edge.get('kind')}"))
     if entry_nodes:
@@ -246,8 +238,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "4.0":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 4.0"))
+    if str(bundle.get("schemaVersion")) != "4.1":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 4.1"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []

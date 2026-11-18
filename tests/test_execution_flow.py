@@ -32,6 +32,15 @@ def test_execution_flow_contract_uses_bounded_node_set() -> None:
     assert {"entry", "interface", "loop", "branch", "return"} <= kinds
     assert "exit" not in kinds
     assert "merge" not in kinds
+    assert {edge["kind"] for edge in flow["edges"]} <= {
+        "next",
+        "true",
+        "false",
+        "case",
+        "default",
+        "loop_body",
+        "loop_complete",
+    }
     return_nodes = [node for node in flow["nodes"] if node["kind"] == "return"]
     assert return_nodes
     assert all(
@@ -70,7 +79,17 @@ def test_student_system_execution_flow_keeps_free_functions_opaque() -> None:
     assert "with Database(password: str)" not in labels
     assert "Database.actions(client_input: bytes)" not in labels
     assert "MenuSystem.run()" not in labels
-    assert not any(edge["kind"] == "loop_complete" for edge in flow["edges"])
+    loop = next(node for node in flow["nodes"] if node["kind"] == "loop")
+    break_node = next(node for node in flow["nodes"] if node["kind"] == "break")
+    assert not [edge for edge in flow["edges"] if edge["from"] == break_node["id"]]
+    loop_exit_edges = [
+        edge for edge in flow["edges"]
+        if edge["kind"] == "loop_complete" and edge["from"] == loop["id"]
+    ]
+    assert len(loop_exit_edges) == 1
+    assert next(
+        node for node in flow["nodes"] if node["id"] == loop_exit_edges[0]["to"]
+    )["kind"] == "exit"
     server = next(node for node in flow["nodes"] if node["label"] == "server()")
     client = next(node for node in flow["nodes"] if node["label"] == "client()")
     assert server["kind"] == "free_function"
@@ -346,3 +365,11 @@ def test_unresolved_execution_entrypoint_falls_back_with_diagnostic(
     assert "EXECUTION_ENTRYPOINT_UNRESOLVED" in codes
     assert "EXECUTION_ENTRYPOINT_FALLBACK" in codes
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
+
+
+def test_execution_flow_rejects_removed_terminal_edge_kinds() -> None:
+    bundle = build_architecture(ROOT)
+    flow = _execution_flow(bundle)
+    flow["edges"][0]["kind"] = "break"
+    issues = validate_bundle(bundle)
+    assert any(issue["code"] == "EXEC_EDGE_KIND" for issue in issues)

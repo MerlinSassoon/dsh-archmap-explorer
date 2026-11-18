@@ -1,7 +1,7 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：P5 首版已实现；P5.1 已移除 merge 并改为内嵌端口卡片；P5.2 已支持显式 executionEntrypoints；P5.3 已统一终止节点、边型和本地调用语义<br>
-> 版本：ArchMap 1.9.0 / bundle schema 4.0<br>
+> 状态：P5 首版已实现；P5.1 已移除 merge 并改为内嵌端口卡片；P5.2 已支持显式 executionEntrypoints；P5.3 已统一终止节点、边型和本地调用语义；P5.4 已升级 bundle schema 4.1 并回归执行卡注释<br>
+> 版本：ArchMap 1.9.0 / bundle schema 4.1<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
 
@@ -166,7 +166,7 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 | `interface` | 功能模块公开能力调用步骤 | `in / out` |
 | `branch` | 双分支 | `in / true / false` |
 | `multi_branch` | 多分支 | `in / case... / default` |
-| `loop` | 循环 | `in / loop_body / loop_complete` |
+| `loop` | 循环 | `in / loop_body / loop_complete`（离开循环） |
 | `break` | 跳出当前循环 | `in` |
 | `continue` | 进入下一轮 | `in` |
 | `return` | 函数返回，终止节点 | `in`，无出边 |
@@ -209,12 +209,13 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 
 - 统一表示 `for`、`while`、`async for`；
 - 携带 `loopKind`、条件/迭代表达式、循环变量、`mayExit`、`hasBreak`；
-- 卡片端口为 `进入循环 / 循环体 / 循环完成`；
+- 卡片端口为 `进入循环 / 循环体 / 离开循环`；
 - 最多一条 `loop_body` 边和一条 `loop_complete` 边；
-- `loop_complete` 仅在该循环静态上可能正常完成时生成；`while True` 且没有 break 时不生成；
-- break 是独立出口路径，不等同于正常循环完成；
+- `loop_complete` 是该循环唯一的结构化离开出口；正常完成或 break 离开都从这里继续；
+- `while True` 且既无 break 也不可正常完成时不生成 `loop_complete`；
+- break / continue 是循环体内部终止标记，不生成出边；
 - 不绘制 back 回边；循环体完成后隐式回到循环节点；
-- `loop_complete` 与 `break` 路径直接 fan-in 到循环后的真实节点；没有后继且路径真实到达时进入 `exit`。
+- `loop_complete` 路径直接连接循环后的真实节点；没有后继且路径真实到达时进入 `exit`。
 
 #### `dispatch`
 
@@ -240,11 +241,9 @@ next
 true / false
 case / default
 loop_body / loop_complete
-break
-dispatch
 ```
 
-P5 v1 不生成 `back` / `continue` 执行边。循环体通过 `loop_body` 从循环节点进入，循环何时回到条件由循环节点本身表达，不绘制回边 lane；`continue` 只作为循环体内的终止标记。
+执行边只表达连接关系，不表达终止动作：`break` / `continue` / `return` 是节点类型，不是执行边类型。循环体通过 `loop_body` 从循环节点进入，循环何时回到条件由循环节点本身表达，不绘制回边 lane。
 
 `return` 是终止节点，不生成到 `exit` 的边。`exit` 不是每个 flow 的必备节点；只有隐式落空、raise 简化路径等真实到达结束锚点的路径才生成它。
 
@@ -254,7 +253,7 @@ P5 v1 不生成 `back` / `continue` 执行边。循环体通过 `loop_body` 从�
 - 虚线：推断、不完整或间接关系；
 - 无出边：终止节点或未展开去向。
 
-因此 `default`、`break`、`continue` 等控制类型不再使用虚线；控制差异由颜色、端口和标签表达。
+因此 `default` 等确定控制关系使用实线；`break` / `continue` 不再生成出边，控制差异由节点类型、颜色、端口和标签表达。
 
 边不表达“调用谁”。调用目标属于节点属性：
 
@@ -327,10 +326,12 @@ ENTRY main()
               └─ default → BRANCH status.upper() == "Q"
                             ├─ 是 → BREAK
                             └─ 否 → 循环体结束（隐式迭代）
-  └─ break ───────────────────────→ EXIT
+  └─ loop_complete ───────────────→ EXIT
+
+BREAK 是循环体内终止标记，无出边。
 ```
 
-该图采用横向主脊：顺序节点从左向右，branch / multi_branch 的路径在上下 lane 展开，循环节点不绘制回边。`while True` 没有正常完成出口，因此只显示 break 到 `exit` 的路径；不存在 `LOOP_COMPLETE` 或 `merge` 合成节点。
+该图采用横向主脊：顺序节点从左向右，branch / multi_branch 的路径在上下 lane 展开，循环节点不绘制回边。`while True` 通过 break 离开时统一从 loop 的 `loop_complete` 端口进入 `exit`；不存在 break 直连、`LOOP_COMPLETE` 或 `merge` 合成节点。
 
 明确要求：
 
@@ -343,7 +344,7 @@ ENTRY main()
 
 ## 9. 数据契约
 
-P5 已升级到 bundle schema 4.0。JSON Schema 位于 [`docs/schema/archmap-v4-bundle.schema.json`](schema/archmap-v4-bundle.schema.json)。
+P5 当前 bundle schema 为 4.1。JSON Schema 位于 [`docs/schema/archmap-v4-bundle.schema.json`](schema/archmap-v4-bundle.schema.json)，4.0 历史契约位于 [`docs/schema/archmap-v4.0-bundle.schema.json`](schema/archmap-v4.0-bundle.schema.json)。
 
 新增：
 
@@ -425,6 +426,8 @@ terminalKind
 }
 ```
 
+4.1 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
+
 ### 9.4 统计
 
 新增：
@@ -446,7 +449,7 @@ executionEdges
 - branch 的上/下路径垂直展开；
 - multi_branch 各 case 垂直展开；
 - loop 通过 `循环体` 端口连接 body，不绘制 back lane；
-- loop complete / break / 长距离边使用曲线 lane 绕开节点；
+- loop complete 长距离边使用曲线 lane 绕开节点；
 - 多入边直接进入同一个目标节点，不生成汇合节点；
 - 边使用贝塞尔曲线，禁止穿过卡片内容；
 - 布局节点提供真实端口锚点；
@@ -479,9 +482,8 @@ executionEdges
 - 非终止路径若存在，最终可达 `exit`；
 - `branch` 最多一条 `true` 和一条 `false`，不得重复；
 - `multi_branch` 至少一个 case，default 最多一个；
-- `loop` 最多一条 `body` 和一条 `complete`；
-- `back` 边若存在则目标必须是所属 loop；P5 v1 不生成该边；
-- `break` / `continue` 必须解析到当前最内层 loop；
+- `loop` 最多一条 `body` 和一条 `complete`；`loop_complete` 必须从 `loop` 节点发出；
+- `break` / `continue` 必须解析到当前最内层 loop，且不得有出边；
 - `return` 是 terminal sink，不得有出边；
 - `exit` 不得有出边；
 - 不允许出现 `merge` 节点；汇合由同一目标节点的多条入边表达；
@@ -490,7 +492,20 @@ executionEdges
 - 节点类型必须属于封闭集合；
 - 不允许 `expandable=true`；
 - 不允许 Provider、action、statement、list 或 try/except 节点混入；
-- 不允许执行边使用 `call` / `call_path` / `composition`。
+- 不允许执行边使用 `call` / `call_path` / `composition`；
+- 执行边 kind 只允许 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
+
+### 9.1 schema 4.0 → 4.1 迁移
+
+4.0 的执行边契约同时包含连接关系和终止动作，导致 `break → exit`、`return → exit` 等重复语义。4.1 收紧为：
+
+- 删除执行边 kind：`back`、`break`、`continue`、`return`、`dispatch`；
+- `break` / `continue` / `return` 只作为节点 kind，不产生出边；
+- `loop_complete` 是 loop 的唯一结构化离开出口，break 离开也归并到该端口；
+- `exit` 只在真实隐式落空路径需要时生成；
+- 执行流卡片不渲染 signature，只展示 label、note 和状态 badges；签名保留在 FunctionDetail / Method Detail。
+
+旧 4.0 bundle 继续由历史 schema 描述，不自动迁移；需要重新 build 才能生成 4.1 产物。
 
 ## 12. 实施阶段
 
@@ -512,7 +527,7 @@ tests/test_execution_flow.py
 ### M0：契约与样例
 
 - 冻结节点/边枚举；
-- 编写 schema 4.0 草案；
+- 编写 schema 4.0 草案；P5.4 收紧执行边并升级到 4.1；
 - 建立 student_system 目标快照；
 - 建立 `p5_execution_demo` fixture；
 - 冻结 validator 不变量。
@@ -562,13 +577,13 @@ tests/test_execution_flow.py
 
 ## 13. 验收标准
 
-- schema 4.0 通过校验；
+- schema 4.1 通过校验；
 - 现有 `mainFlows` 与调用总览保持兼容；
 - student_system 执行流满足第 8 节快照；
 - 节点和边满足第 11 节不变量；
 - 本地调用/接口双击可进入源码；
 - 执行流中不出现 Provider、列表操作、try/except 或外部 IO 节点；
-- 现有 93 个测试继续通过；
+- 全量测试与浏览器冒烟通过；
 - 自举 build/check 通过；
 - 浏览器冒烟无运行时错误。
 

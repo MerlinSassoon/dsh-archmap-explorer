@@ -166,7 +166,7 @@ def test_archmap_self_roles_remove_config_model_api_noise() -> None:
     assert not any(display.startswith("_CallVisitor.") for display in displays)
 
 
-def test_roles_bundle_matches_v3_schema() -> None:
+def test_roles_bundle_matches_current_schema() -> None:
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.loads(
         (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v4-bundle.schema.json").read_text(encoding="utf-8")

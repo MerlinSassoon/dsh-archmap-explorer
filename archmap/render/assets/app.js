@@ -1349,7 +1349,7 @@
   }
 
   function executionEdgeClass(edge) {
-    return `execution-edge kind-${escapeHtml(edge.kind || "next")}${edge.kind === "back" || edge.kind === "continue" ? " is-back" : ""}`;
+    return `execution-edge kind-${escapeHtml(edge.kind || "next")}`;
   }
 
   function executionPortDisplay(node, name, spec) {
@@ -1371,7 +1371,7 @@
     if (name === "false") return { label: "否", detail: "false arm", className: "port-false" };
     if (name === "default") return { label: "默认", detail: "default", className: "port-default" };
     if (name === "loop_body") return { label: "循环体", detail: "loop body", className: "port-loop_body" };
-    if (name === "loop_complete") return { label: "循环完成", detail: "loop complete", className: "port-loop_complete" };
+    if (name === "loop_complete") return { label: "离开循环", detail: "loop exit", className: "port-loop_complete" };
     if (caseMatch) {
       const index = Number(caseMatch[1]);
       const caseItem = (node.cases || [])[index] || {};
@@ -1415,6 +1415,8 @@
     const targetId = node.targetFunctionId || (
       ["entry", "free_function", "interface", "dispatch"].includes(kind) ? node.functionId : null
     );
+    const detail = targetId ? functionDetailById.get(targetId) : null;
+    const noteText = node.note || detail?.note || "";
     const icon = ({
       entry: "▶", exit: "■", free_function: "ƒ", interface: "I",
       branch: "◇", multi_branch: "⑂", loop: "↻", break: "↩",
@@ -1431,9 +1433,6 @@
     if (kind === "dispatch") meta.push(`${Number(node.candidateCount || 0)} candidates · ${node.candidateSetComplete ? "complete" : "partial"}`);
     if (kind === "loop" && node.mayExit === false) meta.push("可能不退出");
     if (node.usageKind) meta.push(node.usageKind);
-    const signatureText = node.signature && ["free_function", "interface"].includes(kind)
-      ? String(node.signature).trim()
-      : "";
     const foot = [];
     if (kind === "dispatch") {
       foot.push(`low confidence`);
@@ -1462,7 +1461,7 @@
       <div class="exec-node-body">
         <div class="exec-copy">
           <div class="exec-node-label" title="${escapeHtml(node.label || "")}">${escapeHtml(node.label || "")}</div>
-          ${signatureText ? `<div class="exec-node-signature" title="${escapeHtml(signatureText)}">${escapeHtml(signatureText)}</div>` : ""}
+          ${noteText ? `<div class="exec-node-note" title="${escapeHtml(noteText)}">${escapeHtml(noteText)}</div>` : ""}
           ${meta.length ? `<div class="exec-node-meta">${escapeHtml(meta.join(" · "))}</div>` : ""}
         </div>
         ${executionPortGrid(node, pos)}

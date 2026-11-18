@@ -1168,7 +1168,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "4.0",
+        "schemaVersion": "4.1",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,

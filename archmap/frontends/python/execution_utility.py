@@ -577,18 +577,13 @@ class ExecutionSkeletonBuilder:
                 node["breakCount"] = len(loop_context["break_nodes"])
                 break
 
-        # The loop completion and break exits are all ordinary incoming paths
-        # to the next real statement.  They fan in directly and no synthetic
-        # "循环完成" merge node is created.  A statically non-exiting loop has
-        # no loop-complete path; only explicit break paths may continue.
-        endpoints: list[_Endpoint] = []
-        if may_complete:
-            endpoints.append(self._endpoint(loop_id, "loop_complete", "循环完成"))
-        endpoints.extend(
-            self._endpoint(break_id, "break", "跳出")
-            for break_id in loop_context["break_nodes"]
-        )
-        return endpoints
+        # break / continue are internal loop terminal markers.  The loop node
+        # is the single structured boundary: any path that leaves the loop,
+        # whether by normal completion or by break, continues from its
+        # loop_complete port.
+        if not may_exit:
+            return []
+        return [self._endpoint(loop_id, "loop_complete", "离开循环")]
 
     def _visit_break(self, stmt: ast.Break, incoming: list[_Endpoint]) -> list[_Endpoint]:
         if not self._loop_stack:

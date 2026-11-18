@@ -16,7 +16,6 @@ X_GAP = 78.0
 Y_GAP = 46.0
 LANE_GAP = 48.0
 LANE_STEP = 18.0
-_NON_RANK_KINDS = {"back", "continue"}
 
 
 def _node_size(node: dict[str, Any]) -> tuple[float, float]:
@@ -100,7 +99,7 @@ def _port_specs(node: dict[str, Any]) -> dict[str, dict[str, Any]]:
         return {
             "in": {"x": 0.0, "y": row_y(0), "side": "left", "shape": "triangle", "label": "进入循环"},
             "loop_body": {"x": w, "y": row_y(0), "side": "right", "shape": "triangle", "label": "循环体"},
-            "loop_complete": {"x": w, "y": row_y(1), "side": "right", "shape": "triangle", "label": "循环完成"},
+            "loop_complete": {"x": w, "y": row_y(1), "side": "right", "shape": "triangle", "label": "离开循环"},
         }
     if kind == "dispatch":
         return {
@@ -119,8 +118,6 @@ def _rank_nodes(
     outgoing: dict[str, list[str]] = defaultdict(list)
     indegree = {node_id: 0 for node_id in node_ids}
     for edge in edges:
-        if str(edge.get("kind") or "") in _NON_RANK_KINDS:
-            continue
         source = str(edge.get("from") or "")
         target = str(edge.get("to") or "")
         if source not in indegree or target not in indegree or source == target:
@@ -157,8 +154,6 @@ def _port_for_edge(edge: dict[str, Any], source: dict[str, Any], outgoing_same_s
         controls = [item for item in outgoing_same_source if item.get("kind") == "case"]
         index = controls.index(edge) if edge in controls else 0
         return f"case:{index}"
-    if kind == "break":
-        return "out"
     return "out"
 
 
@@ -299,7 +294,7 @@ def layout_execution_flow(
         tx = float(target["x"]) + float(to_spec.get("x", 0))
         ty = float(target["y"]) + float(to_spec.get("y", 0))
         long_forward = tx - sx > 620.0 or (
-            str(edge.get("kind") or "") in {"break", "loop_complete"} and tx - sx > 360.0
+            str(edge.get("kind") or "") == "loop_complete" and tx - sx > 360.0
         )
         lane_y = None
         if long_forward:

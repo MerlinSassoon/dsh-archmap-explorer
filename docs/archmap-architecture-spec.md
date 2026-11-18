@@ -1,7 +1,7 @@
 # ArchMap 架构与编码规范
 
 > 状态：P2.3 规范已落盘，P2.4/P3/P4 已按该规范完成<br>
-> 版本：ArchMap 1.9.0 / bundle schema 4.0<br>
+> 版本：ArchMap 1.9.0 / bundle schema 4.1<br>
 > 日期：2026-11-18<br>
 > 适用范围：ArchMap 自身源码、后续语言前端和架构分析扩展。
 

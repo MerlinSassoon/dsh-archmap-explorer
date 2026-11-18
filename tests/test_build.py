@@ -16,7 +16,7 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 def test_build_bundle_contract() -> None:
     bundle = build_architecture(ROOT)
     assert bundle["kind"] == "archmap.bundle"
-    assert bundle["schemaVersion"] == "4.0"
+    assert bundle["schemaVersion"] == "4.1"
     assert bundle["project"]["name"] == "student_demo"
     assert len(bundle["projectGraph"]["modules"]) == 3
     assert len(bundle["functionDetails"]) == 5
@@ -67,7 +67,7 @@ def test_fingerprint_is_stable_and_layout_independent() -> None:
     assert semantic_fingerprint(first) == semantic_fingerprint(second)
 
 
-def test_bundle_matches_v3_schema() -> None:
+def test_bundle_matches_current_v4_1_schema() -> None:
     import json
     import pytest
 
@@ -75,6 +75,7 @@ def test_bundle_matches_v3_schema() -> None:
     bundle = build_architecture(ROOT)
     schema_path = Path(__file__).parent.parent / "docs" / "schema" / "archmap-v4-bundle.schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    assert schema["properties"]["schemaVersion"]["const"] == "4.1"
     jsonschema.validate(bundle, schema)
 
 
@@ -114,3 +115,28 @@ def test_default_excludes_skip_root_level_build_directory(tmp_path: Path) -> Non
     rel_paths = {detail["file"] for detail in bundle["functionDetails"]}
     assert "app.py" in rel_paths
     assert "build/lib/generated.py" not in rel_paths
+
+
+def test_execution_edge_contract_is_tightened_and_v4_0_is_archived() -> None:
+    import json
+    from pathlib import Path as FilePath
+
+    schema_dir = FilePath(__file__).parent.parent / "docs" / "schema"
+    current = json.loads((schema_dir / "archmap-v4-bundle.schema.json").read_text(encoding="utf-8"))
+    historical = json.loads(
+        (schema_dir / "archmap-v4.0-bundle.schema.json").read_text(encoding="utf-8")
+    )
+    current_kinds = current["$defs"]["executionEdge"]["properties"]["kind"]["enum"]
+    historical_kinds = historical["$defs"]["executionEdge"]["properties"]["kind"]["enum"]
+    assert historical["properties"]["schemaVersion"]["const"] == "4.0"
+    assert current["properties"]["schemaVersion"]["const"] == "4.1"
+    assert {"break", "continue", "return", "back", "dispatch"} <= set(historical_kinds)
+    assert current_kinds == [
+        "next",
+        "true",
+        "false",
+        "case",
+        "default",
+        "loop_body",
+        "loop_complete",
+    ]

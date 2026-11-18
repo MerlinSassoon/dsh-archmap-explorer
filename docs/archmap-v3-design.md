@@ -8,7 +8,9 @@
 >
 > **P5.3 补充（2026-11-18）**：`return` 成为无出边的终止节点，`exit` 按真实隐式结束路径按需生成；执行边实线只表示确定直接关系、虚线只表示推断/不完整/间接关系；`free_function` 统一表示主模块本地 callable，通过 `callableKind` 区分函数与方法。<br>
 >
-> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4/P5/P5.1/P5.2/P5.3 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
+> **P5.4 补充（2026-11-18）**：bundle schema 升级到 4.1。执行边只保留连接关系 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；`break` / `continue` / `return` 仅作为节点终止类型且无出边；`loop_complete` 是循环唯一结构化离开出口。执行卡片改用 human note，不再渲染 signature。<br>
+>
+> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4/P5/P5.1/P5.2/P5.3/P5.4 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
 
 ## 1. 三层投影
 

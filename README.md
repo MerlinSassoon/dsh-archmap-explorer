@@ -1,6 +1,6 @@
 # ArchMap v4.0
 
-> 版本：ArchMap 1.9.0 / bundle schema 4.0<br>
+> 版本：ArchMap 1.9.0 / bundle schema 4.1<br>
 > 最后更新：2026-11-18
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
@@ -32,6 +32,7 @@ P5    主流程执行流（首版）                 已完成
 P5.1  执行流直接 fan-in 与项目节点卡片样式  已完成
 P5.2  主流程执行入口归一化                  已完成
 P5.3  终止节点与本地调用语义统一            已完成
+P5.4  bundle schema 4.1 与执行卡注释回归     已完成
 ```
 
 当前产品边界：
@@ -104,14 +105,17 @@ P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**�
 - 主模块本地调用（自由函数与类方法统一为同一原子语义）、功能模块公开接口都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
 - 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；其中 `free_function` 表示主模块本地调用步骤，通过 `callableKind` 区分函数与方法；
 - `return` 是终止节点，不生成出边；`exit` 只用于隐式落空等真正到达结束锚点的路径；
+- `break` / `continue` 是循环内部终止标记，不生成出边；循环节点通过 `loop_complete` 作为唯一结构化离开边界；
+- bundle schema 4.1 的执行边只允许 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
 - 汇合不再生成 `merge` 节点，多条路径直接 fan-in 到同一个真实后继节点或 `exit`；
 - 执行流实线只表示静态确定的直接控制/执行关系；虚线只表示推断、不完整或间接关系；
+- 执行流卡片不渲染函数签名，正文展示人类备注；完整签名在 Method Detail / 节点详情中查看；
 - 横向主脊布局，分支上下展开，循环节点通过 `循环体` 端口连接循环体，不再绘制回边 lane；
 - 节点使用项目执行流卡片：彩色标题栏、深色主体、内嵌端口行、贝塞尔曲线；端口行无方框和独立背景，卡片外不再挂边标签胶囊；
 - 节点位置可在浏览器中拖拽覆盖，关联曲线实时重算并持久化；
 - 不生成逐语句节点、列表操作节点、`try/except` 异常控制、数据流边或图内下钻；
 - 新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 保留为辅助的“调用总览”；
-- bundle schema 升级到 4.0，新增执行流校验、确定性布局和浏览器交互。
+- P5 首版 bundle schema 为 4.0；P5.4 收紧执行边契约并升级到 4.1。
 
 P5 的防误解与防滑坡边界、student_system 目标快照、数据契约和验收标准见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 
@@ -433,7 +437,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         98 passed, 1 skipped
+pytest:         101 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -468,8 +472,8 @@ modules:              6
 classes:              31
 functions:            272
 methods:              71
-callSites:            3860
-resolvedCalls:        655
+callSites:            3850
+resolvedCalls:        653
 typeRelations:        57
 structuralRelations:  57
 userSurfaces:         0
@@ -538,11 +542,12 @@ ArkTS 接入时需要：
 | [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、八角色语义、依赖方向、主模块/主流程边界与可见性规范 |
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
 | [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | 唯一主模块、功能模块、主流程 DAG、dispatch 候选与 composition 契约 |
-| [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流：封闭节点、原子函数/接口、防误解与防滑坡边界、schema 4.0 实现与验收 |
+| [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流：封闭节点、原子函数/接口、防误解与防滑坡边界、schema 4.1 实现与验收 |
 | [`docs/p5.1-execution-card-style.md`](docs/p5.1-execution-card-style.md) | P5.1 执行流项目节点样式：卡片结构、内嵌端口、端口语义与实现位置 |
 | [`docs/p5.1-execution-flow-fan-in-plan.md`](docs/p5.1-execution-flow-fan-in-plan.md) | 汇入与边束的分层设计：直接 fan-in 已实现，视觉边束与模块级边束为未来方向 |
 | [`docs/约定编程skill.md`](docs/约定编程skill.md) | 项目无关的约定编程 Skill：分层架构、契约、功能备注、测试与提交检查清单 |
-| [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 当前 bundle JSON Schema 4.0，包含 P5 executionFlows |
+| [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 当前 bundle JSON Schema 4.1，包含 P5 executionFlows |
+| [`docs/schema/archmap-v4.0-bundle.schema.json`](docs/schema/archmap-v4.0-bundle.schema.json) | 历史 bundle JSON Schema 4.0，供旧产物追溯 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 
 ### 历史归档
@@ -583,3 +588,4 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 - P5 执行流只提取 entrypoint 控制骨架，不展开主模块本地调用或功能模块接口；更多内部逻辑通过 Method Detail / 源码查看。
 - P5 明确不实现逐语句节点、列表操作节点、`try/except` 异常控制、数据流边和图内下钻；这些是产品边界，不是待补延期项。
 - 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。
+- 当前 bundle schema 为 4.1；4.0 旧产物需要重新 build，历史 4.0 schema 仅用于追溯。
