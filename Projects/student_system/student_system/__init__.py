@@ -1,1 +1,0 @@
-"""Normalized student system sample."""
