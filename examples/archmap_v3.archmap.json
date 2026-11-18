@@ -68,9 +68,12 @@
       "include": [
         "archmap/managers/graph_manager.py",
         "archmap/utility/graph_utility.py",
-        "archmap/utility/main_flow_utility.py"
+        "archmap/utility/main_flow_utility.py",
+        "archmap/utility/execution_flow_utility.py",
+        "archmap/utility/execution_layout_utility.py",
+        "archmap/utility/query_utility.py"
       ],
-      "note": "GraphManager 门面及三层投影、主流程 DAG、布局与指纹内部工具。",
+      "note": "GraphManager 门面及三层投影、P5 执行流、调用投影、确定性布局、指纹与影响查询内部工具。",
       "color": "#a78bfa",
       "role": "service"
     },
@@ -111,7 +114,11 @@
           "archmap.utility.cli_utility:cmd_check",
           "archmap.utility.cli_utility:cmd_method",
           "archmap.utility.cli_utility:cmd_serve",
-          "archmap.utility.cli_utility:cmd_diff"
+          "archmap.utility.cli_utility:cmd_diff",
+          "archmap.utility.cli_utility:cmd_impact",
+          "archmap.utility.cli_utility:cmd_trace",
+          "archmap.utility.cli_utility:cmd_surfaces",
+          "archmap.utility.cli_utility:cmd_dsm"
         ],
         "complete": true,
         "reason": "argparse_dispatch"

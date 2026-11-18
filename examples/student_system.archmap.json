@@ -20,7 +20,8 @@
       "include": [
         "student_system/__init__.py",
         "student_system/__main__.py",
-        "student_system/main.py"
+        "student_system/main.py",
+        "student_system/managers/__init__.py"
       ],
       "note": "程序入口、角色选择与客户端/服务端顶层编排。",
       "color": "#f59e0b",
@@ -78,6 +79,7 @@
       "include": [
         "student_system/config/*.py",
         "student_system/model/*.py",
+        "student_system/utility/__init__.py",
         "student_system/utility/protocol_utility.py"
       ],
       "note": "数据库配置、学生记录模型、协议消息模型与 JSON 编解码工具。",

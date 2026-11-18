@@ -144,9 +144,9 @@ def test_explicit_dispatch_config_can_be_complete() -> None:
     dispatch = next(node for node in flow["nodes"] if node["kind"] == "dispatch")
     assert dispatch["candidateSource"] == "config"
     assert dispatch["candidateSetComplete"] is True
-    assert dispatch["candidateCount"] == 5
+    assert dispatch["candidateCount"] == 9
     candidate_edges = [edge for edge in flow["edges"] if edge["from"] == dispatch["id"]]
-    assert len(candidate_edges) == 5
+    assert len(candidate_edges) == 9
     assert all(edge["kind"] == "composition" and edge["confidence"] == "low" for edge in candidate_edges)
     assert all(edge["dashed"] is True for edge in candidate_edges)
 
