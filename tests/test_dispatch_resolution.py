@@ -125,7 +125,7 @@ def test_self_execution_flow_uses_bounded_call_steps() -> None:
     flow = _execution_flow(bundle, "fn:archmap.entry.cli_entry.main")
     assert flow["nodes"]
     assert {node["kind"] for node in flow["nodes"]} <= {
-        "exit", "free_function", "interface", "branch", "multi_branch",
+        "entry", "exit", "free_function", "interface", "branch", "multi_branch",
         "loop", "break", "continue", "return", "dispatch",
     }
     assert all(node["expandable"] is False for node in flow["nodes"])

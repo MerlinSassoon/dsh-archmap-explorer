@@ -93,6 +93,7 @@ def _validate_provider_role_fields(
         issues.append(_issue("error", "PROVIDER_VISIBILITY", f"{label} has invalid/missing providerVisibility"))
     return issues
 EXECUTION_NODE_KINDS = {
+    "entry",
     "exit",
     "free_function",
     "interface",
@@ -132,6 +133,11 @@ def _validate_execution_flow(
     node_ids = {str(node.get("id")) for node in nodes}
     if len(node_ids) != len(nodes):
         issues.append(_issue("error", "EXEC_NODE_DUPLICATE", f"execution flow {flow_id} has duplicate node ids"))
+    entry_nodes = [node for node in nodes if node.get("kind") == "entry"]
+    if len(entry_nodes) != 1:
+        issues.append(_issue("error", "EXEC_ENTRY_COUNT", f"execution flow {flow_id} must contain exactly one entry"))
+    elif entry_nodes[0].get("functionId") != flow.get("entrypointId"):
+        issues.append(_issue("error", "EXEC_ENTRY_MISMATCH", f"execution flow {flow_id} entry does not match entrypointId"))
     exit_nodes = [node for node in nodes if node.get("kind") == "exit"]
     if len(exit_nodes) > 1:
         issues.append(_issue("error", "EXEC_EXIT_DUPLICATE", f"execution flow {flow_id} must contain at most one exit"))
@@ -218,7 +224,9 @@ def _validate_execution_flow(
         if kind in {"break", "continue", "return", "exit"} and outgoing.get(str(node_id)):
             issues.append(_issue("error", "EXEC_TERMINAL_OUTGOING", f"execution flow {flow_id} {kind} {node_id} must not have outgoing edges"))
     if nodes:
-        roots = [node_id for node_id in node_ids if not incoming.get(node_id)]
+        roots = [str(entry_nodes[0].get("id"))] if entry_nodes else [
+            node_id for node_id in node_ids if not incoming.get(node_id)
+        ]
         reachable: set[str] = set()
         stack = list(roots)
         while stack:

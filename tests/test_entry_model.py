@@ -66,3 +66,17 @@ def test_student_flow_entries_are_not_provider_roles() -> None:
     assert main["isFlowEntry"] is True
     assert main["providerRole"] != "entry"
     assert "entry" not in bundle["stats"]["providerRoles"]
+
+
+def test_execution_flow_requires_one_standard_entry_node() -> None:
+    """Execution flow validation must require exactly one entry node."""
+
+    from archmap.managers.validate_manager import ValidationManager
+
+    bundle = build_architecture(REPO_ROOT / "tests" / "fixtures" / "student_demo")
+    flow = bundle["projectGraph"]["executionFlows"][0]
+    entry = next(node for node in flow["nodes"] if node["kind"] == "entry")
+    assert entry["functionId"] == flow["entrypointId"]
+    flow["nodes"] = [node for node in flow["nodes"] if node["kind"] != "entry"]
+    issues = ValidationManager().validate(bundle)
+    assert any(issue["code"] == "EXEC_ENTRY_COUNT" for issue in issues)

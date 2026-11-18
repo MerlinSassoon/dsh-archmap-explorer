@@ -1,6 +1,6 @@
 # P7 入口语义与项目页布局修复计划
 
-> 状态：已批准，按阶段实施；P7.0/P7.1 已完成<br>
+> 状态：已批准，按阶段实施；P7.0/P7.1/P7.2 已完成<br>
 > 起始基线：`P6` 分支 5b3c245<br>
 > 日期：2026-11-18
 
@@ -41,7 +41,7 @@ Project Page Item
 - 兼容旧配置中的 entry role override 并产生 deprecation warning；
 - 更新 validator 和测试。
 
-### P7.2：执行流入口节点恢复
+### P7.2：执行流入口节点恢复（已完成）
 
 - execution node kind 恢复 `entry`；
 - 入口节点使用标准卡片样式；

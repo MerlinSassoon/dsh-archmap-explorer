@@ -1339,6 +1339,7 @@
 
   function executionKindLabel(kind) {
     return ({
+      entry: "入口",
       exit: "结束",
       free_function: "本地调用",
       interface: "功能接口",
@@ -1367,6 +1368,7 @@
       };
     }
     if (name === "out") {
+      if (kind === "entry") return { label: "开始", detail: "out", className: "port-out" };
       if (kind === "dispatch") return { label: "分发", detail: "out", className: "port-dispatch" };
       return { label: "返回", detail: "out", className: "port-out" };
     }
@@ -1416,12 +1418,12 @@
     const flow = currentExecutionFlow();
     const flowId = executionFlowStorageId(flow);
     const targetId = node.targetFunctionId || (
-      ["free_function", "interface", "dispatch"].includes(kind) ? node.functionId : null
+      ["entry", "free_function", "interface", "dispatch"].includes(kind) ? node.functionId : null
     );
     const detail = targetId ? functionDetailById.get(targetId) : null;
     const noteText = node.note || detail?.note || "";
     const icon = ({
-      exit: "■", free_function: "ƒ", interface: "I",
+      entry: "▶", exit: "■", free_function: "ƒ", interface: "I",
       branch: "◇", multi_branch: "⑂", loop: "↻", break: "↩",
       continue: "↪", return: "⤴", dispatch: "⑂",
     }[kind] || "•");

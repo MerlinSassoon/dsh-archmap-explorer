@@ -25,12 +25,12 @@ def test_execution_flow_contract_uses_bounded_node_set() -> None:
     flow = _execution_flow(bundle)
     kinds = {node["kind"] for node in flow["nodes"]}
     assert kinds <= {
-        "exit", "free_function", "interface", "branch",
+        "entry", "exit", "free_function", "interface", "branch",
         "multi_branch", "loop", "break", "continue", "return",
         "dispatch",
     }
-    assert {"interface", "loop", "branch", "return"} <= kinds
-    assert "entry" not in kinds
+    assert {"entry", "interface", "loop", "branch", "return"} <= kinds
+    assert len([node for node in flow["nodes"] if node["kind"] == "entry"]) == 1
     assert "exit" not in kinds
     assert "merge" not in kinds
     assert {edge["kind"] for edge in flow["edges"]} <= {
@@ -258,7 +258,9 @@ def main() -> int:
     kinds = {node["kind"] for node in flow["nodes"]}
     assert {"loop", "branch", "return"} <= kinds
     assert "exit" not in kinds
-    assert all(node["kind"] != "entry" for node in flow["nodes"])
+    entry = next(node for node in flow["nodes"] if node["kind"] == "entry")
+    assert entry["functionId"] == "fn:app.main.Runner.run"
+    assert entry["targetFunctionId"] == "fn:app.main.Runner.run"
     labels = {node["label"] for node in flow["nodes"]}
     assert {"_choose_mode()", "_play_one_game()"} <= labels
     assert "helper()" not in labels
@@ -430,3 +432,68 @@ def test_dispatch_hints_support_top_level_config_key(tmp_path: Path) -> None:
     assert dispatch["candidateCount"] == 2
     assert dispatch["candidateSetComplete"] is True
     assert dispatch["candidateSource"] == "config"
+
+
+def test_first_opaque_instantiation_does_not_break_execution_flow(tmp_path: Path) -> None:
+    """Opaque first statements must not terminate the control path."""
+
+    project = tmp_path / "project"
+    app = project / "app"
+    app.mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "main.py").write_text(
+        """def side_effect() -> None:
+    pass
+
+
+def main() -> None:
+    value = object()
+    side_effect()
+""",
+        encoding="utf-8",
+    )
+    config = {
+        "projectName": "opaque_first",
+        "include": ["app/*.py"],
+        "entrypoints": ["app.main:main"],
+        "modules": [
+            {"id": "app", "name": "应用", "include": ["app/main.py"], "role": "service"}
+        ],
+    }
+    config_path = project / "archmap.config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    flow = _execution_flow(build_architecture(project, config_path))
+    labels = {node["label"] for node in flow["nodes"]}
+    assert "entry" in {node["kind"] for node in flow["nodes"]}
+    assert "side_effect()" in labels
+    assert len(flow["nodes"]) >= 3
+
+
+def test_entry_with_only_opaque_statements_keeps_entry_and_exit(tmp_path: Path) -> None:
+    """An entrypoint with no materializable statement still renders entry to exit."""
+
+    project = tmp_path / "project"
+    app = project / "app"
+    app.mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "main.py").write_text(
+        """def main() -> None:
+    value = object()
+""",
+        encoding="utf-8",
+    )
+    config = {
+        "projectName": "opaque_only",
+        "include": ["app/*.py"],
+        "entrypoints": ["app.main:main"],
+        "modules": [
+            {"id": "app", "name": "应用", "include": ["app/main.py"], "role": "service"}
+        ],
+    }
+    config_path = project / "archmap.config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    flow = _execution_flow(build_architecture(project, config_path))
+    kinds = [node["kind"] for node in flow["nodes"]]
+    assert kinds == ["entry", "exit"]
+    assert flow["edges"][0]["from"] == flow["nodes"][0]["id"]
+    assert flow["edges"][0]["to"] == flow["nodes"][1]["id"]
