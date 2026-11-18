@@ -94,7 +94,7 @@ yield/student_system/
 
 ## 页面视图
 
-- **项目页**：展示独立主流程入口卡片与全部模块能力卡片；模块卡片包含职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。双击模块卡片进入能力页，主流程入口进入 `#/flow`。
+- **项目页**：以与模块卡片同构的标准流程卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。双击模块卡片进入能力页，流程卡片进入 `#/flow`。
 - **主流程页**：只展示 P5 横向有界执行流；支持多 flow 选择、拖拽布局、节点详情和源码下钻。不再显示调用总览或模块能力契约。
 - **模块能力页**：所有能力模块统一展示提供接口、Provider Role、类/自由函数与类型关系；不默认展示调用连线；config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
@@ -451,7 +451,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         100 passed, 1 skipped
+pytest:         101 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -584,7 +584,7 @@ ArkTS 接入时需要：
 | [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 历史 bundle JSON Schema 4.1，供 P5 产物追溯 |
 | [`docs/schema/archmap-v4.0-bundle.schema.json`](docs/schema/archmap-v4.0-bundle.schema.json) | 历史 bundle JSON Schema 4.0，供旧产物追溯 |
 | [`docs/HANDOFF-P5.5.md`](docs/HANDOFF-P5.5.md) | P5.5 历史交接；后续步骤已由 P6 计划接管 |
-| [`docs/p6-project-model-plan.md`](docs/p6-project-model-plan.md) | P6 实施计划与进度：取消主模块、项目级主流程、schema 5.0、纵向能力模块与分阶段验收 |
+| [`docs/p6-project-model-plan.md`](docs/p6-project-model-plan.md) | P6 实施计划与进度：取消主模块、项目级主流程、schema 5.0、纵向能力模块、标准流程卡片与分阶段验收 |
 | [`docs/p6-project-model-discussion.md`](docs/p6-project-model-discussion.md) | P6 讨论背景：问题分析、目标模型、Provider 归属与调用视图清理 |
 | [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | 规范化项目配置生成指南：模块划分、入口/流程区分、Provider 归属与常见误配 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |

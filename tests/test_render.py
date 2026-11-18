@@ -190,6 +190,17 @@ def test_execution_cards_show_notes_instead_of_signatures() -> None:
     assert "node.note || detail?.note" in html
 
 
+def test_render_uses_standard_flow_launch_cards() -> None:
+    """Project flow entries must reuse the standard capability-card language."""
+
+    html = render_html(build_architecture(ROOT))
+    assert "flow-launch-grid" in html
+    assert "flow-launch-card" in html
+    assert "project-flow-mark" not in html
+    assert "execution-node.kind-entry" not in html
+    assert "window.__ARCHMAP_DATA__" in html
+
+
 def test_render_exposes_dispatch_candidate_details() -> None:
     """Dispatch nodes must expose candidate navigation hooks in the detail panel."""
 

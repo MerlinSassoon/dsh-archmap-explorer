@@ -31,7 +31,7 @@ def _node_size(node: dict[str, Any]) -> tuple[float, float]:
         return 300.0, 186.0
     if kind in {"break", "continue", "return"}:
         return 250.0, 128.0
-    if kind in {"entry", "exit"}:
+    if kind == "exit":
         return 260.0, 128.0
     return 280.0, 156.0
 
@@ -55,10 +55,6 @@ def _port_specs(node: dict[str, Any]) -> dict[str, dict[str, Any]]:
     ports: dict[str, dict[str, Any]] = {
         "in": {"x": 0.0, "y": h * 0.5, "side": "left", "shape": "triangle", "label": ""},
     }
-    if kind == "entry":
-        return {
-            "out": {"x": w, "y": row_y(0), "side": "right", "shape": "triangle", "label": "开始"},
-        }
     if kind == "exit":
         return {
             "in": {"x": 0.0, "y": row_y(0), "side": "left", "shape": "triangle", "label": "进入"},
@@ -206,7 +202,7 @@ def layout_execution_flow(
         w, h = _node_size(node)
         node["w"] = w
         node["h"] = h
-    entry_id = next((node_id for node_id in node_ids if by_id[node_id].get("kind") == "entry"), node_ids[0])
+    entry_id = node_ids[0]
     ranks = _rank_nodes(node_ids, edges, entry_id)
     groups: dict[int, list[str]] = defaultdict(list)
     for node_id in node_ids:

@@ -323,7 +323,8 @@
 
   function focusExecutionStart(flow) {
     if (!flow) return;
-    const entry = flow.nodes.find(node => node.kind === "entry") || flow.nodes[0];
+    const incoming = new Set((flow.edges || []).map(edge => edge.to));
+    const entry = (flow.nodes || []).find(node => !incoming.has(node.id)) || flow.nodes[0];
     const pos = entry ? state.positions.get(entry.id) : null;
     if (!pos) return;
     const rect = viewport.getBoundingClientRect();
@@ -1033,24 +1034,31 @@
 
   function renderProjectFlowEntry() {
     const flows = projectGraph.executionFlows || [];
-    const flow = currentExecutionFlow();
     setProjectFlowEntryVisible(true);
-    if (!flow) {
-      projectFlowEntry.innerHTML = `<div class="project-flow-mark">▶</div>
-        <div class="project-flow-copy"><span>MAIN EXECUTION FLOW</span><strong>暂无可解析主流程</strong>
-        <small>请检查 entrypoints 或 executionEntrypoints 配置</small></div>
-        <button class="btn" type="button" disabled>打开流程图</button>`;
+    if (!flows.length) {
+      projectFlowEntry.innerHTML = `<div class="flow-launch-grid"><article class="flow-launch-card is-empty" style="--mc:#64748b;--mc-rgb:100,116,139">
+        <div class="flow-launch-head"><span class="module-dot"></span><span class="flow-launch-kicker">EXECUTION FLOW</span><span class="flow-launch-state">EMPTY</span></div>
+        <div class="flow-launch-title">暂无可解析主流程</div>
+        <div class="flow-launch-entry">请检查 entrypoints 或 executionEntrypoints 配置</div>
+        <div class="flow-launch-meta"><span class="flow-launch-chip">0 nodes</span><span class="flow-launch-chip">0 edges</span></div>
+      </article></div>`;
       return;
     }
-    const module = projectModuleById.get(flow.moduleId);
-    projectFlowEntry.style.setProperty("--mc", module?.color || "#f59e0b");
-    projectFlowEntry.innerHTML = `<div class="project-flow-mark">▶</div>
-      <div class="project-flow-copy"><span>MAIN EXECUTION FLOW</span><strong>${escapeHtml(flow.name || "主流程")}</strong>
-      <small>${escapeHtml(flow.entrypointId || "")} · ${flows.length} flow${flows.length === 1 ? "" : "s"} · ${(flow.nodes || []).length} nodes · ${(flow.edges || []).length} edges</small></div>
-      <button class="btn primary" type="button" data-open-flow>打开流程图 →</button>`;
-    projectFlowEntry.querySelector("[data-open-flow]")?.addEventListener("click", event => {
-      event.stopPropagation();
-      navigate({ kind: "flow", flowId: flow.id });
+    projectFlowEntry.innerHTML = `<div class="flow-launch-grid">${flows.map(flow => {
+      const module = projectModuleById.get(flow.moduleId);
+      const rgb = rgbFromHex(module?.color || "#f59e0b");
+      return `<article class="flow-launch-card" data-open-flow="${escapeHtml(flow.id)}" style="--mc:${escapeHtml(module?.color || "#f59e0b")};--mc-rgb:${rgb}">
+        <div class="flow-launch-head"><span class="module-dot"></span><span class="flow-launch-kicker">EXECUTION FLOW</span><span class="flow-launch-state">${flow.id === projectGraph.primaryExecutionFlowId ? "PRIMARY" : "FLOW"}</span></div>
+        <div class="flow-launch-title">${escapeHtml(flow.name || "主流程")}</div>
+        <div class="flow-launch-entry">${escapeHtml(flow.entrypointId || "")}</div>
+        <div class="flow-launch-meta"><span class="flow-launch-chip">${(flow.nodes || []).length} nodes</span><span class="flow-launch-chip">${(flow.edges || []).length} edges</span><span class="flow-launch-chip">${escapeHtml(module?.name || flow.moduleId || "")}</span><button class="flow-launch-more" type="button" data-open-flow="${escapeHtml(flow.id)}">打开流程图 →</button></div>
+      </article>`;
+    }).join("")}</div>`;
+    projectFlowEntry.querySelectorAll("[data-open-flow]").forEach(card => {
+      card.addEventListener("click", event => {
+        event.stopPropagation();
+        navigate({ kind: "flow", flowId: card.dataset.openFlow });
+      });
     });
   }
 
@@ -1079,24 +1087,24 @@
     if (kind === "project") {
       canvasKicker.textContent = "Project composition map";
       canvasTitle.textContent = DATA.project.name;
-      canvasSub.textContent = "主流程独立展示 · 模块卡片展示能力视图 · 双击进入对应页面";
+      canvasSub.textContent = "项目级执行流独立展示 · 模块卡片展示能力视图 · 双击进入对应页面";
       breadcrumb.innerHTML = `<b>${escapeHtml(DATA.project.name)}</b>`;
       legend.innerHTML = state.showProjectRelations
-        ? legendItem("line", "模块调用/数据关系") + legendItem("card", "模块能力卡片") + legendItem("entry", "主流程入口")
-        : legendItem("entry", "主流程入口") + legendItem("card", "模块能力卡片");
+        ? legendItem("line", "模块调用/数据关系") + legendItem("card", "模块能力卡片") + legendItem("entry", "执行流卡片")
+        : legendItem("entry", "执行流卡片") + legendItem("card", "模块能力卡片");
     } else if (kind === "flow") {
       const flow = currentExecutionFlow();
       canvasKicker.textContent = "Main execution flow";
       canvasTitle.textContent = flow?.name || "主流程";
-      canvasSub.textContent = "入口函数控制骨架 · 本地调用/接口原子化 · 拖拽节点调整布局 · 双击进入源码";
+      canvasSub.textContent = "入口函数控制骨架 · 调用目标原子化 · 拖拽节点调整布局 · 双击进入源码";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>主流程</b>`;
-      legend.innerHTML = legendItem("entry", "入口") + legendItem("function", "本地调用") + legendItem("interface", "功能接口") + legendItem("line", "确定的控制/执行边");
+      legend.innerHTML = legendItem("function", "本地调用") + legendItem("interface", "功能接口") + legendItem("line", "确定的控制/执行边");
     } else if (kind === "module") {
       canvasKicker.textContent = "Module capability";
       canvasTitle.textContent = module?.name || state.route.moduleId;
-      canvasSub.textContent = "Provider · API · 类型关系 · 模块内调用 · 双击进入详情";
+      canvasSub.textContent = "Provider · API · 类型关系 · 双击进入详情";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>${escapeHtml(module?.name || state.route.moduleId)}</b>`;
-      legend.innerHTML = legendItem("line", "模块内部调用关系");
+      legend.innerHTML = legendItem("card", "模块能力卡片");
     } else {
       const ownerClass = detail?.ownerClassId
         ? (moduleGraphById.get(detail.moduleId)?.nodes || []).find(node => node.id === detail.ownerClassId)
@@ -1331,7 +1339,6 @@
 
   function executionKindLabel(kind) {
     return ({
-      entry: "入口",
       exit: "结束",
       free_function: "本地调用",
       interface: "功能接口",
@@ -1360,7 +1367,6 @@
       };
     }
     if (name === "out") {
-      if (kind === "entry") return { label: "开始", detail: "out", className: "port-out" };
       if (kind === "dispatch") return { label: "分发", detail: "out", className: "port-dispatch" };
       return { label: "返回", detail: "out", className: "port-out" };
     }
@@ -1410,12 +1416,12 @@
     const flow = currentExecutionFlow();
     const flowId = executionFlowStorageId(flow);
     const targetId = node.targetFunctionId || (
-      ["entry", "free_function", "interface", "dispatch"].includes(kind) ? node.functionId : null
+      ["free_function", "interface", "dispatch"].includes(kind) ? node.functionId : null
     );
     const detail = targetId ? functionDetailById.get(targetId) : null;
     const noteText = node.note || detail?.note || "";
     const icon = ({
-      entry: "▶", exit: "■", free_function: "ƒ", interface: "I",
+      exit: "■", free_function: "ƒ", interface: "I",
       branch: "◇", multi_branch: "⑂", loop: "↻", break: "↩",
       continue: "↪", return: "⤴", dispatch: "⑂",
     }[kind] || "•");

@@ -109,8 +109,9 @@ def test_browser_smoke() -> None:
         assert execute("return document.getElementById('relationModeBtn').getAttribute('aria-pressed')") == "true"
         execute("document.getElementById('relationModeBtn').click(); return true")
         assert execute("return document.querySelectorAll('#projectFlowEntry.is-visible').length") == 1
-        assert execute("return document.querySelectorAll('[data-open-flow]').length") == 1
-        execute("document.querySelector('[data-open-flow]').click(); return true")
+        assert execute("return document.querySelectorAll('.flow-launch-card').length") == 1
+        assert execute("return document.querySelectorAll('[data-open-flow]').length") > 0
+        execute("document.querySelector('.flow-launch-card').click(); return true")
         time.sleep(.4)
         assert execute("return window.location.hash.startsWith('#/flow')") is True
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
