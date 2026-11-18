@@ -1,8 +1,9 @@
 # P10 接口级主流程下钻计划
 
-> 状态：已完成<br>
-> 当前 schema：6.3<br>
-> 版本：ArchMap 2.4.0
+> 状态：已完成（P10 历史阶段）<br>
+> 当前版本：ArchMap 2.5.0 / bundle schema 6.4<br>
+> P10 实施时 schema：6.3<br>
+> 版本：ArchMap 2.4.0（P10 实施版本）
 
 ## 1. 背景与目标
 

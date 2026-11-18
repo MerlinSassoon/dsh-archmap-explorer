@@ -175,7 +175,7 @@ candidateSource
 unresolvedReason
 ```
 
-候选仅在节点详情面板展示并支持跳转 Method Detail，不展开为执行流控制边。
+候选在节点详情面板展示并支持跳转 Method Detail；P11 可将完整候选投影为独立候选 scope，但不在主画布生成候选控制边。
 
 ## 5. 节点契约
 

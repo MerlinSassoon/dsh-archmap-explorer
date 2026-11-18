@@ -19,7 +19,7 @@
 
 ## 11月9日归档批次
 
-本批次归档 P5.1–P10 阶段的过程计划、讨论记录和阶段交接文档：
+本批次归档 P5.1–P11 阶段的过程计划、讨论记录和阶段交接文档：
 
 | 文档 | 内容 |
 |---|---|
@@ -37,6 +37,7 @@
 | [`p9-free-function-surface-plan.md`](11月9日/p9-free-function-surface-plan.md) | P9 自由函数能力边界与模块默认面计划 |
 | [`HANDOFF-P9.md`](11月9日/HANDOFF-P9.md) | P9 阶段交接：schema 6.2 与现行验收基线 |
 | [`HANDOFF-P10.md`](11月9日/HANDOFF-P10.md) | P10 阶段交接：一级接口 scope、控制臂语义、自动发现与 schema 6.3 |
+| [`HANDOFF-P11.md`](11月9日/HANDOFF-P11.md) | P11 阶段交接：dispatch 候选旅程、候选 free_function scope、双预算、schema 6.4 与浏览器回归 |
 
 ## 其他归档文档
 
