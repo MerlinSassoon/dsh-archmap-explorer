@@ -25,11 +25,12 @@ def test_execution_flow_contract_uses_bounded_node_set() -> None:
     flow = _execution_flow(bundle)
     kinds = {node["kind"] for node in flow["nodes"]}
     assert kinds <= {
-        "entry", "exit", "free_function", "interface", "branch",
+        "exit", "free_function", "interface", "branch",
         "multi_branch", "loop", "break", "continue", "return",
         "dispatch",
     }
-    assert {"entry", "interface", "loop", "branch", "return"} <= kinds
+    assert {"interface", "loop", "branch", "return"} <= kinds
+    assert "entry" not in kinds
     assert "exit" not in kinds
     assert "merge" not in kinds
     assert {edge["kind"] for edge in flow["edges"]} <= {
@@ -73,7 +74,7 @@ def test_student_system_execution_flow_keeps_free_functions_opaque() -> None:
     nodes = {node["id"]: node for node in flow["nodes"]}
     labels = {node["label"] for node in flow["nodes"]}
     kinds = {node["kind"] for node in flow["nodes"]}
-    assert {"main()", "NetworkAdapter.init_connection()", "server()", "client()"} <= labels
+    assert {"NetworkAdapter.init_connection()", "server()", "client()"} <= labels
     assert {"multi_branch", "loop", "branch", "break"} <= kinds
     assert "with Spinner(message: str='加载中')" not in labels
     assert "with Database(password: str)" not in labels
@@ -257,9 +258,7 @@ def main() -> int:
     kinds = {node["kind"] for node in flow["nodes"]}
     assert {"loop", "branch", "return"} <= kinds
     assert "exit" not in kinds
-    assert next(node for node in flow["nodes"] if node["kind"] == "entry")[
-        "functionId"
-    ] == "fn:app.main.Runner.run"
+    assert all(node["kind"] != "entry" for node in flow["nodes"])
     labels = {node["label"] for node in flow["nodes"]}
     assert {"_choose_mode()", "_play_one_game()"} <= labels
     assert "helper()" not in labels
@@ -376,7 +375,7 @@ def test_execution_flow_rejects_removed_terminal_edge_kinds() -> None:
 
 
 def test_execution_dispatch_uses_shared_config_resolution() -> None:
-    """Execution flow and the legacy call projection must share dispatch candidates."""
+    """Execution flow must consume the shared dynamic-dispatch resolver."""
 
     config = REPO_ROOT / "examples" / "archmap_v3.archmap.json"
     bundle = build_architecture(REPO_ROOT, config)
@@ -384,12 +383,7 @@ def test_execution_dispatch_uses_shared_config_resolution() -> None:
     execution_dispatch = next(
         node for node in execution["nodes"] if node["kind"] == "dispatch"
     )
-    main_flow = bundle["projectGraph"]["mainFlows"][0]
-    main_dispatch = next(
-        node for node in main_flow["nodes"] if node["kind"] == "dispatch"
-    )
     assert execution_dispatch["candidateCount"] == 9
-    assert execution_dispatch["candidateCount"] == main_dispatch["candidateCount"]
     assert execution_dispatch["candidateSetComplete"] is True
     assert execution_dispatch["candidateSource"] == "config"
     assert execution_dispatch["unresolvedReason"] is None

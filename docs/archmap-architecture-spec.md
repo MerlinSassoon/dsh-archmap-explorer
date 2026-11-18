@@ -1,7 +1,7 @@
 # ArchMap 架构与编码规范
 
 > 状态：P2.3 规范已落盘，P2.4/P3/P4 已按该规范完成<br>
-> 版本：ArchMap 1.9.0 / bundle schema 4.1<br>
+> 版本：ArchMap 1.9.0 / bundle schema 5.0<br>
 > 日期：2026-11-18<br>
 > 适用范围：ArchMap 自身源码、后续语言前端和架构分析扩展。
 
@@ -252,7 +252,9 @@ adapter → contract
 - manager 之间通过明确接口或上层编排协作，禁止循环依赖；
 - adapter 通过 contract 被 manager 使用。
 
-## 4. 主模块、功能模块与主流程
+## 4. 普通能力模块与项目级主流程
+
+> P6.2 更新：schema 5.0 取消主模块、`moduleKind` 与 `mainFlows`。以下“主模块/功能模块”文字仅保留历史背景；当前所有模块均为普通能力模块，主流程是项目级视图。
 
 项目必须区分两类模块：
 

@@ -38,7 +38,6 @@ from ..model.contract_model import ApiCapability, ContractModel, ProviderRoleInf
 from ..model.graph_model import CallRecord
 from .analysis_utility import ENTRY_METHOD_NAMES
 from .execution_flow_utility import build_execution_flows
-from .main_flow_utility import build_main_flows
 from ..frontends.python.surface_utility import build_user_surfaces
 
 
@@ -165,14 +164,14 @@ def _module_role(module: ModuleConfig | None, module_id: str, entry_module_ids: 
 
     The role is presentation metadata, not a structural fact.  Explicit config
     always wins; otherwise the module that owns a configured/derived entrypoint
-    is treated as the main module.  Everything else is a service module.
+    is treated as an entry module.  Everything else is a service module.
     """
     if module is not None and module.role:
         role = module.role.strip().lower()
         if role in MODULE_ROLES:
             return role
     if module_id in entry_module_ids:
-        return "main"
+        return "entry"
     return "service"
 
 
@@ -347,34 +346,17 @@ def _layout_macro(
 def _layout_module_cards(modules: list[dict[str, Any]]) -> dict[str, Any]:
     """Lay out project-page capability cards without implying dependency flow.
 
-    The main module occupies a dedicated left column; service/adapter/test
-    modules flow through a deterministic grid to its right.  This replaces the
-    old macro rank layout for the project page, where hiding dependency lines
-    would otherwise leave a meaningless single column.
+    All capability modules use the same deterministic card grid.  There is no
+    dedicated main-module column in schema 5.0.
     """
-    main_modules = [module for module in modules if module.get("role") == "main"]
-    other_modules = [module for module in modules if module.get("role") != "main"]
     positions: dict[str, dict[str, Any]] = {}
-
-    main_column_w = 0
-    y = MACRO_PAD
-    for module in main_modules:
-        w = int(module.get("w", MODULE_MAIN_W))
-        h = int(module.get("h", MODULE_MAIN_H))
-        positions[module["id"]] = {"x": round(float(MACRO_PAD), 2), "y": round(float(y), 2), "w": w, "h": h}
-        main_column_w = max(main_column_w, w)
-        y += h + MODULE_CARD_GAP_Y
-
-    grid_x = MACRO_PAD + (main_column_w + MODULE_CARD_GAP_X if main_modules else 0)
-    # Keep small capability boards readable in a typical viewport.  Two
-    # service columns scale better than one long row; larger boards use three.
-    columns = 2 if len(other_modules) <= 4 else MODULE_CARD_COLUMNS
-    for index, module in enumerate(other_modules):
+    columns = 2 if len(modules) <= 4 else MODULE_CARD_COLUMNS
+    for index, module in enumerate(modules):
         col = index % columns
         row = index // columns
         w = int(module.get("w", MODULE_W))
         h = int(module.get("h", MODULE_H))
-        x = grid_x + col * (MODULE_W + MODULE_CARD_GAP_X)
+        x = MACRO_PAD + col * (MODULE_W + MODULE_CARD_GAP_X)
         y = MACRO_PAD + row * (MODULE_H + MODULE_CARD_GAP_Y)
         positions[module["id"]] = {"x": round(float(x), 2), "y": round(float(y), 2), "w": w, "h": h}
 
@@ -704,23 +686,6 @@ def build_bundle(
     if not ordered_module_ids:
         ordered_module_ids = ["main"]
 
-    main_module_id = config.main_module_id
-    if main_module_id not in ordered_module_ids:
-        main_module_id = next(
-            (module_id for module_id in ordered_module_ids if module_id in entry_module_ids),
-            "",
-        )
-    if not main_module_id:
-        main_module_id = next(
-            (
-                module_id
-                for module_id in ordered_module_ids
-                if module_configs.get(module_id) is not None
-                and module_configs[module_id].role == "main"
-            ),
-            ordered_module_ids[0],
-        )
-
     project_module_nodes: list[dict[str, Any]] = []
     module_graphs: list[dict[str, Any]] = []
     for index, module_id in enumerate(ordered_module_ids):
@@ -749,8 +714,6 @@ def build_bundle(
             ]
         module_capability_ids = {capability.id for capability in module_capabilities}
         role = _module_role(configured, module_id, entry_module_ids)
-        module_kind = "main" if module_id == main_module_id else "functional"
-        is_main = module_kind == "main"
         module_composition, provider_role_counts = _module_composition(
             module_id, class_ids, free_function_ids, role_infos
         )
@@ -764,7 +727,6 @@ def build_bundle(
             "note": module_note,
             "color": color,
             "role": role,
-            "moduleKind": module_kind,
             "functions": function_ids,
             "freeFunctions": free_function_ids,
             "classes": class_ids,
@@ -777,10 +739,10 @@ def build_bundle(
                 *(fn_by_id[fn_id].file for fn_id in function_ids if fn_id in fn_by_id),
                 *(cls.file for cls in module_classes if cls.file),
             }),
-            "w": MODULE_MAIN_W if is_main else MODULE_W,
-            "h": MODULE_MAIN_H if is_main else MODULE_H,
-            "expandedW": MODULE_MAIN_EXPANDED_W if is_main else MODULE_EXPANDED_W,
-            "expandedH": MODULE_MAIN_EXPANDED_H if is_main else MODULE_EXPANDED_H,
+            "w": MODULE_W,
+            "h": MODULE_H,
+            "expandedW": MODULE_EXPANDED_W,
+            "expandedH": MODULE_EXPANDED_H,
         }
         project_module_nodes.append(module_node)
 
@@ -953,47 +915,7 @@ def build_bundle(
                 )
             )
 
-        # Component-level aggregation for the module page.  Calls internal to
-        # one class are intentionally hidden here and remain available in
-        # ``methodEdges`` for the class focus view.
-        component_aggregate: dict[tuple[str, str], list[CallRecord]] = defaultdict(list)
-        for record in internal_records:
-            source_fn = fn_by_id.get(record.from_function)
-            target_fn = fn_by_id.get(record.to_function)
-            if source_fn is None or target_fn is None:
-                continue
-            source_component = _method_component_id(source_fn)
-            target_component = _method_component_id(target_fn)
-            if source_component == target_component:
-                continue
-            component_aggregate[(source_component, target_component)].append(record)
-
-        module_edges: list[dict[str, Any]] = []
-        for edge_index, ((from_id, to_id), records) in enumerate(sorted(component_aggregate.items()), start=1):
-            semantics = _aggregate_relations(records)
-            evidence = [
-                {
-                    "fromFunctionId": record.from_function,
-                    "toFunctionId": record.to_function,
-                    "file": record.file,
-                    "line": record.line,
-                }
-                for record in records
-            ]
-            module_edges.append(
-                _macro_edge(
-                    _edge_id(f"module:{module_id}", edge_index),
-                    from_id,
-                    to_id,
-                    primary_type=semantics["primaryType"],
-                    relations=semantics["relations"],
-                    role="internal",
-                    evidence=evidence,
-                    confidence="high" if len(records) == 1 else "medium",
-                )
-            )
-
-        module_layout = _layout_macro(module_nodes, module_edges, scope=f"module:{module_id}")
+        module_layout = _layout_macro(module_nodes, [], scope=f"module:{module_id}")
         module_graphs.append(
             {
                 "kind": "archmap.module-graph",
@@ -1001,7 +923,6 @@ def build_bundle(
                 "name": module_name,
                 "note": module_note,
                 "color": color,
-                "moduleKind": module_kind,
                 "role": role,
                 "providedApis": [capability.as_dict() for capability in module_capabilities],
                 "providedApiCount": len(module_capabilities),
@@ -1016,7 +937,6 @@ def build_bundle(
                     if relation.module_id == module_id
                 ],
                 "nodes": [module_nodes[node_id] for node_id in sorted(module_nodes)],
-                "edges": module_edges,
                 "methodEdges": method_edges,
                 "classCount": len(module_classes),
                 "methodCount": len(method_function_ids),
@@ -1055,13 +975,6 @@ def build_bundle(
         )
 
     project_edges.sort(key=lambda edge: (edge["from"], edge["to"], edge["id"]))
-    main_flows, primary_flow_id, flow_diagnostics = build_main_flows(
-        analysis,
-        call_site_list,
-        entrypoints,
-        module_graphs,
-        config.dispatch_hints,
-    )
     execution_flows, primary_execution_flow_id, execution_diagnostics = build_execution_flows(
         analysis,
         call_site_list,
@@ -1070,17 +983,6 @@ def build_bundle(
         contract_model,
         config.dispatch_hints,
     )
-    if primary_flow_id:
-        for module_node in project_module_nodes:
-            if module_node.get("moduleKind") == "main":
-                module_node["mainFlowId"] = primary_flow_id
-                break
-    if primary_execution_flow_id:
-        for module_node in project_module_nodes:
-            if module_node.get("moduleKind") == "main":
-                module_node["executionFlowId"] = primary_execution_flow_id
-                break
-
     user_surfaces = build_user_surfaces(
         analysis, call_site_list, entrypoints, role_infos
     )
@@ -1098,8 +1000,7 @@ def build_bundle(
         detail["userSurfaceKinds"] = kinds
 
     # The project page is a capability-card overview.  Dependency evidence is
-    # retained for relation/impact views; the main module page carries the
-    # curated function-level composition flow.
+    # retained for relation/impact views; execution flows are project-level.
     project_layout = _layout_module_cards(project_module_nodes)
     project_graph = {
         "kind": "archmap.project-graph",
@@ -1107,9 +1008,6 @@ def build_bundle(
             "name": config.name,
             "language": config.language,
         },
-        "mainModuleId": main_module_id,
-        "primaryFlowId": primary_flow_id,
-        "mainFlows": main_flows,
         "primaryExecutionFlowId": primary_execution_flow_id,
         "executionEntrypoints": execution_entrypoints,
         "executionFlows": execution_flows,
@@ -1122,7 +1020,7 @@ def build_bundle(
 
     diagnostics = [
         *analysis.diagnostics,
-        *flow_diagnostics,
+        *config.config_diagnostics,
         *execution_entrypoint_diagnostics,
         *execution_diagnostics,
     ]
@@ -1133,10 +1031,9 @@ def build_bundle(
         "methods": sum(1 for fn in analysis.functions if fn.class_name),
         "callSites": len(call_site_list),
         "resolvedCalls": sum(1 for site in call_site_list if site.resolved),
-        "macroEdges": len(project_edges) + sum(len(graph["edges"]) for graph in module_graphs),
+        "macroEdges": len(project_edges),
         "providedApis": sum(len(graph["providedApis"]) for graph in module_graphs),
         "apiProviders": sum(len(graph.get("apiProviders", [])) for graph in module_graphs),
-        "mainFlows": len(main_flows),
         "executionFlows": len(execution_flows),
         "executionNodes": sum(len(flow.get("nodes", [])) for flow in execution_flows),
         "executionEdges": sum(len(flow.get("edges", [])) for flow in execution_flows),
@@ -1169,7 +1066,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "4.1",
+        "schemaVersion": "5.0",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,
@@ -1194,6 +1091,8 @@ def build_bundle(
 
 
 def semantic_fingerprint(bundle: dict[str, Any]) -> str:
+    """Return a stable semantic hash independent of layout coordinates."""
+
     semantic = {
         "schemaVersion": bundle["schemaVersion"],
         "project": {
@@ -1202,8 +1101,6 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
         },
         "entrypoints": sorted(bundle["entrypoints"], key=lambda item: item["functionId"]),
         "projectGraph": {
-            "mainModuleId": bundle["projectGraph"].get("mainModuleId"),
-            "primaryFlowId": bundle["projectGraph"].get("primaryFlowId"),
             "primaryExecutionFlowId": bundle["projectGraph"].get("primaryExecutionFlowId"),
             "modules": [
                 {
@@ -1211,7 +1108,6 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "name": module["name"],
                     "note": module["note"],
                     "role": module.get("role"),
-                    "moduleKind": module.get("moduleKind"),
                     "providerRoleCounts": module.get("providerRoleCounts", {}),
                     "moduleComposition": module.get("moduleComposition", {}),
                     "providedApiCount": module.get("providedApiCount", 0),
@@ -1219,50 +1115,10 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "freeFunctions": sorted(module.get("freeFunctions", [])),
                     "classes": sorted(module.get("classes", [])),
                 }
-                for module in sorted(bundle["projectGraph"]["modules"], key=lambda item: item["id"])
+                for module in sorted(
+                    bundle["projectGraph"]["modules"], key=lambda item: item["id"]
+                )
             ],
-            "mainFlows": sorted(
-                [
-                    {
-                        "id": flow.get("id"),
-                        "entrypointId": flow.get("entrypointId"),
-                        "nodes": sorted(
-                            [
-                                {
-                                    "id": node.get("id"),
-                                    "kind": node.get("kind"),
-                                    "flowRole": node.get("flowRole"),
-                                    "functionId": node.get("functionId"),
-                                    "providerId": node.get("providerId"),
-                                    "capabilityId": node.get("capabilityId"),
-                                    "moduleId": node.get("moduleId"),
-                                    "label": node.get("label"),
-                                    "candidateSetComplete": node.get("candidateSetComplete"),
-                                }
-                                for node in flow.get("nodes", [])
-                            ],
-                            key=lambda item: item["id"] or "",
-                        ),
-                        "edges": sorted(
-                            [
-                                {
-                                    "from": edge.get("from"),
-                                    "to": edge.get("to"),
-                                    "kind": edge.get("kind"),
-                                    "confidence": edge.get("confidence"),
-                                    "branchGroup": edge.get("branchGroup"),
-                                    "evidence": edge.get("evidence", []),
-                                    "viaFunctionIds": edge.get("viaFunctionIds", []),
-                                }
-                                for edge in flow.get("edges", [])
-                            ],
-                            key=lambda item: (item["from"], item["to"], item["kind"]),
-                        ),
-                    }
-                    for flow in bundle["projectGraph"].get("mainFlows", [])
-                ],
-                key=lambda item: item["id"] or "",
-            ),
             "executionFlows": sorted(
                 [
                     {
@@ -1282,6 +1138,10 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                     "cases": node.get("cases", []),
                                     "loopKind": node.get("loopKind"),
                                     "mayExit": node.get("mayExit"),
+                                    "candidateCount": node.get("candidateCount"),
+                                    "candidateSetComplete": node.get("candidateSetComplete"),
+                                    "candidateSource": node.get("candidateSource"),
+                                    "unresolvedReason": node.get("unresolvedReason"),
                                 }
                                 for node in flow.get("nodes", [])
                             ],
@@ -1297,7 +1157,9 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                 }
                                 for edge in flow.get("edges", [])
                             ],
-                            key=lambda item: (item["from"], item["to"], item["kind"], item["label"] or ""),
+                            key=lambda item: (
+                                item["from"], item["to"], item["kind"], item["label"] or ""
+                            ),
                         ),
                     }
                     for flow in bundle["projectGraph"].get("executionFlows", [])
@@ -1316,7 +1178,9 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     }
                     for edge in bundle["projectGraph"]["edges"]
                 ],
-                key=lambda item: (item["from"], item["to"], item["primaryType"], item["role"]),
+                key=lambda item: (
+                    item["from"], item["to"], item["primaryType"], item["role"]
+                ),
             ),
         },
         "moduleGraphs": sorted(
@@ -1325,7 +1189,6 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                     "moduleId": graph["moduleId"],
                     "note": graph["note"],
                     "role": graph.get("role"),
-                    "moduleKind": graph.get("moduleKind"),
                     "moduleComposition": graph.get("moduleComposition", {}),
                     "providerRoleCounts": graph.get("providerRoleCounts", {}),
                     "providers": sorted(
@@ -1405,21 +1268,6 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                         ],
                         key=lambda item: item["id"],
                     ),
-                    "edges": sorted(
-                        [
-                            {
-                                "from": edge["from"],
-                                "to": edge["to"],
-                                "primaryType": edge["primaryType"],
-                                "relations": edge["relations"],
-                                "role": edge["role"],
-                                "viaMethodIds": sorted(edge.get("viaMethodIds", [])),
-                                "evidence": edge.get("evidence", []),
-                            }
-                            for edge in graph["edges"]
-                        ],
-                        key=lambda item: (item["from"], item["to"], item["primaryType"], item["role"]),
-                    ),
                     "methodEdges": sorted(
                         [
                             {
@@ -1483,7 +1331,10 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                 for site in bundle["callSites"]
             ],
             key=lambda item: (
-                item["fromFunctionId"], item["line"], item["column"], item["calleeText"]
+                item["fromFunctionId"],
+                item["line"],
+                item["column"],
+                item["calleeText"],
             ),
         ),
     }

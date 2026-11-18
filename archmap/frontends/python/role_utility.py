@@ -76,9 +76,6 @@ def build_provider_roles(
     internal utility execution units.
     """
     configured_entries = _configured_entry_ids(analysis)
-    main_module_id = analysis.config.main_module_id or (
-        analysis.config.modules[0].id if analysis.config.modules else ""
-    )
     modules_by_name = {module.name: module for module in analysis.modules}
     project_names = {
         fn.name for fn in analysis.functions if not fn.class_name
@@ -140,14 +137,12 @@ def build_provider_roles(
                     fn, module, configured_entries, project_names
                 )
         owner_provider_id = owners.get(fn.id)
-        # Ownership compression is an implementation concern.  It may hide a
-        # public free function in the main composition module, but it must not
-        # erase the public API surface of a functional module.  Main-flow
-        # analysis still projects main-module helpers as orchestrator nodes via
-        # its independent flowRole, regardless of Provider Role.
-        is_main_module = bool(main_module_id and fn.module_id == main_module_id)
-        should_compress = role not in {"entry", "adapter", "component", "contract"} and (
-            fn.api_exposure != "public" or is_main_module
+        # Ownership compression is an implementation concern.  It hides
+        # private helpers behind their facade manager but never erases a public
+        # API surface.  Schema 5.0 has no special main-module compression rule.
+        should_compress = (
+            role not in {"entry", "adapter", "component", "contract"}
+            and fn.api_exposure != "public"
         )
         if owner_provider_id and should_compress:
             role, source, confidence = "utility", "structure", "medium"

@@ -1,7 +1,7 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：P5 首版已实现；P5.1 已移除 merge 并改为内嵌端口卡片；P5.2 已支持显式 executionEntrypoints；P5.3 已统一终止节点、边型和本地调用语义；P5.4 已升级 bundle schema 4.1 并回归执行卡注释；P5.5 已将主流程页与模块能力页分离<br>
-> 版本：ArchMap 1.9.0 / bundle schema 4.1<br>
+> 状态：P5 首版已实现；P5.1-P5.5 已完成。P6.2 已升级到 schema 5.0：移除主模块、`mainFlows` 和 execution flow 语义 `entry` 节点，模块页不再输出调用边。本文涉及这些旧契约的段落仅作为 P5 历史说明。<br>
+> 版本：ArchMap 1.9.0（P5 历史 schema 4.1；P6.2 当前 schema 5.0）<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
 
@@ -367,7 +367,7 @@ BREAK 是循环体内终止标记，无出边。
 
 ## 9. 数据契约
 
-P5 当前 bundle schema 为 4.1。JSON Schema 位于 [`docs/schema/archmap-v4-bundle.schema.json`](schema/archmap-v4-bundle.schema.json)，4.0 历史契约位于 [`docs/schema/archmap-v4.0-bundle.schema.json`](schema/archmap-v4.0-bundle.schema.json)。
+P6.2 当前 bundle schema 为 5.0，JSON Schema 位于 [`docs/schema/archmap-v5-bundle.schema.json`](schema/archmap-v5-bundle.schema.json)。P5 的 4.1 schema 保留在 [`docs/schema/archmap-v4-bundle.schema.json`](schema/archmap-v4-bundle.schema.json) 供历史追溯。
 
 新增：
 

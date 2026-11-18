@@ -11,7 +11,6 @@ from ..config.project_config import (
     DEFAULT_EXCLUDES,
     DEFAULT_INTERNAL_API_TAGS,
     DEFAULT_PUBLIC_API_TAGS,
-    MODULE_KINDS,
     DispatchHint,
     ModuleConfig,
     ProjectConfig,
@@ -44,18 +43,39 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
     execution_entrypoints = _as_list(
         raw.get("executionEntrypoints") or project_meta.get("executionEntrypoints")
     )
-    main_module_id = str(
+    legacy_main_module = str(
         raw.get("mainModule") or project_meta.get("mainModule") or ""
     ).strip()
+    config_diagnostics: list[dict[str, Any]] = []
+    if legacy_main_module:
+        config_diagnostics.append(
+            {
+                "severity": "warning",
+                "code": "MAIN_MODULE_DEPRECATED",
+                "message": "mainModule is ignored by schema 5.0; all modules are ordinary capability modules.",
+            }
+        )
 
     modules: list[ModuleConfig] = []
     for idx, item in enumerate(raw.get("modules") or []):
         if not isinstance(item, dict):
             continue
         module_id = str(item.get("id") or f"module-{idx + 1}")
-        kind = str(item.get("kind") or "").strip().lower()
-        if kind not in MODULE_KINDS:
-            kind = "main" if item.get("main") is True else ""
+        legacy_kind = str(item.get("kind") or "").strip().lower()
+        legacy_main = legacy_kind == "main" or item.get("main") is True
+        if legacy_kind:
+            config_diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "MODULE_KIND_DEPRECATED",
+                    "message": f"module {module_id} uses deprecated kind={legacy_kind!r}; schema 5.0 removes moduleKind.",
+                }
+            )
+        role = str(item.get("role") or "").strip().lower()
+        if role == "main":
+            role = "entry"
+        if not role and (legacy_main or module_id == legacy_main_module):
+            role = "entry"
         modules.append(
             ModuleConfig(
                 id=module_id,
@@ -63,20 +83,9 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
                 include=_as_list(item.get("include"), []),
                 note=str(item.get("note") or ""),
                 color=str(item.get("color") or "#f59e0b"),
-                role=str(item.get("role") or "").strip().lower(),
-                kind=kind,
+                role=role,
             )
         )
-
-    if not main_module_id:
-        main_module_id = next(
-            (module.id for module in modules if module.kind == "main" or module.role == "main"),
-            modules[0].id if modules else "",
-        )
-    for module in modules:
-        module.kind = "main" if module.id == main_module_id else "functional"
-        if not module.role:
-            module.role = "main" if module.kind == "main" else "service"
 
     contract = raw.get("contract") if isinstance(raw.get("contract"), dict) else {}
     public_tags = _as_list(contract.get("publicTags"), DEFAULT_PUBLIC_API_TAGS)
@@ -156,8 +165,8 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         modules=modules,
         entrypoints=entrypoints,
         execution_entrypoints=execution_entrypoints,
-        main_module_id=main_module_id,
         dispatch_hints=dispatch_hints,
+        config_diagnostics=config_diagnostics,
         max_functions=int(limits.get("maxFunctions", 2000)),
         max_steps=int(limits.get("maxStepsPerFunction", 300)),
         max_data_deps=int(limits.get("maxDataDepsPerFunction", 200)),

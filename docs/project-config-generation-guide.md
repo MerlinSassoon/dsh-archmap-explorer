@@ -251,14 +251,13 @@ python3 -m archmap check <output>/architecture.json
 
 ## 9. 过渡期注意事项
 
-当前运行时可能仍兼容旧的主模块字段和 `mainFlows` 投影。迁移期间：
+P6.2 已落地 schema 5.0。当前运行时：
 
-- 生成器可以暂时输出旧字段以通过当前 validator；
-- 但生成器的内部模型不应再假设“存在一个主模块”；
-- 不应把主模块字段用于决定文件归属；
-- 不应把 `mainFlows` 当作主流程页面数据；
-- 不应在模块页面重新引入调用总览；
-- 一旦新 schema 和配置契约落地，应删除兼容字段和生成器分支。
+- 读取旧 `mainModule` / `kind` 字段时只产生 deprecation warning，不再参与模块模型；
+- 新配置生成器不应再输出 `mainModule`、`kind: main` 或 `kind: functional`；
+- `mainFlows` / `primaryFlowId` 已从 bundle 删除；
+- 模块页不渲染调用边；
+- execution flow 不再生成语义 `entry` 节点。
 
 最终目标是：
 

@@ -54,14 +54,20 @@ def test_abstract_class_is_a_contract_not_a_flow_node() -> None:
     assert abstract["classKind"] == "abstract"
     assert abstract["isAbstract"] is True
     assert abstract["entryMethodIds"] == []
-    assert not any(edge["role"].startswith("module_") for edge in graph["edges"])
+    assert "edges" not in graph
     flow_function_ids = {
         node["functionId"]
-        for flow in bundle["projectGraph"]["mainFlows"]
+        for flow in bundle["projectGraph"]["executionFlows"]
         for node in flow["nodes"]
         if node.get("functionId")
     }
-    assert "fn:app.worker.Worker.run" not in flow_function_ids
+    flow_target_ids = {
+        node["targetFunctionId"]
+        for flow in bundle["projectGraph"]["executionFlows"]
+        for node in flow["nodes"]
+        if node.get("targetFunctionId")
+    }
+    assert "fn:app.worker.Worker.run" not in flow_function_ids | flow_target_ids
 
 
 def test_module_graph_contains_providers_not_boundary_nodes() -> None:
@@ -78,18 +84,17 @@ def test_module_graph_contains_providers_not_boundary_nodes() -> None:
         for method in node["methods"]
     }
     assert not method_ids.intersection(component_ids)
-    for edge in graph["edges"]:
-        assert edge["from"] in component_ids
-        assert edge["to"] in component_ids
+    assert "edges" not in graph
 
 
-def test_single_module_project_still_has_one_main_module() -> None:
+def test_single_module_project_has_no_main_module_special_case() -> None:
     bundle = build_architecture(ROOT)
     modules = bundle["projectGraph"]["modules"]
     assert len(modules) == 1
-    assert modules[0]["moduleKind"] == "main"
-    assert bundle["projectGraph"]["mainModuleId"] == modules[0]["id"]
-    assert not [module for module in modules if module["moduleKind"] == "functional"]
+    assert modules[0]["role"] == "entry"
+    assert "moduleKind" not in modules[0]
+    assert "mainModuleId" not in bundle["projectGraph"]
+    assert bundle["projectGraph"]["executionFlows"]
 
 
 def test_function_detail_carries_method_ownership_and_source() -> None:

@@ -15,7 +15,7 @@ from ..config.contract_config import (
     PROVIDER_ROLE_SOURCES,
     PROVIDER_ROLES,
 )
-from ..config.project_config import MODULE_KINDS, MODULE_ROLES
+from ..config.project_config import MODULE_ROLES
 
 
 def _issue(severity: str, code: str, message: str, **extra: Any) -> dict[str, Any]:
@@ -93,7 +93,6 @@ def _validate_provider_role_fields(
         issues.append(_issue("error", "PROVIDER_VISIBILITY", f"{label} has invalid/missing providerVisibility"))
     return issues
 EXECUTION_NODE_KINDS = {
-    "entry",
     "exit",
     "free_function",
     "interface",
@@ -133,11 +132,6 @@ def _validate_execution_flow(
     node_ids = {str(node.get("id")) for node in nodes}
     if len(node_ids) != len(nodes):
         issues.append(_issue("error", "EXEC_NODE_DUPLICATE", f"execution flow {flow_id} has duplicate node ids"))
-    entry_nodes = [node for node in nodes if node.get("kind") == "entry"]
-    if len(entry_nodes) != 1:
-        issues.append(_issue("error", "EXEC_ENTRY_COUNT", f"execution flow {flow_id} must contain exactly one entry"))
-    elif entry_nodes[0].get("functionId") != flow.get("entrypointId"):
-        issues.append(_issue("error", "EXEC_ENTRY_MISMATCH", f"execution flow {flow_id} entry does not match entrypointId"))
     exit_nodes = [node for node in nodes if node.get("kind") == "exit"]
     if len(exit_nodes) > 1:
         issues.append(_issue("error", "EXEC_EXIT_DUPLICATE", f"execution flow {flow_id} must contain at most one exit"))
@@ -154,6 +148,8 @@ def _validate_execution_flow(
             source_node = next((node for node in nodes if node.get("id") == source), None)
             if source_node is None or source_node.get("kind") != "loop":
                 issues.append(_issue("error", "EXEC_LOOP_COMPLETE_SOURCE", f"execution flow {flow_id} loop_complete edge {edge.get('id')} must start at a loop"))
+        if edge.get("kind") in {"call", "call_path", "composition"}:
+            issues.append(_issue("error", "EXEC_CALL_EDGE", f"execution flow {flow_id} must not use call-graph edge kind {edge.get('kind')}"))
         outgoing.setdefault(source, []).append(edge)
         incoming.setdefault(target, []).append(edge)
     for node in nodes:
@@ -187,8 +183,11 @@ def _validate_execution_flow(
             if node.get("callSiteId") not in call_site_ids:
                 issues.append(_issue("error", "EXEC_CALL_SITE", f"execution flow {flow_id} interface {node_id} references missing call site"))
         if kind == "dispatch":
-            if not isinstance(node.get("candidateCount"), int) or node.get("candidateCount") < 0:
-                issues.append(_issue("error", "EXEC_DISPATCH_CANDIDATES", f"execution flow {flow_id} dispatch {node_id} has invalid candidateCount"))
+            candidates = node.get("candidates")
+            if not isinstance(candidates, list):
+                issues.append(_issue("error", "EXEC_DISPATCH_CANDIDATES", f"execution flow {flow_id} dispatch {node_id} must define candidates"))
+            elif node.get("candidateCount") != len(candidates):
+                issues.append(_issue("error", "EXEC_DISPATCH_CANDIDATE_COUNT", f"execution flow {flow_id} dispatch {node_id} candidateCount mismatch"))
             if not isinstance(node.get("candidateSetComplete"), bool):
                 issues.append(_issue("error", "EXEC_DISPATCH_COMPLETE", f"execution flow {flow_id} dispatch {node_id} must define candidateSetComplete"))
         if kind in {"break", "continue"}:
@@ -218,19 +217,29 @@ def _validate_execution_flow(
                 issues.append(_issue("error", "EXEC_LOOP_PORTS", f"execution flow {flow_id} loop {node_id} has duplicate body/complete edges"))
         if kind in {"break", "continue", "return", "exit"} and outgoing.get(str(node_id)):
             issues.append(_issue("error", "EXEC_TERMINAL_OUTGOING", f"execution flow {flow_id} {kind} {node_id} must not have outgoing edges"))
-        if edge.get("kind") in {"call", "call_path", "composition"}:
-            issues.append(_issue("error", "EXEC_CALL_EDGE", f"execution flow {flow_id} must not use call-graph edge kind {edge.get('kind')}"))
-    if entry_nodes:
+    if nodes:
+        roots = [node_id for node_id in node_ids if not incoming.get(node_id)]
         reachable: set[str] = set()
-        stack = [str(entry_nodes[0].get("id"))]
+        stack = list(roots)
         while stack:
             current = stack.pop()
             if current in reachable:
                 continue
             reachable.add(current)
-            stack.extend(str(edge.get("to")) for edge in outgoing.get(current, []) if edge.get("to") not in reachable)
+            stack.extend(
+                str(edge.get("to"))
+                for edge in outgoing.get(current, [])
+                if edge.get("to") not in reachable
+            )
         if reachable != node_ids:
-            issues.append(_issue("error", "EXEC_UNREACHABLE", f"execution flow {flow_id} contains unreachable nodes: {sorted(node_ids - reachable)}"))
+            issues.append(
+                _issue(
+                    "error",
+                    "EXEC_UNREACHABLE",
+                    f"execution flow {flow_id} contains unreachable nodes: "
+                    f"{sorted(node_ids - reachable)}",
+                )
+            )
     return issues
 
 
@@ -238,8 +247,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "4.1":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 4.1"))
+    if str(bundle.get("schemaVersion")) != "5.0":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 5.0"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []
@@ -257,17 +266,15 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         for graph in module_graphs
         for api in graph.get("providedApis", [])
     }
-    main_module_id = project_graph.get("mainModuleId")
-    if main_module_id not in module_ids:
-        issues.append(_issue("error", "MAIN_MODULE_MISSING", f"mainModuleId must reference a module: {main_module_id}"))
-    main_modules = [
-        module for module in project_graph.get("modules", [])
-        if module.get("moduleKind") == "main"
-    ]
-    if len(main_modules) != 1:
-        issues.append(_issue("error", "MAIN_MODULE_COUNT", f"project must contain exactly one main module, got {len(main_modules)}"))
-    if main_modules and main_modules[0].get("id") != main_module_id:
-        issues.append(_issue("error", "MAIN_MODULE_MISMATCH", "mainModuleId does not match the module marked as main"))
+    for removed_field in ("mainModuleId", "moduleKind", "mainFlows", "primaryFlowId"):
+        if removed_field in project_graph:
+            issues.append(
+                _issue(
+                    "error",
+                    "PROJECT_LEGACY_FIELD",
+                    f"projectGraph.{removed_field} was removed in schema 5.0",
+                )
+            )
     if "boundaryNodes" in project_graph:
         issues.append(_issue("error", "PROJECT_BOUNDARY_REMOVED", "projectGraph.boundaryNodes is no longer supported"))
     if "inputs" in (project_graph.get("project") or {}) or "outputs" in (project_graph.get("project") or {}):
@@ -286,8 +293,10 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         role = graph.get("role")
         if role is not None and role not in MODULE_ROLES:
             issues.append(_issue("error", "MODULE_ROLE", f"module {module_id} has invalid role: {role}"))
-        if graph.get("moduleKind") not in MODULE_KINDS:
-            issues.append(_issue("error", "MODULE_KIND", f"module {module_id} has invalid moduleKind: {graph.get('moduleKind')}"))
+        if "moduleKind" in graph:
+            issues.append(_issue("error", "MODULE_KIND_REMOVED", f"module {module_id} must not define moduleKind"))
+        if "edges" in graph:
+            issues.append(_issue("error", "MODULE_EDGES_REMOVED", f"module {module_id} must not define call-view edges"))
         if "inputs" in graph or "outputs" in graph:
             issues.append(_issue("error", "MODULE_IO_REMOVED", f"module {module_id} must not define inputs/outputs"))
         for node in graph.get("nodes", []):
@@ -556,8 +565,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         role = module.get("role")
         if role is not None and role not in MODULE_ROLES:
             issues.append(_issue("error", "MODULE_ROLE", f"project module {module.get('id')} has invalid role: {role}"))
-        if module.get("moduleKind") not in MODULE_KINDS:
-            issues.append(_issue("error", "PROJECT_MODULE_KIND", f"project module {module.get('id')} has invalid moduleKind: {module.get('moduleKind')}"))
+        if "moduleKind" in module:
+            issues.append(_issue("error", "PROJECT_MODULE_KIND_REMOVED", f"project module {module.get('id')} must not define moduleKind"))
         if "inputs" in module or "outputs" in module:
             issues.append(_issue("error", "PROJECT_MODULE_IO_REMOVED", f"project module {module.get('id')} must not define inputs/outputs"))
         graph = module_graph_by_id.get(module.get("id"))
@@ -584,94 +593,6 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
             issues.append(_issue("error", "PROJECT_EDGE_ENDPOINT", f"project edge endpoint missing: {edge.get('id')}"))
         if edge.get("role") != "internal":
             issues.append(_issue("error", "PROJECT_EDGE_ROLE", f"project edge {edge.get('id')} must use role=internal"))
-
-    flows = project_graph.get("mainFlows")
-    if not isinstance(flows, list):
-        issues.append(_issue("error", "MAIN_FLOWS", "projectGraph.mainFlows must be an array"))
-        flows = []
-    flow_ids = {flow.get("id") for flow in flows}
-    primary_flow_id = project_graph.get("primaryFlowId")
-    if primary_flow_id is not None and primary_flow_id not in flow_ids:
-        issues.append(_issue("error", "PRIMARY_FLOW_MISSING", f"primaryFlowId does not reference a main flow: {primary_flow_id}"))
-    if flows and primary_flow_id is None:
-        issues.append(_issue("error", "PRIMARY_FLOW_MISSING", "primaryFlowId is required when mainFlows is non-empty"))
-    for flow in flows:
-        flow_id = flow.get("id")
-        flow_node_ids = {node.get("id") for node in flow.get("nodes", [])}
-        if len(flow_node_ids) != len(flow.get("nodes", [])):
-            issues.append(_issue("error", "FLOW_NODE_DUPLICATE", f"flow {flow_id} has duplicate node ids"))
-        entry_nodes = [node for node in flow.get("nodes", []) if node.get("isEntry") or node.get("kind") == "entry"]
-        if len(entry_nodes) != 1:
-            issues.append(_issue("error", "FLOW_ENTRY_COUNT", f"flow {flow_id} must contain exactly one entry node"))
-        elif entry_nodes[0].get("functionId") != flow.get("entrypointId"):
-            issues.append(_issue("error", "FLOW_ENTRY_MISMATCH", f"flow {flow_id} entry node does not match entrypointId"))
-        for node in flow.get("nodes", []):
-            function_id = node.get("functionId")
-            if function_id and function_id not in detail_by_id:
-                issues.append(_issue("error", "FLOW_FUNCTION_MISSING", f"flow {flow_id} node references missing function {function_id}"))
-            node_module_id = node.get("moduleId")
-            if node_module_id and node_module_id not in module_ids:
-                issues.append(_issue("error", "FLOW_MODULE_MISSING", f"flow {flow_id} node references missing module {node_module_id}"))
-            if node.get("kind") == "dispatch":
-                if not isinstance(node.get("candidateCount"), int) or node.get("candidateCount") < 0:
-                    issues.append(_issue("error", "DISPATCH_CANDIDATES", f"flow {flow_id} dispatch node has invalid candidateCount"))
-                if not isinstance(node.get("candidateSetComplete"), bool):
-                    issues.append(_issue("error", "DISPATCH_COMPLETE", f"flow {flow_id} dispatch node must define candidateSetComplete"))
-            if node.get("kind") == "interface":
-                capability_id = str(node.get("capabilityId") or "")
-                capability = capability_by_id.get(capability_id)
-                if capability is None:
-                    issues.append(_issue("error", "FLOW_INTERFACE_NOT_CANONICAL", f"flow {flow_id} interface {node.get('id')} does not reference a canonical provided API"))
-                else:
-                    capability_module_id, capability_payload = capability
-                    if capability_module_id != node.get("moduleId"):
-                        issues.append(_issue("error", "FLOW_INTERFACE_MODULE", f"flow {flow_id} interface {node.get('id')} module disagrees with its capability"))
-                    if capability_payload.get("providerRole") in {"config", "model", "utility"}:
-                        issues.append(_issue("error", "FLOW_INTERFACE_ROLE", f"flow {flow_id} interface {node.get('id')} references a non-behavioral capability"))
-            if node.get("kind") == "provider" and node.get("capabilityId"):
-                capability_id = str(node.get("capabilityId"))
-                capability = capability_by_id.get(capability_id)
-                if capability is None:
-                    issues.append(_issue("error", "FLOW_PROVIDER_CAPABILITY_NOT_CANONICAL", f"flow {flow_id} provider {node.get('id')} references a missing capability"))
-                else:
-                    capability_module_id, capability_payload = capability
-                    if capability_module_id != node.get("moduleId"):
-                        issues.append(_issue("error", "FLOW_PROVIDER_CAPABILITY_MODULE", f"flow {flow_id} provider {node.get('id')} module disagrees with its capability"))
-                    if capability_payload.get("providerId") != node.get("providerId"):
-                        issues.append(_issue("error", "FLOW_PROVIDER_CAPABILITY_OWNER", f"flow {flow_id} provider {node.get('id')} does not own its capability"))
-                    if capability_payload.get("kind") not in PROTOCOL_CAPABILITY_KINDS:
-                        issues.append(_issue("error", "FLOW_PROVIDER_CAPABILITY_KIND", f"flow {flow_id} provider {node.get('id')} capability must be a protocol capability"))
-            if node.get("flowBoundary"):
-                if node.get("moduleId") == main_module_id:
-                    issues.append(_issue("error", "FLOW_BOUNDARY_MAIN", f"flow {flow_id} main-module node {node.get('id')} cannot be a boundary"))
-                if node.get("kind") not in {"interface", "provider"}:
-                    issues.append(_issue("error", "FLOW_BOUNDARY_KIND", f"flow {flow_id} boundary node {node.get('id')} must be interface/provider"))
-                if node.get("expandable") is not False:
-                    issues.append(_issue("error", "FLOW_BOUNDARY_EXPANDABLE", f"flow {flow_id} boundary node {node.get('id')} must not be expandable"))
-        composition_by_source: dict[str, int] = {}
-        outgoing_sources: set[str] = set()
-        for edge in flow.get("edges", []):
-            if edge.get("from") not in flow_node_ids or edge.get("to") not in flow_node_ids:
-                issues.append(_issue("error", "FLOW_EDGE_ENDPOINT", f"flow {flow_id} edge endpoint missing: {edge.get('id')}"))
-            kind = edge.get("kind")
-            if kind not in {"call", "call_path", "composition"}:
-                issues.append(_issue("error", "FLOW_EDGE_KIND", f"flow {flow_id} edge {edge.get('id')} has invalid kind: {kind}"))
-            if kind == "composition" and edge.get("confidence") != "low":
-                issues.append(_issue("error", "FLOW_COMPOSITION_CONFIDENCE", f"flow {flow_id} composition edge {edge.get('id')} must be low confidence"))
-            outgoing_sources.add(str(edge.get("from")))
-            if kind == "composition":
-                source = str(edge.get("from"))
-                composition_by_source[source] = composition_by_source.get(source, 0) + 1
-        for node in flow.get("nodes", []):
-            if node.get("flowBoundary") and node.get("id") in outgoing_sources:
-                issues.append(_issue("error", "FLOW_BOUNDARY_OUTGOING", f"flow {flow_id} boundary node {node.get('id')} must not have outgoing flow edges"))
-        for node in flow.get("nodes", []):
-            if node.get("kind") != "dispatch":
-                continue
-            actual = composition_by_source.get(str(node.get("id")), 0)
-            expected = int(node.get("candidateCount") or 0)
-            if actual != expected:
-                issues.append(_issue("error", "DISPATCH_CANDIDATE_EDGE_COUNT", f"flow {flow_id} dispatch node {node.get('id')} has {actual} composition edges, expected {expected}"))
 
     execution_flows = project_graph.get("executionFlows")
     if not isinstance(execution_flows, list):
@@ -701,9 +622,6 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         for node in graph.get("nodes", []):
             if node.get("kind") == "function" and node.get("functionDetailId") not in detail_by_id:
                 issues.append(_issue("error", "FUNCTION_DETAIL_MISSING", f"module {module_id} references missing function detail {node.get('functionDetailId')}"))
-        for edge in graph.get("edges", []):
-            if edge.get("from") not in node_ids or edge.get("to") not in node_ids:
-                issues.append(_issue("error", "MODULE_EDGE_ENDPOINT", f"module {module_id} edge endpoint missing: {edge.get('id')}"))
         for edge in graph.get("methodEdges", []):
             for endpoint in (edge.get("from"), edge.get("to")):
                 if endpoint not in detail_by_id:

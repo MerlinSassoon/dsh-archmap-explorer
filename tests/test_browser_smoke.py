@@ -97,7 +97,7 @@ def test_browser_smoke() -> None:
         request("POST", f"/session/{session}/url", {"url": html_path.resolve().as_uri()})
         time.sleep(.6)
         assert execute("return document.querySelectorAll('.module-node').length") == 3
-        assert execute("return document.querySelectorAll('.module-node.is-main').length") == 1
+        assert execute("return document.querySelectorAll('.module-node.is-main').length") == 0
         assert execute("return document.querySelectorAll('.module-api-chip').length") > 0
         assert execute("return document.querySelectorAll('.boundary-node').length") == 0
         assert execute("return document.querySelectorAll('.macro-edge').length") == 0
@@ -131,6 +131,7 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.execution-node').length") == 0
         assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
         assert execute("return document.querySelectorAll('.contracts-track .module-api-chip').length") > 0
+        assert execute("return document.querySelectorAll('.macro-edge').length") == 0
         assert execute("return document.querySelectorAll('#projectFlowEntry.is-visible, .flow-picker.is-visible').length") == 0
         assert execute("return document.querySelectorAll('[data-expand]').length") == 0
         assert execute("return document.querySelectorAll('.module-mini').length") == 0

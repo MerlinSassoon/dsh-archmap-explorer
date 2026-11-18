@@ -9,8 +9,7 @@ from typing import Any
 from .contract_config import PROVIDER_ROLES
 
 
-MODULE_ROLES = {"main", "service", "adapter", "test", "other"}
-MODULE_KINDS = {"main", "functional"}
+MODULE_ROLES = {"service", "adapter", "component", "entry", "test", "other"}
 
 DEFAULT_PUBLIC_API_TAGS = [
     "公开API",
@@ -48,7 +47,6 @@ class ModuleConfig:
     note: str = ""
     color: str = "#f59e0b"
     role: str = ""
-    kind: str = ""
 
 
 @dataclass
@@ -73,8 +71,8 @@ class ProjectConfig:
     modules: list[ModuleConfig] = field(default_factory=list)
     entrypoints: list[str] = field(default_factory=list)
     execution_entrypoints: list[str] = field(default_factory=list)
-    main_module_id: str = ""
     dispatch_hints: list[DispatchHint] = field(default_factory=list)
+    config_diagnostics: list[dict[str, Any]] = field(default_factory=list)
     max_functions: int = 2000
     max_steps: int = 300
     max_data_deps: int = 200

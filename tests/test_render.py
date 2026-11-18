@@ -131,8 +131,9 @@ def test_render_separates_main_flow_from_module_capabilities() -> None:
     match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
     assert match is not None
     embedded = json.loads(match.group(1))
-    assert embedded["projectGraph"]["mainModuleId"] == "entry"
-    assert embedded["projectGraph"]["mainFlows"]
+    assert "mainModuleId" not in embedded["projectGraph"]
+    assert "mainFlows" not in embedded["projectGraph"]
+    assert embedded["projectGraph"]["executionFlows"]
     assert "boundaryNodes" not in embedded["projectGraph"]
 
 

@@ -19,13 +19,13 @@ def test_validator_detects_broken_call_target() -> None:
     assert any(issue["code"] == "CALL_TO_MISSING" for issue in issues)
 
 
-def test_validator_detects_broken_module_edge() -> None:
+def test_validator_rejects_removed_module_edges_and_main_module_fields() -> None:
     bundle = build_architecture(ROOT)
-    bundle["moduleGraphs"][0]["edges"].append(
-        {"id": "e:bad", "from": "missing", "to": bundle["moduleGraphs"][0]["nodes"][0]["id"], "primaryType": "call", "relations": ["call"], "role": "internal", "confidence": "low", "evidence": []}
-    )
+    bundle["moduleGraphs"][0]["edges"] = []
+    bundle["projectGraph"]["mainModuleId"] = bundle["projectGraph"]["modules"][0]["id"]
     issues = validate_bundle(bundle)
-    assert any(issue["code"] == "MODULE_EDGE_ENDPOINT" for issue in issues)
+    assert any(issue["code"] == "MODULE_EDGES_REMOVED" for issue in issues)
+    assert any(issue["code"] == "PROJECT_LEGACY_FIELD" for issue in issues)
 
 
 def test_validator_detects_invalid_api_exposure_and_capability_kind() -> None:
@@ -44,14 +44,10 @@ def test_validator_detects_invalid_call_usage_kind() -> None:
     assert any(issue["code"] == "CALL_USAGE_KIND" for issue in issues)
 
 
-def test_validator_detects_noncanonical_provider_capability() -> None:
-    repo_root = Path(__file__).parent.parent
-    bundle = build_architecture(
-        repo_root / "Projects" / "student_system",
-        repo_root / "examples" / "student_system.archmap.json",
-    )
-    flow = bundle["projectGraph"]["mainFlows"][0]
-    provider = next(node for node in flow["nodes"] if node.get("providerName") == "Spinner")
-    provider["capabilityId"] = "api:missing"
+def test_validator_detects_noncanonical_execution_interface_capability() -> None:
+    bundle = build_architecture(ROOT)
+    flow = bundle["projectGraph"]["executionFlows"][0]
+    interface = next(node for node in flow["nodes"] if node.get("kind") == "interface")
+    interface["capabilityId"] = "api:missing"
     issues = validate_bundle(bundle)
-    assert any(issue["code"] == "FLOW_PROVIDER_CAPABILITY_NOT_CANONICAL" for issue in issues)
+    assert any(issue["code"] == "EXEC_INTERFACE_CAPABILITY" for issue in issues)

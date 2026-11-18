@@ -16,7 +16,7 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 def test_build_bundle_contract() -> None:
     bundle = build_architecture(ROOT)
     assert bundle["kind"] == "archmap.bundle"
-    assert bundle["schemaVersion"] == "4.1"
+    assert bundle["schemaVersion"] == "5.0"
     assert bundle["project"]["name"] == "student_demo"
     assert len(bundle["projectGraph"]["modules"]) == 3
     assert len(bundle["functionDetails"]) == 5
@@ -54,8 +54,7 @@ def test_macro_cross_references() -> None:
     for module in bundle["projectGraph"]["modules"]:
         assert set(module["functions"]) <= detail_ids
     for graph in bundle["moduleGraphs"]:
-        node_ids = {node["id"] for node in graph["nodes"]}
-        assert all(edge["from"] in node_ids and edge["to"] in node_ids for edge in graph["edges"])
+        assert "edges" not in graph
         assert all(edge["from"] in detail_ids and edge["to"] in detail_ids for edge in graph["methodEdges"])
 
 
@@ -67,15 +66,15 @@ def test_fingerprint_is_stable_and_layout_independent() -> None:
     assert semantic_fingerprint(first) == semantic_fingerprint(second)
 
 
-def test_bundle_matches_current_v4_1_schema() -> None:
+def test_bundle_matches_current_v5_schema() -> None:
     import json
     import pytest
 
     jsonschema = pytest.importorskip("jsonschema")
     bundle = build_architecture(ROOT)
-    schema_path = Path(__file__).parent.parent / "docs" / "schema" / "archmap-v4-bundle.schema.json"
+    schema_path = Path(__file__).parent.parent / "docs" / "schema" / "archmap-v5-bundle.schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    assert schema["properties"]["schemaVersion"]["const"] == "4.1"
+    assert schema["properties"]["schemaVersion"]["const"] == "5.0"
     jsonschema.validate(bundle, schema)
 
 
@@ -90,11 +89,12 @@ def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
     assert internal_edges
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
     assert {"main-pipeline", "core-contracts", "python-frontend", "graph-projection", "validation", "rendering"} <= module_ids
-    kinds = {module["id"]: module["moduleKind"] for module in bundle["projectGraph"]["modules"]}
-    assert kinds["main-pipeline"] == "main"
-    assert kinds["python-frontend"] == "functional"
-    assert bundle["projectGraph"]["mainModuleId"] == "main-pipeline"
-    assert bundle["projectGraph"]["mainFlows"]
+    roles = {module["id"]: module["role"] for module in bundle["projectGraph"]["modules"]}
+    assert roles["main-pipeline"] == "entry"
+    assert roles["python-frontend"] == "service"
+    assert "mainModuleId" not in bundle["projectGraph"]
+    assert "mainFlows" not in bundle["projectGraph"]
+    assert "primaryFlowId" not in bundle["projectGraph"]
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
 
 

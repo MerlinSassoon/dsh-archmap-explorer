@@ -73,27 +73,9 @@ class ExecutionSkeletonBuilder:
                 self._calls_by_position[(site.line, site.column)] = site
         self._entry_module = module_meta.get(entry.module_id, {})
         self._exit_id = f"exec:{flow_key}:exit"
-        self._entry_id = f"exec:{flow_key}:entry:{entry.id}"
-        self._add_node(
-            node_id=self._entry_id,
-            kind="entry",
-            label=f"{entry.name}()",
-            line=entry.line,
-            end_line=entry.end_line,
-            data={
-                "functionId": entry.id,
-                "targetFunctionId": entry.id,
-                "moduleId": entry.module_id,
-                "moduleName": self._entry_module.get("name", entry.module_id),
-                "color": self._entry_module.get("color", "#f59e0b"),
-                "signature": entry.signature,
-                "note": entry.note,
-                "ports": ["out"],
-                "expandable": False,
-                "execution": True,
-                "flowId": flow_id,
-            },
-        )
+        # Virtual entry boundary.  It is not projected as a node; edges from it
+        # are suppressed so the first real execution node becomes the root.
+        self._entry_id = ""
 
     # ------------------------------------------------------------------
     # Node/edge helpers
@@ -222,13 +204,16 @@ class ExecutionSkeletonBuilder:
         return self._exit_id
 
     def build(self) -> dict[str, Any]:
-        entry_node = self.nodes[0]
-        endpoints = self._visit_stmts(list(self.entry.node.body), [self._endpoint(self._entry_id)])
+        endpoints = self._visit_stmts(
+            list(self.entry.node.body), [self._endpoint(self._entry_id)]
+        )
         # A return is already a terminal sink.  The shared exit anchor exists
         # only for implicit fall-through or other real paths that reach it.
-        if endpoints:
-            self._connect(endpoints, self._ensure_exit())
-            entry_node["exitNodeId"] = self._exit_id
+        real_endpoints = [endpoint for endpoint in endpoints if endpoint.node_id]
+        if real_endpoints:
+            self._connect(real_endpoints, self._ensure_exit())
+        elif not self.nodes:
+            endpoints = []
         return {
             "kind": "archmap.execution-flow",
             "id": self.flow_id,

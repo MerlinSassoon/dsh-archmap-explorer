@@ -127,18 +127,26 @@ def test_function_details_expose_override_and_polymorphic_neighborhood() -> None
     assert run["polymorphicCallers"][0]["functionId"] == "fn:app.main.execute"
 
 
-def test_polymorphic_dispatch_is_projected_as_low_confidence_composition() -> None:
-    bundle = _bundle()
-    flow = bundle["projectGraph"]["mainFlows"][0]
-    dispatches = [node for node in flow["nodes"] if node["kind"] == "dispatch"]
-    assert {node["candidateSource"] for node in dispatches} == {"polymorphic"}
-    assert {node["candidateCount"] for node in dispatches} == {2, 1}
-    composition = [edge for edge in flow["edges"] if edge["kind"] == "composition"]
-    assert len(composition) == 3
-    assert all(edge["confidence"] == "low" and edge["dashed"] is True for edge in composition)
-    assert all(edge["candidateSource"] == "polymorphic" for edge in composition)
-    boundary_ids = {node["id"] for node in flow["nodes"] if node.get("flowBoundary")}
-    assert not any(edge["from"] in boundary_ids for edge in flow["edges"])
+def test_polymorphic_dispatch_candidates_reach_execution_flow(tmp_path: Path) -> None:
+    config = json.loads((ROOT / "archmap.config.json").read_text(encoding="utf-8"))
+    config["executionEntrypoints"] = ["app.main:execute"]
+    config.pop("mainModule", None)
+    for module in config["modules"]:
+        module.pop("kind", None)
+        if module["role"] == "main":
+            module["role"] = "entry"
+    config_path = tmp_path / "archmap.config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    bundle = build_architecture(ROOT, config_path)
+    flow = next(
+        flow for flow in bundle["projectGraph"]["executionFlows"]
+        if flow["entrypointId"] == "fn:app.main.execute"
+    )
+    dispatch = next(node for node in flow["nodes"] if node["kind"] == "dispatch")
+    assert dispatch["candidateSource"] == "polymorphic"
+    assert dispatch["candidateCount"] == 2
+    assert dispatch["candidateSetComplete"] is False
+    assert all(edge["kind"] != "composition" for edge in flow["edges"])
 
 
 def test_class_demo_inherits_concrete_method_and_resolves_inherited_constructor() -> None:

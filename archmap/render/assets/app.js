@@ -764,13 +764,12 @@
 
   function renderDefaultDetail() {
     if (state.route.kind === "project") {
-      const mainModule = projectGraph.modules.find(node => node.moduleKind === "main");
-      const functionalCount = projectGraph.modules.filter(node => node.moduleKind === "functional").length;
       const executionFlow = currentExecutionFlow();
+      const flowCount = (projectGraph.executionFlows || []).length;
       detailScroll.innerHTML = `<div class="eyebrow">Project composition map</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(DATA.project.name)}</h2>
         <div class="detail-note">项目页提供独立主流程入口与模块能力卡片。流程与模块能力分开浏览，互不混用同一页面。</div>
-        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>主模块 <b>${escapeHtml(mainModule?.name || "—")}</b></span><span>功能模块 <b>${functionalCount}</b></span><span>类型关系 <b>${(projectGraph.typeRelations || []).length}</b></span><span>执行流节点 <b>${executionFlow?.nodeCount || 0}</b></span></div>
+        <div class="port-detail"><span>模块 <b>${projectGraph.modules.length}</b></span><span>执行流 <b>${flowCount}</b></span><span>类型关系 <b>${(projectGraph.typeRelations || []).length}</b></span><span>执行流节点 <b>${executionFlow?.nodeCount || 0}</b></span></div>
         ${annotationBlock(DATA.project.name)}
         <div class="empty-hint">打开主流程入口查看执行流；双击模块卡片查看能力视图。</div>`;
       return;
@@ -798,7 +797,7 @@
           <div class="eyebrow">Module capability</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
           <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
-        <div class="port-detail"><span>类型 <b>${module.moduleKind === "main" ? "主模块" : "功能模块"}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span></div>
+        <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(module.role || "service"))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span></div>
         <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(module)}</div>
         <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
         ${(module.userSurfaces || []).length ? `<div class="class-method-section"><div class="class-method-heading">User surfaces</div><div class="user-surface-track">${userSurfaceChips(module.userSurfaces || [])}</div></div>` : ""}
@@ -868,7 +867,7 @@
             <div class="eyebrow">Module capability · ${escapeHtml(moduleRoleLabel(macroNode.role))}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">module://${escapeHtml(uid)}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
-          <div class="port-detail"><span>类型 <b>${escapeHtml(macroNode.moduleKind === "main" ? "主模块" : "功能模块")}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+          <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(macroNode.role || "service"))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
           <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(graph)}</div>
           <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>
@@ -1235,13 +1234,12 @@
     const graph = moduleGraphById.get(nodeId);
     const apis = graph?.providedApis || [];
     const role = module.role || graph?.role || "service";
-    const isMain = role === "main";
     const visibleClasses = visibleProviderNodes(graph).filter(node => node.kind === "class").length;
     const classCount = Number(visibleClasses || 0);
     const providerCount = Number((graph?.apiProviders || []).length);
     const apiCount = Number(module.providedApiCount ?? apis.length);
     const element = document.createElement("article");
-    element.className = `node-card module-node${isMain ? " is-main" : ""}`;
+    element.className = "node-card module-node";
     element.dataset.uid = nodeId;
     element.style.left = `${position.x}px`;
     element.style.top = `${position.y}px`;
@@ -1260,7 +1258,7 @@
         <div class="module-note">${escapeHtml(module.note || "暂无模块备注")}</div>
         <div class="module-api-section">
           <div class="module-api-heading"><span>PROVIDED API</span><b>${apiCount}</b></div>
-          <div class="module-api-chips">${apiChips(apis, isMain ? 4 : 3)}</div>
+          <div class="module-api-chips">${apiChips(apis, 3)}</div>
         </div>
         <div class="module-role-counts">${roleCountChips(visibleRoleCounts(graph))}</div>
         <div class="module-metrics">
@@ -1625,18 +1623,7 @@
     });
     const svg = makeSvg(1200, 800, "world-edges");
     world.appendChild(svg);
-    state.pageEdges = graph.edges.filter(edge => state.nodes.has(edge.from) && state.nodes.has(edge.to));
-    state.pageEdges.forEach(edge => {
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("class", macroEdgeClass(edge));
-      path.setAttribute("data-from", edge.from);
-      path.setAttribute("data-to", edge.to);
-      path.setAttribute("data-edge-id", edge.id);
-      const from = state.positions.get(edge.from);
-      const to = state.positions.get(edge.to);
-      path.setAttribute("d", curvePath(from, to));
-      svg.appendChild(path);
-    });
+    state.pageEdges = [];
     state.nodes.forEach((node, nodeId) => {
       if (node.kind === "function") renderModuleFunctionNode(moduleId, nodeId, node);
       else if (node.kind === "class") renderModuleClassNode(moduleId, nodeId, node);

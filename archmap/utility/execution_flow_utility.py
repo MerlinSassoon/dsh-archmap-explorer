@@ -33,7 +33,6 @@ def _module_meta(module_graphs: list[dict[str, Any]]) -> dict[str, dict[str, Any
             "name": str(graph.get("name") or module_id),
             "color": str(graph.get("color") or "#60a5fa"),
             "role": str(graph.get("role") or ""),
-            "moduleKind": str(graph.get("moduleKind") or ""),
         }
     return result
 
@@ -102,7 +101,6 @@ def _interface_payload(
 def _build_target_resolver(
     *,
     analysis: AnalysisResult,
-    main_module_id: str,
     module_meta: dict[str, dict[str, Any]],
     capability_by_function: dict[str, dict[str, Any]],
     capability_by_constructor: dict[str, dict[str, Any]],
@@ -117,39 +115,37 @@ def _build_target_resolver(
             if capability is not None:
                 return _interface_payload(capability, module_meta)
         if target is not None:
-            if target.module_id == main_module_id:
-                is_method = bool(target.class_name)
-                is_dunder = target.name.startswith("__") and target.name.endswith("__")
-                if not target.synthetic and (not is_method or not is_dunder):
-                    meta = module_meta.get(target.module_id, {})
-                    owner_class_id = (
-                        f"cls:{target.module_name}.{target.class_name}"
-                        if is_method
-                        else None
-                    )
-                    return {
-                        "kind": "free_function",
-                        "callableKind": "method" if is_method else "function",
-                        "ownerClassId": owner_class_id,
-                        "ownerClassName": target.class_name,
-                        "label": f"{target.name}()",
-                        "functionId": target.id,
-                        "targetFunctionId": target.id,
-                        "capabilityId": None,
-                        "moduleId": target.module_id,
-                        "moduleName": meta.get("name", target.module_id),
-                        "color": meta.get("color", "#f59e0b"),
-                        "note": target.note,
-                        "signature": target.signature,
-                        "targetFile": target.file,
-                        "targetLine": target.line,
-                        "targetEndLine": target.end_line,
-                    }
-                return None
             capability = capability_by_function.get(target.id)
             if capability is not None:
                 return _interface_payload(capability, module_meta)
-            return None
+            is_method = bool(target.class_name)
+            is_dunder = target.name.startswith("__") and target.name.endswith("__")
+            if target.synthetic or (is_method and is_dunder):
+                return None
+            meta = module_meta.get(target.module_id, {})
+            owner_class_id = (
+                f"cls:{target.module_name}.{target.class_name}"
+                if is_method
+                else None
+            )
+            return {
+                "kind": "free_function",
+                "callableKind": "method" if is_method else "function",
+                "ownerClassId": owner_class_id,
+                "ownerClassName": target.class_name,
+                "label": f"{target.name}()",
+                "functionId": target.id,
+                "targetFunctionId": target.id,
+                "capabilityId": None,
+                "moduleId": target.module_id,
+                "moduleName": meta.get("name", target.module_id),
+                "color": meta.get("color", "#f59e0b"),
+                "note": target.note,
+                "signature": target.signature,
+                "targetFile": target.file,
+                "targetLine": target.line,
+                "targetEndLine": target.end_line,
+            }
         if not (site.polymorphic or is_dynamic_dispatch_site(site)):
             return None
         meta = module_meta.get(site.from_module_id, {})
@@ -189,11 +185,6 @@ def build_execution_flows(
     del contract_model  # capability facts are already projected into module graphs
     call_list = list(call_sites)
     module_meta = _module_meta(module_graphs)
-    main_graph = next(
-        (graph for graph in module_graphs if graph.get("moduleKind") == "main"),
-        None,
-    )
-    main_module_id = str(main_graph.get("moduleId") if main_graph else analysis.config.main_module_id or "")
     capability_by_function, capability_by_constructor, _ = _capability_indexes(module_graphs)
     diagnostics: list[dict[str, Any]] = []
     dispatch_resolver = DispatchResolver(
@@ -204,7 +195,6 @@ def build_execution_flows(
     )
     resolver = _build_target_resolver(
         analysis=analysis,
-        main_module_id=main_module_id,
         module_meta=module_meta,
         capability_by_function=capability_by_function,
         capability_by_constructor=capability_by_constructor,

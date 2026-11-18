@@ -31,7 +31,7 @@ def test_macro_layout_has_valid_geometry() -> None:
         if layout.get("mode") == "module-cards":
             assert layout["edges"] == {}
             continue
-        for edge in graph["edges"]:
+        for edge in graph.get("edges", []):
             if edge["from"] not in layout["nodes"] or edge["to"] not in layout["nodes"]:
                 continue
             path = layout["edges"][edge["id"]]["d"]

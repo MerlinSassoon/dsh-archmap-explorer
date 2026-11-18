@@ -32,7 +32,7 @@ def test_provider_roles_and_module_composition() -> None:
         "cls:app.roles.Spinner": ("component", "structure"),
         "cls:app.roles.DecoratedWidget": ("component", "decorator"),
         "cls:app.roles.ConfigOverrideThing": ("model", "config"),
-        "fn:app.roles.helper": ("utility", "structure"),
+        "fn:app.roles.helper": ("manager", "structure"),
         "fn:app.roles.main": ("entry", "entrypoint"),
     }
     for provider_id, (role, source) in expected.items():
@@ -50,7 +50,7 @@ def test_provider_roles_and_module_composition() -> None:
     assert "fn:app.roles.main" in composition["entry"]
     assert graph["providerRoleCounts"]["component"] == 2
     assert graph["publicProviderRoleCounts"]["utility"] == 0
-    assert graph["providerRoleCounts"]["utility"] == 2
+    assert graph["providerRoleCounts"]["utility"] == 1
     assert graph["publicModuleComposition"]["utility"] == []
     assert bundle["projectGraph"]["modules"][0]["providerRoleCounts"] == graph["providerRoleCounts"]
     assert bundle["projectGraph"]["modules"][0]["publicProviderRoleCounts"] == graph["publicProviderRoleCounts"]
@@ -90,10 +90,10 @@ def test_config_and_model_are_type_cards_not_module_apis() -> None:
     assert provider_roles["cls:app.roles.Spinner"] == "component"
     assert provider_roles["cls:app.roles.Worker"] == "contract"
     assert provider_roles["fn:app.roles.main"] == "entry"
-    assert "fn:app.roles.helper" not in provider_roles
-    assert nodes["fn:app.roles.helper"]["providerRole"] == "utility"
-    assert nodes["fn:app.roles.helper"]["providerVisibility"] == "internal"
-    assert nodes["fn:app.roles.helper"]["ownerProviderId"] == "fn:app.roles.main"
+    assert provider_roles["fn:app.roles.helper"] == "manager"
+    assert nodes["fn:app.roles.helper"]["providerRole"] == "manager"
+    assert nodes["fn:app.roles.helper"]["providerVisibility"] == "public"
+    assert nodes["fn:app.roles.helper"]["ownerProviderId"] is None
     assert nodes["fn:app.roles._provider_role"]["providerVisibility"] == "internal"
     assert nodes["fn:app.roles._provider_role"]["providedApis"] == []
 
@@ -169,7 +169,7 @@ def test_archmap_self_roles_remove_config_model_api_noise() -> None:
 def test_roles_bundle_matches_current_schema() -> None:
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.loads(
-        (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v4-bundle.schema.json").read_text(encoding="utf-8")
+        (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v5-bundle.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.validate(_roles_bundle(), schema)
 

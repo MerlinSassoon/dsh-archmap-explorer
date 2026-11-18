@@ -1,6 +1,6 @@
 # ArchMap v4.0
 
-> 版本：ArchMap 1.9.0 / bundle schema 4.1<br>
+> 版本：ArchMap 1.9.0 / bundle schema 5.0<br>
 > 最后更新：2026-11-18
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
@@ -34,17 +34,20 @@ P5.2  主流程执行入口归一化                  已完成
 P5.3  终止节点与本地调用语义统一            已完成
 P5.4  bundle schema 4.1 与执行卡注释回归     已完成
 P5.5  主流程页与模块能力页分离               已完成
+P6.0  项目模型重构计划与配置指南             已完成
+P6.1  共享动态分发解析                       已完成
+P6.2  schema 5.0、取消主模块与 mainFlows     已完成
 ```
 
 当前产品边界：
 
-- 每个项目恰好一个主模块，功能模块数量为 0..N。
-- 主流程是独立项目级视图，不是主模块能力页的一部分。
-- 主流程只展开入口函数控制骨架；进入功能模块 canonical interface/provider 后停止。
-- 主模块与功能模块统一作为模块能力页，只展示 Provider/Capability 与结构关系。
-- 项目页提供独立主流程入口；主流程页只展示 P5 有界执行流。
-- 主模块与功能模块统一进入模块能力页；主流程页不再嵌入模块契约或调用总览。
-- `mainFlows` 调用投影数据继续保留，但不再作为默认 UI 视图展示。
+- 所有模块都是普通能力模块；schema 5.0 不再有主模块或 `moduleKind`。
+- 主流程是项目级视图，不属于任何模块。
+- 主流程只展开入口函数控制骨架；调用目标作为原子执行步骤，不穿透实现。
+- 模块能力页只展示 Provider/Capability 与结构关系，不默认展示调用边。
+- 项目页提供标准主流程入口；主流程页只展示有界执行流。
+- `mainFlows` / `primaryFlowId` 已从 schema 5.0 删除。
+- execution flow 不再生成语义 `entry` 节点；入口由 flow 元数据和入口卡片表达。
 - P5 执行流不会恢复旧语句级 FunctionFlow；边界见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 - 类焦点页和类内方法图不在当前产品计划中。
 - 旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
@@ -92,12 +95,12 @@ yield/student_system/
 
 - **项目页**：展示独立主流程入口卡片与全部模块能力卡片；模块卡片包含职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。双击模块卡片进入能力页，主流程入口进入 `#/flow`。
 - **主流程页**：只展示 P5 横向有界执行流；支持多 flow 选择、拖拽布局、节点详情和源码下钻。不再显示调用总览或模块能力契约。
-- **模块能力页**：主模块与功能模块统一展示提供接口、Provider Role、类/自由函数、类型关系与内部调用关系；不再承载执行流。config/model Provider 以类型卡片展示字段摘要。
+- **模块能力页**：所有能力模块统一展示提供接口、Provider Role、类/自由函数与类型关系；不默认展示调用连线；config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗：`#/project`、`#/flow[/<id>]`、`#/module/<moduleId>`、`#/module/<moduleId>/function/<functionId>`。
 - 项目页、模块页和执行流节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存用户覆盖；可用“适应画布”或“重置布局”找回节点。
-- P5 执行流只展开 entrypoint 的控制骨架；主模块本地调用（自由函数/类方法）和功能模块接口均为原子节点，双击进入源码。
+- P5 执行流只展开 entrypoint 的控制骨架；项目内 callable 和 canonical interface 均为原子节点，双击进入源码。
 - 不生成或渲染函数内部完整 CFG、逐语句执行流图；函数实现以源码为最终事实来源。
 
 ## P5 主流程执行流（首版已实现）
@@ -106,10 +109,10 @@ P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**�
 
 - 只展示 selected entrypoint 函数内部的控制骨架；
 - 主模块本地调用（自由函数与类方法统一为同一原子语义）、功能模块公开接口都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
-- 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；其中 `free_function` 表示主模块本地调用步骤，通过 `callableKind` 区分函数与方法；
+- 使用封闭节点集合：`exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；P6.2 起不再生成语义 `entry` 节点，`free_function` 通过 `callableKind` 区分函数与方法；
 - `return` 是终止节点，不生成出边；`exit` 只用于隐式落空等真正到达结束锚点的路径；
 - `break` / `continue` 是循环内部终止标记，不生成出边；循环节点通过 `loop_complete` 作为唯一结构化离开边界；
-- bundle schema 4.1 的执行边只允许 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
+- bundle schema 5.0 的执行边只允许 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
 - 汇合不再生成 `merge` 节点，多条路径直接 fan-in 到同一个真实后继节点或 `exit`；
 - 执行流实线只表示静态确定的直接控制/执行关系；虚线只表示推断、不完整或间接关系；
 - 执行流卡片不渲染函数签名，正文展示人类备注；完整签名在 Method Detail / 节点详情中查看；
@@ -117,9 +120,9 @@ P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**�
 - 节点使用项目执行流卡片：彩色标题栏、深色主体、内嵌端口行、贝塞尔曲线；端口行无方框和独立背景，卡片外不再挂边标签胶囊；
 - 节点位置可在浏览器中拖拽覆盖，关联曲线实时重算并持久化；
 - 不生成逐语句节点、列表操作节点、`try/except` 异常控制、数据流边或图内下钻；
-- 新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 保留为数据层调用投影，默认不展示；
-- P6.1 起 execution flow 与 `mainFlows` 共用动态分发解析；新配置使用顶层 `dispatchHints`，旧 `mainFlow.dispatches` 仅作迁移兼容；
-- P5 首版 bundle schema 为 4.0；P5.4 收紧执行边契约并升级到 4.1。
+- 项目级执行视图只保留 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 已在 schema 5.0 删除；
+- 动态分发统一由共享 resolver 处理；新配置使用顶层 `dispatchHints`，旧 `mainFlow.dispatches` 仅作迁移兼容；
+- P5 使用 schema 4.0/4.1；P6.2 升级为 schema 5.0。
 
 P5 的防误解与防滑坡边界、student_system 目标快照、数据契约和验收标准见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 
@@ -405,8 +408,8 @@ archmap.entry.*
 - `primaryType`：`call` / `data` / `control`。
 - `relations`：同一对节点可同时具有调用和数据证据。
 - `role`：普通内部关系；不再生成模块输入输出边界边。
-- `mainFlows` 数据层调用边使用 `call` / `call_path` / `composition`，其中 composition 只能是低置信度虚线；该投影当前不进入默认 UI。
-- P5 主执行流只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止，不穿透其内部 utility。
+- P6.2 已删除 `mainFlows` 调用投影及其 composition 边；动态分发候选只保留在 execution flow 节点详情中。
+- P5 主执行流只展开 entrypoint 自身控制骨架；调用目标作为原子节点，不穿透其内部 utility。
 - `evidence`：具体函数、文件和行号。
 - `confidence`：解析置信度。
 
@@ -550,7 +553,8 @@ ArkTS 接入时需要：
 | [`docs/p5.1-execution-card-style.md`](docs/p5.1-execution-card-style.md) | P5.1 执行流项目节点样式：卡片结构、内嵌端口、端口语义与实现位置 |
 | [`docs/p5.1-execution-flow-fan-in-plan.md`](docs/p5.1-execution-flow-fan-in-plan.md) | 汇入与边束的分层设计：直接 fan-in 已实现，视觉边束与模块级边束为未来方向 |
 | [`docs/约定编程skill.md`](docs/约定编程skill.md) | 项目无关的约定编程 Skill：分层架构、契约、功能备注、测试与提交检查清单 |
-| [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 当前 bundle JSON Schema 4.1，包含 P5 executionFlows |
+| [`docs/schema/archmap-v5-bundle.schema.json`](docs/schema/archmap-v5-bundle.schema.json) | 当前 bundle JSON Schema 5.0：无主模块、无 mainFlows、无执行流 entry 节点 |
+| [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 历史 bundle JSON Schema 4.1，供 P5 产物追溯 |
 | [`docs/schema/archmap-v4.0-bundle.schema.json`](docs/schema/archmap-v4.0-bundle.schema.json) | 历史 bundle JSON Schema 4.0，供旧产物追溯 |
 | [`docs/HANDOFF-P5.5.md`](docs/HANDOFF-P5.5.md) | P5.5 当前交接：已完成边界、下一步共享动态分发解析与数据契约收缩计划 |
 | [`docs/p6-project-model-plan.md`](docs/p6-project-model-plan.md) | P6 已批准实施计划：取消主模块、项目级主流程、schema 5.0、纵向能力模块与分阶段验收 |
@@ -596,4 +600,4 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 - P5 执行流只提取 entrypoint 控制骨架，不展开主模块本地调用或功能模块接口；更多内部逻辑通过 Method Detail / 源码查看。
 - P5 明确不实现逐语句节点、列表操作节点、`try/except` 异常控制、数据流边和图内下钻；这些是产品边界，不是待补延期项。
 - 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。
-- 当前 bundle schema 为 4.1；4.0 旧产物需要重新 build，历史 4.0 schema 仅用于追溯。
+- 当前 bundle schema 为 5.0；4.1/4.0 旧产物需要重新 build，历史 schema 仅用于追溯。
