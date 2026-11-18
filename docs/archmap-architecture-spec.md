@@ -1,7 +1,7 @@
 # ArchMap 架构与编码规范
 
 > 状态：P2.3 规范已落盘，P2.4-P9 已按该规范完成<br>
-> 版本：ArchMap 2.4.0 / bundle schema 6.3<br>
+> 版本：ArchMap 2.5.0 / bundle schema 6.4<br>
 > 日期：2026-11-19<br>
 > 适用范围：ArchMap 自身源码、后续语言前端和架构分析扩展。
 
@@ -257,6 +257,7 @@ service / adapter / component / test / other
 - 每条 flow 生成一个标准 `entry` 节点，与 loop / branch 同级；不使用异形样式；
 - 执行边只表达控制连接；不输出 composition/call 调用边；
 - dispatch 候选必须显式标记完整性，无法推断时保留 unresolved；
+- P11 起完整 dispatch 候选可在 `dispatchGroups[]` 中生成独立一级候选 scope，但主画布不生成候选控制边，scope 内不递归下钻；
 - 执行流只展开 entrypoint 自身控制骨架，调用目标作为原子节点，不继续穿透实现；
 - 内部实现由 Method Detail、CallSite 和 P4 trace/impact 承担；
 - `executionOnlyCallables` 中的入口/编排 callable 只在 execution flow 与 Method Detail 中作为主要 UI 入口，不进入模块能力面。

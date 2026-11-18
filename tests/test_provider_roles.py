@@ -171,7 +171,7 @@ def test_archmap_self_roles_remove_config_model_api_noise() -> None:
 def test_roles_bundle_matches_current_schema() -> None:
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.loads(
-        (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v6.3-bundle.schema.json").read_text(encoding="utf-8")
+        (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v6.4-bundle.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.validate(_roles_bundle(), schema)
 

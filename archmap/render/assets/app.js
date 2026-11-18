@@ -173,6 +173,14 @@
       if (parts[2] === "scope" && parts[3]) {
         return { kind: "scope", flowId: parts[1] || null, nodeId: parts[3] };
       }
+      if (parts[2] === "dispatch" && parts[3]) {
+        return {
+          kind: "dispatch",
+          flowId: parts[1] || null,
+          nodeId: parts[3],
+          candidateScopeId: parts[4] === "candidate" && parts[5] ? parts[5] : null,
+        };
+      }
       return { kind: "flow", flowId: parts[1] || null };
     }
     return { kind: "project" };
@@ -188,6 +196,12 @@
     }
     if (route.kind === "scope") {
       return `#/flow/${encodeURIComponent(route.flowId)}/scope/${encodeURIComponent(route.nodeId)}`;
+    }
+    if (route.kind === "dispatch") {
+      const base = `#/flow/${encodeURIComponent(route.flowId)}/dispatch/${encodeURIComponent(route.nodeId)}`;
+      return route.candidateScopeId
+        ? `${base}/candidate/${encodeURIComponent(route.candidateScopeId)}`
+        : base;
     }
     return "#/project";
   }
@@ -663,11 +677,18 @@
     if (!candidates.length) {
       return `<div class="method-call-empty">未解析出候选；请检查 dispatchHints、argparse 注册或静态分发表。</div>`;
     }
+    const flow = currentExecutionFlow();
+    const group = (flow?.dispatchGroups || []).find(item => item.parentNodeId === node.id);
+    const scopeByRoot = new Map((group?.scopes || []).map(scope => [scope.rootFunctionId, scope]));
     return `<div class="method-call-list">${candidates.map(candidateId => {
       const detail = functionDetailById.get(candidateId);
       const name = detail?.qualifiedName || detail?.name || candidateId;
-      return `<button class="detail-api-row" type="button" data-open-exec-candidate="${escapeHtml(candidateId)}">
-        <span class="detail-api-kind">candidate</span>
+      const candidateScope = scopeByRoot.get(candidateId);
+      const actionAttr = candidateScope
+        ? `data-open-dispatch-candidate="${escapeHtml(candidateScope.id)}" data-dispatch-node="${escapeHtml(node.id)}"`
+        : `data-open-exec-candidate="${escapeHtml(candidateId)}"`;
+      return `<button class="detail-api-row" type="button" ${actionAttr}>
+        <span class="detail-api-kind">${candidateScope ? "journey" : "candidate"}</span>
         <span class="detail-api-name">${escapeHtml(name)}</span>
         <span class="detail-api-kind">${escapeHtml(detail?.file || "")}:${escapeHtml(detail?.line || "—")}</span>
       </button>`;
@@ -823,6 +844,25 @@
         <div class="empty-hint">点击节点查看语义；双击打开 Method Detail / 源码。</div>`;
       return;
     }
+    if (state.route.kind === "dispatch") {
+      const flow = currentExecutionFlow();
+      const group = currentExecutionDispatchGroup();
+      const scope = currentExecutionScope();
+      if (!group || !scope) {
+        detailScroll.innerHTML = `<div class="eyebrow">Dispatch candidate journey</div><h2 class="detail-name">暂无可解析候选旅程</h2><div class="detail-note">dispatch 节点存在，但没有可用于下钻的候选 scope。</div>`;
+        return;
+      }
+      const truncated = group.truncated || scope.truncated;
+      detailScroll.innerHTML = `<div class="eyebrow">Dispatch candidate journey</div>
+        <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(scope.name || "候选旅程")}</h2>
+        <div class="detail-note">dispatch 节点保持原子边界；当前候选以一级 callable scope 独立展开，不在主流程画布生成候选控制边。</div>
+        <div class="port-detail"><span>表达式 <b>${escapeHtml(group.expression || "—")}</b></span><span>来源 <b>${escapeHtml(dispatchSourceLabel(group.candidateSource))}</b></span><span>候选 <b>${Number(group.candidateCount || 0)}</b></span><span>已生成 <b>${(group.scopes || []).length}</b></span><span>节点 <b>${Number(scope.nodeCount || 0)}</b></span></div>
+        ${group.candidateSetComplete ? "" : `<div class="llm-stale">候选集合未声明完整；当前旅程只覆盖已知候选，不代表全部运行时路径。</div>`}
+        ${truncated ? `<div class="llm-stale">候选旅程触发预算截断，未生成或已收缩的内容不在此 scope 中展开。</div>` : ""}
+        ${(scope.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">External interfaces</div><div class="exec-interface-list">${scope.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
+        <div class="empty-hint">使用顶部候选列表切换旅程；双击节点打开 Method Detail / 源码。</div>`;
+      return;
+    }
     if (state.route.kind === "module") {
       const module = moduleGraphById.get(state.route.moduleId);
       if (!module) return;
@@ -881,13 +921,19 @@
         if (macroNode.loopVariable) meta.push(`循环变量：${macroNode.loopVariable}`);
         if (macroNode.mayExit === false) meta.push("静态判断：循环可能不会退出");
         if ((macroNode.cases || []).length) meta.push(`分支：${macroNode.cases.map(item => item.label).join(" / ")}`);
-        if (macroNode.kind === "dispatch") meta.push(`候选：${Number(macroNode.candidateCount || 0)} · ${macroNode.candidateSetComplete ? "完整" : "未声明完整"}`);
+        if (macroNode.kind === "dispatch") {
+          meta.push(`候选：${Number(macroNode.candidateCount || 0)} · ${macroNode.candidateSetComplete ? "完整" : "未声明完整"}`);
+          meta.push(`来源：${dispatchSourceLabel(macroNode.candidateSource)}`);
+          if (macroNode.drilldown?.kind === "dispatch" && macroNode.drilldown?.status === "available") {
+            meta.push(`候选旅程：${Number(macroNode.drilldown.candidateScopeCount || 0)}`);
+          }
+        }
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || module?.color || "#60a5fa"}"><div class="detail-color"></div><div>
             <div class="eyebrow">Execution flow · ${escapeHtml(executionKindLabel(macroNode.kind))}</div>
             <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.label || macroNode.id)}</h2>
             <div class="detail-module">${escapeHtml(module?.name || macroNode.moduleName || macroNode.moduleId || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "主执行流节点")}</div>
-          <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId || "—")}</b></span>${macroNode.drilldown?.reason ? `<span>L1 来源 <b>${escapeHtml(drilldownReasonLabel(macroNode.drilldown.reason))}</b></span>` : ""}${macroNode.capabilityKind ? `<span>能力 <b>${escapeHtml(macroNode.capabilityKind)}</b></span>` : ""}${macroNode.usageKind ? `<span>用法 <b>${escapeHtml(macroNode.usageKind)}</b></span>` : ""}</div>
+          <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId || "—")}</b></span>${macroNode.drilldown?.reason ? `<span>${macroNode.kind === "dispatch" ? "下钻来源" : "L1 来源"} <b>${escapeHtml(drilldownReasonLabel(macroNode.drilldown.reason))}</b></span>` : ""}${macroNode.capabilityKind ? `<span>能力 <b>${escapeHtml(macroNode.capabilityKind)}</b></span>` : ""}${macroNode.usageKind ? `<span>用法 <b>${escapeHtml(macroNode.usageKind)}</b></span>` : ""}</div>
           ${macroNode.kind === "interface" ? `<div class="empty-hint">功能接口是模块暴露的能力边界，不在主流程中展开内部实现；请打开方法详情或模块能力页查看。</div>` : ""}
           ${meta.length ? `<div class="source-line">${meta.map(item => escapeHtml(item)).join("<br>")}</div>` : ""}
           ${executionArmSummaryDetailHtml(macroNode)}
@@ -896,7 +942,7 @@
           ${(macroNode.interfaceHints || []).length ? `<div class="class-method-section"><div class="class-method-heading">Helper 直接触达接口 · ${macroNode.interfaceHints.length}</div><div class="exec-interface-list">${macroNode.interfaceHints.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}</span>`).join("")}</div></div>` : ""}
           ${detail ? `<div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>` : ""}
           ${annotationBlock(targetId || uid, detail?.sourceHash)}
-          <div class="detail-actions">${macroNode.kind !== "interface" && macroNode.drilldown?.status === "available" ? `<button class="detail-action" type="button" data-open-flow-scope="${escapeHtml(macroNode.drilldown.scopeId)}">下钻接口视图 L1</button>` : ""}${targetId ? `<button class="detail-action" type="button" data-open-exec-method="${escapeHtml(targetId)}">打开源码 / 方法详情</button>` : ""}${module ? `<button class="detail-action" type="button" data-open-exec-module="${escapeHtml(module.id)}">打开模块页面</button>` : ""}</div>`;
+          <div class="detail-actions">${macroNode.kind === "dispatch" && macroNode.drilldown?.kind === "dispatch" && macroNode.drilldown?.status === "available" ? `<button class="detail-action" type="button" data-open-dispatch-detail="${escapeHtml(uid)}">打开候选旅程</button>` : ""}${macroNode.kind !== "interface" && macroNode.kind !== "dispatch" && macroNode.drilldown?.status === "available" ? `<button class="detail-action" type="button" data-open-flow-scope="${escapeHtml(macroNode.drilldown.scopeId)}">下钻接口视图 L1</button>` : ""}${targetId ? `<button class="detail-action" type="button" data-open-exec-method="${escapeHtml(targetId)}">打开源码 / 方法详情</button>` : ""}${module ? `<button class="detail-action" type="button" data-open-exec-module="${escapeHtml(module.id)}">打开模块页面</button>` : ""}</div>`;
         detailScroll.querySelector("[data-open-flow-scope]")?.addEventListener("click", () => {
           const flow = currentExecutionFlow();
           if (flow) navigate({ kind: "scope", flowId: flow.id, nodeId: uid });
@@ -910,6 +956,19 @@
             const target = functionDetailById.get(button.dataset.openExecCandidate);
             if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
           });
+        });
+        detailScroll.querySelectorAll("[data-open-dispatch-candidate]").forEach(button => {
+          button.addEventListener("click", () => {
+            navigate({
+              kind: "dispatch",
+              flowId: currentExecutionFlow()?.id,
+              nodeId: button.dataset.dispatchNode || uid,
+              candidateScopeId: button.dataset.openDispatchCandidate,
+            });
+          });
+        });
+        detailScroll.querySelector("[data-open-dispatch-detail]")?.addEventListener("click", () => {
+          navigate({ kind: "dispatch", flowId: currentExecutionFlow()?.id, nodeId: uid });
         });
         detailScroll.querySelector("[data-open-exec-module]")?.addEventListener("click", () => navigate({ kind: "module", moduleId: module.id }));
         return;
@@ -982,19 +1041,37 @@
   function currentExecutionFlow() {
     const flows = projectGraph.executionFlows || [];
     if (!flows.length) return null;
-    const routeFlowId = ["flow", "scope"].includes(state.route.kind) ? state.route.flowId : null;
+    const routeFlowId = ["flow", "scope", "dispatch"].includes(state.route.kind) ? state.route.flowId : null;
     const wanted = routeFlowId || state.executionFlowId || projectGraph.primaryExecutionFlowId;
     return flows.find(flow => flow.id === wanted) || flows.find(flow => flow.id === projectGraph.primaryExecutionFlowId) || flows[0];
   }
 
-  function currentExecutionScope() {
-    if (state.route.kind !== "scope") return null;
+  function currentExecutionDispatchGroup() {
+    if (state.route.kind !== "dispatch") return null;
     const flow = currentExecutionFlow();
     if (!flow) return null;
-    const wanted = [state.route.nodeId, state.executionScopeId].filter(Boolean);
-    return (flow.scopes || []).find(scope =>
-      wanted.includes(scope.id) || wanted.includes(scope.parentNodeId)
+    return (flow.dispatchGroups || []).find(group =>
+      group.id === state.route.dispatchGroupId || group.parentNodeId === state.route.nodeId
     ) || null;
+  }
+
+  function currentExecutionScope() {
+    const flow = currentExecutionFlow();
+    if (!flow) return null;
+    if (state.route.kind === "scope") {
+      const wanted = [state.route.nodeId, state.executionScopeId].filter(Boolean);
+      return (flow.scopes || []).find(scope =>
+        wanted.includes(scope.id) || wanted.includes(scope.parentNodeId)
+      ) || null;
+    }
+    if (state.route.kind === "dispatch") {
+      const group = currentExecutionDispatchGroup();
+      if (!group) return null;
+      return (group.scopes || []).find(scope => scope.id === state.route.candidateScopeId)
+        || (group.scopes || [])[0]
+        || null;
+    }
+    return null;
   }
 
   function executionFlowStorageId(flow) {
@@ -1108,6 +1185,29 @@
     });
   }
 
+  function renderDispatchPicker(group, selectedScope) {
+    const scopes = group.scopes || [];
+    flowPicker.classList.toggle("is-visible", scopes.length > 0);
+    if (!scopes.length) {
+      flowPicker.innerHTML = "";
+      return;
+    }
+    flowPicker.innerHTML = `<span>DISPATCH CANDIDATES</span>${scopes.map(scope => {
+      const detail = functionDetailById.get(scope.rootFunctionId);
+      const label = detail?.name || scope.rootFunctionId.split(".").pop();
+      return `<button type="button" data-candidate-pick="${escapeHtml(scope.id)}" class="${scope.id === selectedScope?.id ? "is-active" : ""}" title="${escapeHtml(scope.name || label)}">${escapeHtml(label)}</button>`;
+    }).join("")}`;
+    flowPicker.querySelectorAll("[data-candidate-pick]").forEach(button => {
+      button.addEventListener("click", () => navigate({
+        kind: "dispatch",
+        flowId: currentExecutionFlow()?.id,
+        nodeId: group.parentNodeId,
+        candidateScopeId: button.dataset.candidatePick,
+      }));
+    });
+  }
+
+
   function updateChrome(kind) {
     const module = state.route.moduleId ? projectModuleById.get(state.route.moduleId) : null;
     const detail = state.route.functionId ? functionDetailById.get(state.route.functionId) : null;
@@ -1137,6 +1237,15 @@
       canvasSub.textContent = "一级接口展开 · 外部模块能力节点与目标函数控制骨架 · 不递归展开 · 双击进入源码";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><button type="button" data-nav="flow">${escapeHtml(flow?.name || "主流程")}</button><span class="slash">/</span><b>${escapeHtml(scope?.name || "接口下钻")}</b>`;
       legend.innerHTML = legendItem("interface", "外部能力接口") + legendItem("function", "内部调用") + legendItem("line", "确定的控制/执行边");
+    } else if (kind === "dispatch") {
+      const flow = currentExecutionFlow();
+      const group = currentExecutionDispatchGroup();
+      const scope = currentExecutionScope();
+      canvasKicker.textContent = "Dispatch candidate journey";
+      canvasTitle.textContent = group?.expression || "候选旅程";
+      canvasSub.textContent = "dispatch 保持原子边界 · 候选以独立 callable scope 展开 · 不递归生成新候选旅程 · 双击进入源码";
+      breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><button type="button" data-nav="flow">${escapeHtml(flow?.name || "主流程")}</button><span class="slash">/</span><button type="button" data-nav="dispatch">${escapeHtml(group?.expression || "dispatch")}</button><span class="slash">/</span><b>${escapeHtml(scope?.name || "候选旅程")}</b>`;
+      legend.innerHTML = legendItem("dispatch", "分发边界") + legendItem("function", "候选步骤") + legendItem("interface", "外部能力接口") + legendItem("line", "确定的控制/执行边");
     } else if (kind === "module") {
       canvasKicker.textContent = "Module capability";
       canvasTitle.textContent = module?.name || state.route.moduleId;
@@ -1158,10 +1267,18 @@
       button.addEventListener("click", () => {
         if (button.dataset.nav === "project") navigate({ kind: "project" });
         if (button.dataset.nav === "flow") navigate({ kind: "flow", flowId: currentExecutionFlow()?.id });
+        if (button.dataset.nav === "dispatch") {
+          const group = currentExecutionDispatchGroup();
+          navigate({
+            kind: "dispatch",
+            flowId: currentExecutionFlow()?.id,
+            nodeId: group?.parentNodeId || state.route.nodeId,
+          });
+        }
         if (button.dataset.nav === "module") navigate({ kind: "module", moduleId: button.dataset.module });
       });
     });
-    $("pageHint").textContent = kind === "project" ? "项目页" : kind === "flow" ? "主流程页" : kind === "scope" ? "接口下钻" : kind === "module" ? "模块页" : "方法详情";
+    $("pageHint").textContent = kind === "project" ? "项目页" : kind === "flow" ? "主流程页" : kind === "scope" ? "接口下钻" : kind === "dispatch" ? "候选旅程" : kind === "module" ? "模块页" : "方法详情";
     searchWrap.classList.toggle("is-disabled", kind === "method");
     if (kind === "method") searchInput.value = "";
     backBtn.disabled = kind === "project" && history.length <= 1;
@@ -1445,7 +1562,23 @@
       configured_root: "显式配置",
       execution_only: "executionOnly",
       auto_orchestrator: "自动发现",
+      dispatch_candidates: "候选旅程",
+      candidate_set_incomplete: "候选不完整",
+      no_candidates: "无候选",
+      no_resolved_candidates: "无可用候选",
+      scope_budget_exhausted: "预算耗尽",
     }[reason] || String(reason || ""));
+  }
+
+  function dispatchSourceLabel(source) {
+    return ({
+      config: "配置声明",
+      comment: "源码注释",
+      argparse_registry: "argparse 推断",
+      static_registry: "静态 registry",
+      polymorphic: "多态候选",
+      unknown: "未解析来源",
+    }[source] || String(source || "未解析来源"));
   }
 
   function executionKindLabel(kind) {
@@ -1574,14 +1707,23 @@
     const pos = state.positions.get(nodeId);
     const kind = node.kind || "free_function";
     const flow = currentExecutionFlow();
-    const flowId = state.pageKind === "scope"
-      ? (state.executionScopeId || "scope")
+    const flowId = ["scope", "dispatch"].includes(state.pageKind)
+      ? (state.executionScopeId || state.pageKind)
       : executionFlowStorageId(flow);
     const targetId = node.targetFunctionId || (
       ["entry", "free_function", "interface", "dispatch"].includes(kind) ? node.functionId : null
     );
     const detail = targetId ? functionDetailById.get(targetId) : null;
     const noteText = node.note || detail?.note || "";
+    const dispatchCandidateNames = kind === "dispatch"
+      ? (node.candidates || []).slice(0, 3).map(candidateId => {
+          const candidateDetail = functionDetailById.get(candidateId);
+          return candidateDetail?.name || String(candidateId).split(".").pop();
+        })
+      : [];
+    const dispatchCandidatePreview = dispatchCandidateNames.length
+      ? `${dispatchCandidateNames.join(" / ")}${(node.candidates || []).length > dispatchCandidateNames.length ? ` / +${(node.candidates || []).length - dispatchCandidateNames.length}` : ""}`
+      : "";
     const icon = ({
       entry: "▶", exit: "■", free_function: "ƒ", interface: "I",
       branch: "◇", multi_branch: "⑂", loop: "↻", break: "↩",
@@ -1595,13 +1737,21 @@
     if (kind === "free_function" && node.callableKind) {
       meta.push(node.callableKind === "method" ? `方法 · ${node.ownerClassName || ""}`.trim() : "函数");
     }
-    if (kind === "dispatch") meta.push(`${Number(node.candidateCount || 0)} candidates · ${node.candidateSetComplete ? "complete" : "partial"}`);
+    if (kind === "dispatch") {
+      meta.push(`候选 ${Number(node.candidateCount || 0)} · ${node.candidateSetComplete ? "完整" : "部分"} · ${dispatchSourceLabel(node.candidateSource)}`);
+    }
     if (kind === "loop" && node.mayExit === false) meta.push("可能不退出");
     if (node.usageKind) meta.push(node.usageKind);
     const foot = [];
     if (kind === "dispatch") {
-      foot.push(`low confidence`);
-      foot.push(`candidateSetComplete: ${node.candidateSetComplete ? "true" : "false"}`);
+      foot.push(`来源：${dispatchSourceLabel(node.candidateSource)}`);
+      if (node.drilldown?.kind === "dispatch" && node.drilldown?.status === "available") {
+        foot.push(`候选旅程：${Number(node.drilldown.candidateScopeCount || 0)}`);
+      } else if (node.drilldown?.kind === "dispatch" && node.drilldown?.status === "blocked") {
+        foot.push(drilldownReasonLabel(node.drilldown.reason));
+      } else {
+        foot.push(`完整性：${node.candidateSetComplete ? "complete" : "partial"}`);
+      }
     }
     if (kind === "loop") {
       foot.push(`loopKind: ${node.loopKind || "loop"}`);
@@ -1631,16 +1781,22 @@
           ${executionArmSummaryHtml(node)}
           ${node.kind !== "interface" && (node.drilldown?.interfaceSummary || []).length ? `<div class="exec-node-interface-hint">外部接口 ${node.drilldown.interfaceSummary.length} · ${node.drilldown.interfaceSummary.slice(0, 2).map(item => escapeHtml(item.label)).join(" / ")}</div>` : ""}
           ${(node.interfaceHints || []).length ? `<div class="exec-node-interface-hint">触达 ${node.interfaceHints.length} 个接口 · ${node.interfaceHints.slice(0, 2).map(item => escapeHtml(item.label)).join(" / ")}</div>` : ""}
+          ${dispatchCandidatePreview ? `<div class="exec-node-interface-hint" title="${escapeHtml(dispatchCandidatePreview)}">候选：${escapeHtml(dispatchCandidatePreview)}</div>` : ""}
         </div>
         ${executionPortGrid(node, pos)}
         ${foot.length ? `<div class="exec-foot">${foot.map(item => `<span class="exec-pill">${escapeHtml(item)}</span>`).join("")}</div>` : ""}
-        ${node.kind !== "interface" && node.drilldown?.status === "available" ? `<button class="exec-drilldown-l1${node.drilldown.reason === "auto_orchestrator" ? " is-auto" : ""}" type="button" data-drilldown-node="${escapeHtml(nodeId)}" title="${escapeHtml(drilldownReasonLabel(node.drilldown.reason))}">L1 · ${node.drilldown.interfaceSummary?.length || 0} 接口${node.drilldown.reason === "auto_orchestrator" ? " · 自动" : ""}</button>` : ""}
+        ${node.kind === "dispatch" && node.drilldown?.kind === "dispatch" && node.drilldown?.status === "available" ? `<button class="exec-drilldown-l1" type="button" data-open-dispatch-group="${escapeHtml(nodeId)}" title="打开候选旅程">候选旅程 · ${Number(node.drilldown.candidateScopeCount || 0)}</button>` : ""}
+        ${node.kind !== "interface" && node.kind !== "dispatch" && node.drilldown?.status === "available" ? `<button class="exec-drilldown-l1${node.drilldown.reason === "auto_orchestrator" ? " is-auto" : ""}" type="button" data-drilldown-node="${escapeHtml(nodeId)}" title="${escapeHtml(drilldownReasonLabel(node.drilldown.reason))}">L1 · ${node.drilldown.interfaceSummary?.length || 0} 接口${node.drilldown.reason === "auto_orchestrator" ? " · 自动" : ""}</button>` : ""}
       </div>`;
     world.appendChild(element);
     bindNodeHover(element, nodeId);
     element.querySelector("[data-drilldown-node]")?.addEventListener("click", event => {
       event.stopPropagation();
       navigate({ kind: "scope", flowId: currentExecutionFlow()?.id, nodeId });
+    });
+    element.querySelector("[data-open-dispatch-group]")?.addEventListener("click", event => {
+      event.stopPropagation();
+      navigate({ kind: "dispatch", flowId: currentExecutionFlow()?.id, nodeId });
     });
     element.addEventListener("click", event => {
       event.stopPropagation();
@@ -1663,8 +1819,10 @@
     });
   }
 
-  function renderFlowPage(flowId = null, scopeNodeId = null) {
-    state.pageKind = scopeNodeId ? "scope" : "flow";
+  function renderFlowPage(
+    flowId = null, scopeNodeId = null, dispatchNodeId = null, candidateScopeId = null
+  ) {
+    state.pageKind = scopeNodeId ? "scope" : dispatchNodeId ? "dispatch" : "flow";
     state.functionId = null;
     viewport.classList.remove("is-light");
     viewport.classList.remove("is-detail");
@@ -1700,6 +1858,32 @@
       state.moduleId = flow.moduleId;
       flowPicker.classList.remove("is-visible");
       updateChrome("scope");
+      const graph = moduleGraphById.get(flow.moduleId) || { color: "#f59e0b" };
+      renderExecutionFlowPage(flow.moduleId, graph);
+      return;
+    }
+    if (dispatchNodeId) {
+      const group = (flow.dispatchGroups || []).find(item => item.parentNodeId === dispatchNodeId);
+      if (!group || !(group.scopes || []).length) {
+        navigate({ kind: "flow", flowId: flow.id }, false);
+        showToast("该 dispatch 节点没有可用的候选旅程");
+        return;
+      }
+      const candidateScope = (group.scopes || []).find(item => item.id === candidateScopeId)
+        || (group.scopes || [])[0];
+      state.route = {
+        kind: "dispatch",
+        flowId: flow.id,
+        nodeId: dispatchNodeId,
+        candidateScopeId: candidateScope.id,
+      };
+      const expectedHash = routeHash(state.route);
+      if (location.hash !== expectedHash) history.replaceState(state.route, "", expectedHash);
+      state.executionFlowId = flow.id;
+      state.executionScopeId = candidateScope.id;
+      state.moduleId = flow.moduleId;
+      updateChrome("dispatch");
+      renderDispatchPicker(group, candidateScope);
       const graph = moduleGraphById.get(flow.moduleId) || { color: "#f59e0b" };
       renderExecutionFlowPage(flow.moduleId, graph);
       return;
@@ -2093,6 +2277,9 @@
     else if (route.kind === "module") renderModulePage(route.moduleId);
     else if (route.kind === "flow") renderFlowPage(route.flowId);
     else if (route.kind === "scope") renderFlowPage(route.flowId, route.nodeId);
+    else if (route.kind === "dispatch") {
+      renderFlowPage(route.flowId, null, route.nodeId, route.candidateScopeId);
+    }
     else renderProjectPage();
   }
 
@@ -2118,7 +2305,7 @@
         ].join(" ").toLowerCase();
         world.querySelector(`.module-node[data-uid="${cssEscape(uid)}"]`)?.classList.toggle("is-search-dim", !haystack.includes(query));
       });
-    } else if (state.pageKind === "flow" || state.pageKind === "scope") {
+    } else if (state.pageKind === "flow" || state.pageKind === "scope" || state.pageKind === "dispatch") {
       state.nodes.forEach((node, uid) => {
         const haystack = [node.label, node.note, node.condition, node.loopKind, node.iterable, node.loopVariable, node.moduleName, node.capabilityKind, node.usageKind, node.expression, node.callableKind, node.ownerClassName]
           .filter(Boolean).join(" ").toLowerCase();

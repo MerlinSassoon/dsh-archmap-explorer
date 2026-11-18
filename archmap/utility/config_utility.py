@@ -11,6 +11,7 @@ from ..config.project_config import (
     DEFAULT_EXCLUDES,
     DEFAULT_INTERNAL_API_TAGS,
     DEFAULT_PUBLIC_API_TAGS,
+    DispatchCandidateConfig,
     DispatchHint,
     FlowScopeConfig,
     ModuleConfig,
@@ -224,6 +225,57 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         flow_scopes.max_nodes_per_scope = _positive_int("maxNodesPerScope", 24, 80)
         flow_scopes.max_edges_per_scope = _positive_int("maxEdgesPerScope", 32, 120)
 
+    dispatch_candidates_raw = raw.get("dispatchCandidates")
+    dispatch_candidates = DispatchCandidateConfig()
+    if isinstance(dispatch_candidates_raw, dict):
+        dispatch_candidates.enabled = bool(dispatch_candidates_raw.get("enabled", False))
+        dispatch_candidates.complete_only = bool(
+            dispatch_candidates_raw.get("completeOnly", True)
+        )
+
+        def _dispatch_positive_int(name: str, fallback: int, maximum: int) -> int:
+            value = dispatch_candidates_raw.get(name, fallback)
+            try:
+                parsed = int(value)
+            except (TypeError, ValueError):
+                parsed = fallback
+                config_diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "DISPATCH_CANDIDATE_LIMIT_INVALID",
+                        "message": (
+                            f"dispatchCandidates.{name}={value!r} is invalid; "
+                            f"falling back to {fallback}"
+                        ),
+                    }
+                )
+            if parsed < 1:
+                config_diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "DISPATCH_CANDIDATE_LIMIT_INVALID",
+                        "message": (
+                            f"dispatchCandidates.{name}={parsed} must be positive; "
+                            f"falling back to {fallback}"
+                        ),
+                    }
+                )
+                parsed = fallback
+            return min(parsed, maximum)
+
+        dispatch_candidates.max_scopes_per_dispatch = _dispatch_positive_int(
+            "maxScopesPerDispatch", 16, 40
+        )
+        dispatch_candidates.max_scopes_per_flow = _dispatch_positive_int(
+            "maxScopesPerFlow", 32, 100
+        )
+        dispatch_candidates.max_nodes_per_scope = _dispatch_positive_int(
+            "maxNodesPerScope", 24, 80
+        )
+        dispatch_candidates.max_edges_per_scope = _dispatch_positive_int(
+            "maxEdgesPerScope", 32, 120
+        )
+
     limits = raw.get("limits") if isinstance(raw.get("limits"), dict) else {}
     return ProjectConfig(
         root=root,
@@ -236,6 +288,7 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         execution_entrypoints=execution_entrypoints,
         dispatch_hints=dispatch_hints,
         flow_scopes=flow_scopes,
+        dispatch_candidates=dispatch_candidates,
         config_diagnostics=config_diagnostics,
         max_functions=int(limits.get("maxFunctions", 2000)),
         max_steps=int(limits.get("maxStepsPerFunction", 300)),

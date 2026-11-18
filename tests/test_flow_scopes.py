@@ -42,7 +42,7 @@ def test_student_flow_scopes_drill_into_server_and_client() -> None:
     """Student server/client expose one-level module interfaces without recursion."""
 
     bundle = _student_bundle()
-    assert bundle["schemaVersion"] == "6.3"
+    assert bundle["schemaVersion"] == "6.4"
     assert bundle["stats"]["flowScopes"] == 2
     issues = validate_bundle(bundle)
     assert not [issue for issue in issues if issue["severity"] == "error"]
@@ -190,7 +190,7 @@ def test_flow_scope_config_clamps_invalid_limits(tmp_path: Path) -> None:
     assert "FLOW_SCOPE_LIMIT_INVALID" in codes
 
 
-def test_flow_scope_bundles_match_schema_6_3() -> None:
+def test_flow_scope_bundles_match_schema_6_4() -> None:
     """Student and gomoku scope projections satisfy the published schema."""
 
     import json
@@ -199,7 +199,7 @@ def test_flow_scope_bundles_match_schema_6_3() -> None:
 
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.loads(
-        (ROOT / "docs" / "schema" / "archmap-v6.3-bundle.schema.json").read_text(
+        (ROOT / "docs" / "schema" / "archmap-v6.4-bundle.schema.json").read_text(
             encoding="utf-8"
         )
     )

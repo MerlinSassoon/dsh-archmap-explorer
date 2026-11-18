@@ -1,7 +1,7 @@
 # ArchMap 规范化项目配置生成指南
 
 > 状态：P9 当前配置指南<br>
-> 版本：ArchMap 2.4.0 / bundle schema 6.3<br>
+> 版本：ArchMap 2.5.0 / bundle schema 6.4<br>
 > 日期：2026-11-19<br>
 > 适用范围：为 Python 项目生成或维护 `archmap` 配置的人员、脚本与 LLM
 >
@@ -407,6 +407,31 @@ flow card 由 `executionFlows` 派生：
 
 迁移期可以继续读取 `mainFlow.dispatches`，但新配置生成器不应继续输出旧字段。
 
+### 4.5.1 dispatch 候选旅程
+
+P11 起可用 `dispatchCandidates` 把完整 dispatch 候选投影为独立候选旅程：
+
+```json
+"dispatchCandidates": {
+  "enabled": true,
+  "completeOnly": true,
+  "maxScopesPerDispatch": 16,
+  "maxScopesPerFlow": 32,
+  "maxNodesPerScope": 24,
+  "maxEdgesPerScope": 32
+}
+```
+
+规则：
+
+- 默认关闭，避免所有项目无条件生成候选 scope；
+- dispatch 节点保持原子路由边界，主流程 `edges` 不新增候选控制边；
+- 每个候选以真实 `free_function` 为 root 生成 depth=1 scope；
+- `completeOnly=true` 时只接受 `candidateSetComplete=true` 的候选集合；
+- 候选 scope 内不递归生成 dispatch group；
+- 预算截断写入 `dispatchGroups[].diagnostics` 和 `omittedCandidateIds`；
+- 路由为 `#/flow/<flowId>/dispatch/<nodeId>/candidate/<candidateScopeId>`。
+
 ### 4.6 执行流专属 callable
 
 当某个 callable 属于模块源码边界，但只作为执行流入口或流程内部编排单元时，使用模块级显式配置：
@@ -669,7 +694,7 @@ python3 -m archmap check <output>/architecture.json
 
 数据检查：
 
-- `schemaVersion == "6.3"`；
+- `schemaVersion == "6.4"`；
 - `stats.providerRoles` 只有七角色；
 - 不存在 `providerRole == "entry"`；
 - 每个 `executionFlow` 恰好一个 `entry` 节点；
@@ -871,6 +896,7 @@ rendering
   + 空能力模块后端保留、前端隐藏
   + 保守自由函数推断 + 模块默认自由函数面 + 少量显式例外
   + 一级 flowScopes 接口下钻（显式 roots、executionOnly、本地编排自动发现、预算与诊断）
+  + dispatch 候选旅程（dispatchGroups、候选 free_function scope、完整性/来源、预算）
 ```
 
 ## 13. P10 接口 scope 配置
@@ -927,3 +953,15 @@ P10 起可在配置中声明一级接口 scope：
 - scope 视图与主流程分离，路由为 `#/flow/<flowId>/scope/<nodeId>`；
 - scope 深度硬限制为 1，预算截断进入 scope diagnostics；
 - student_system 与 gomoku 样例配置已启用 scope roots。
+
+
+## 16. P11 实现记录
+
+- bundle schema 升级为 6.4；
+- `projectGraph.executionFlows[].dispatchGroups[]` 新增 dispatch 候选分组；
+- dispatch 节点新增 `drilldown.kind=dispatch` 与 `dispatchGroupId`；
+- 候选 scope 复用 `archmap.execution-scope`，新增 `origin=dispatch_candidate` 与 `candidateSource`；
+- 新增 `dispatchCandidates` 配置：enabled / completeOnly / maxScopesPerDispatch / maxScopesPerFlow / maxNodesPerScope / maxEdgesPerScope；
+- 主流程画布不生成候选控制边，候选 scope 内不递归下钻；
+- 前端新增候选旅程路由、候选 Tab、来源/完整性展示和 Hash 刷新恢复；
+- validator 新增 dispatch group parent/link、candidate coverage、origin/depth、嵌套禁令和 scope 交叉引用校验。

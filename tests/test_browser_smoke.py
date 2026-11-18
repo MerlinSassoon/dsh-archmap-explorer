@@ -485,6 +485,51 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.main-flow-node, [data-main-view]').length") == 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
+        # P11: dispatch remains atomic in the main flow, while complete
+        # candidates open as independent candidate journeys.
+        dispatch_config = json.loads(
+            (DISPATCH_ROOT / "archmap.config.json").read_text(encoding="utf-8")
+        )
+        dispatch_config["dispatchHints"] = [
+            {
+                "function": "app.main:main",
+                "expression": "handlers[mode]",
+                "candidates": ["app.main:handler_a", "app.main:handler_b"],
+                "complete": True,
+                "reason": "config",
+            }
+        ]
+        dispatch_config["dispatchCandidates"] = {
+            "enabled": True,
+            "completeOnly": True,
+        }
+        dispatch_config_path = browser_dir / "dispatch-candidates.config.json"
+        dispatch_config_path.write_text(
+            json.dumps(dispatch_config, ensure_ascii=False), encoding="utf-8"
+        )
+        candidate_bundle = build_architecture(DISPATCH_ROOT, dispatch_config_path)
+        candidate_html = browser_dir / "dispatch-candidates.html"
+        candidate_html.write_text(render_html(candidate_bundle), encoding="utf-8")
+        request("POST", f"/session/{session}/url", {"url": f"{candidate_html.resolve().as_uri()}#/flow"})
+        time.sleep(.6)
+        assert execute("return document.querySelectorAll('.execution-node.kind-dispatch').length") == 1
+        assert execute("return document.querySelectorAll('[data-open-dispatch-group]').length") == 1
+        assert execute("return document.querySelector('.execution-node.kind-dispatch .exec-node-interface-hint')?.textContent.includes('handler_a')") is True
+        execute("document.querySelector('[data-open-dispatch-group]').click(); return true")
+        time.sleep(.5)
+        assert execute("return window.location.hash.includes('/dispatch/')") is True
+        assert execute("return document.querySelectorAll('[data-candidate-pick]').length") == 2
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        execute("document.querySelectorAll('[data-candidate-pick]')[1].click(); return true")
+        time.sleep(.4)
+        assert execute("return document.querySelectorAll('[data-candidate-pick].is-active').length") == 1
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        execute("location.reload(); return true")
+        time.sleep(.8)
+        assert execute("return document.querySelectorAll('[data-candidate-pick]').length") == 2
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+
         # P3: inheritance/implements remain visible on the module capability page.
         inheritance_bundle = build_architecture(INHERITANCE_ROOT)
         inheritance_html = browser_dir / "inheritance-flow.html"

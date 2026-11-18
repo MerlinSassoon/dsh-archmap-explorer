@@ -1,7 +1,7 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：P5 首版已实现；P5.1-P5.5 已完成。P10 当前 schema 6.3：保留标准 flow `entry` 节点，主流程调用目标保持原子化；一级接口 scope 通过独立聚焦视图展示，不在主画布递归展开。<br>
-> 版本：ArchMap 2.4.0（P5 历史 schema 4.1；P10 当前 schema 6.3）<br>
+> 状态：P5 首版已实现；P5.1-P5.5 已完成。P11 当前 schema 6.4：保留标准 flow `entry` 节点，主流程调用目标保持原子化；一级接口 scope 与 dispatch 候选 scope 通过独立聚焦视图展示，不在主画布递归展开。<br>
+> 版本：ArchMap 2.5.0（P5 历史 schema 4.1；P11 当前 schema 6.4）<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
 
@@ -245,7 +245,8 @@ unresolvedReason
 - 用于动态调用或多态候选；
 - 保存候选数量、候选来源、完整性和未解析原因；
 - 不把候选强制展开为执行分支；
-- 后续执行流通过 `next` 继续。
+- 后续执行流通过 `next` 继续；
+- P11 起完整候选可在 `dispatchGroups[]` 中生成独立候选 scope，但主流程 `edges` 不新增 `dispatch -> candidate` 控制边。
 
 #### 汇入（不是节点）
 
@@ -369,7 +370,7 @@ BREAK 是循环体内终止标记，无出边。
 
 ## 9. 数据契约
 
-P10 当前 bundle schema 为 6.3，JSON Schema 位于 [`docs/schema/archmap-v6.3-bundle.schema.json`](schema/archmap-v6.3-bundle.schema.json)。6.2 / 6.1 / 6.0 与 P5 的 4.1 schema 保留供历史追溯。
+P11 当前 bundle schema 为 6.4，JSON Schema 位于 [`docs/schema/archmap-v6.4-bundle.schema.json`](schema/archmap-v6.4-bundle.schema.json)。6.3 / 6.2 / 6.1 / 6.0 与 P5 的 4.1 schema 保留供历史追溯。
 
 新增：
 
@@ -454,7 +455,7 @@ terminalKind
 }
 ```
 
-schema 6.3 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
+schema 6.4 中 `executionEdge.kind` 仅允许：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`。
 
 ### 9.4 统计
 
@@ -607,7 +608,7 @@ tests/test_execution_flow.py
 
 ## 13. 验收标准
 
-- schema 6.3 通过校验；
+- schema 6.4 通过校验；
 - `mainFlows` 不再存在；
 - 项目页标准流程卡片、独立主流程页与统一模块能力页通过浏览器冒烟；
 - student_system 执行流满足第 8 节快照；

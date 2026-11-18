@@ -554,6 +554,10 @@ model/config：数据和参数
     }
   ],
   "dispatchHints": [],
+  "dispatchCandidates": {
+    "enabled": false,
+    "completeOnly": true
+  },
   "contract": {}
 }
 ```
@@ -586,7 +590,8 @@ model/config：数据和参数
 - 无法消除时再配置；
 - 候选集不完整时必须明确标记；
 - 不得伪造完整候选集；
-- 不得在 UI 或配置层强行把未解析调用变成确定边。
+- 不得在 UI 或配置层强行把未解析调用变成确定边；
+- 需要把完整 dispatch 候选展开为可浏览旅程时，使用 `dispatchCandidates`，但主流程控制边仍保持原子。
 
 ### 8.4 配置禁区
 
@@ -856,6 +861,7 @@ python3 -m archmap check <output>/architecture.json
 - [ ] 流程入口和流程内部编排单元正确标记为 executionOnly。
 - [ ] 关键调用尽量静态可解析。
 - [ ] 动态分发有 `dispatchHints` 和完整性标记。
+- [ ] 如启用 `dispatchCandidates`，只对完整集合生成候选旅程，并设置预算。
 
 ### 代码质量
 

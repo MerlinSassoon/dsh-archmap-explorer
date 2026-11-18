@@ -120,5 +120,13 @@
       "complete": true,
       "reason": "argparse_dispatch"
     }
-  ]
+  ],
+  "dispatchCandidates": {
+    "enabled": true,
+    "completeOnly": true,
+    "maxScopesPerDispatch": 16,
+    "maxScopesPerFlow": 32,
+    "maxNodesPerScope": 24,
+    "maxEdgesPerScope": 32
+  }
 }

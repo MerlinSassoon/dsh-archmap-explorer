@@ -71,6 +71,24 @@ class FlowScopeConfig:
 
 
 @dataclass
+class DispatchCandidateConfig:
+    """Configuration for one-level dispatch candidate journey scopes.
+
+    A dispatch node remains a router boundary in the main execution flow.
+    Each resolved candidate can be projected as an independent callable scope
+    under the dispatch group.  The feature is opt-in because it multiplies
+    the number of execution projections in the bundle.
+    """
+
+    enabled: bool = False
+    complete_only: bool = True
+    max_scopes_per_dispatch: int = 16
+    max_scopes_per_flow: int = 32
+    max_nodes_per_scope: int = 24
+    max_edges_per_scope: int = 32
+
+
+@dataclass
 class DispatchHint:
     """Declared candidate set for one dynamic dispatch site."""
 
@@ -94,6 +112,9 @@ class ProjectConfig:
     execution_entrypoints: list[str] = field(default_factory=list)
     dispatch_hints: list[DispatchHint] = field(default_factory=list)
     flow_scopes: FlowScopeConfig = field(default_factory=FlowScopeConfig)
+    dispatch_candidates: DispatchCandidateConfig = field(
+        default_factory=DispatchCandidateConfig
+    )
     config_diagnostics: list[dict[str, Any]] = field(default_factory=list)
     max_functions: int = 2000
     max_steps: int = 300

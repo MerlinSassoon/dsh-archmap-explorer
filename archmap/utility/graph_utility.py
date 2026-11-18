@@ -1251,6 +1251,32 @@ def build_bundle(
             for flow in execution_flows
             for scope in flow.get("scopes", [])
         ),
+        "dispatchGroups": sum(
+            len(flow.get("dispatchGroups", [])) for flow in execution_flows
+        ),
+        "dispatchCandidateScopes": sum(
+            len(group.get("scopes", []))
+            for flow in execution_flows
+            for group in flow.get("dispatchGroups", [])
+        ),
+        "dispatchScopeNodes": sum(
+            len(scope.get("nodes", []))
+            for flow in execution_flows
+            for group in flow.get("dispatchGroups", [])
+            for scope in group.get("scopes", [])
+        ),
+        "dispatchScopeEdges": sum(
+            len(scope.get("edges", []))
+            for flow in execution_flows
+            for group in flow.get("dispatchGroups", [])
+            for scope in group.get("scopes", [])
+        ),
+        "dispatchScopeTruncated": sum(
+            1
+            for flow in execution_flows
+            for group in flow.get("dispatchGroups", [])
+            if group.get("truncated")
+        ),
         "typeRelations": len(contract_model.class_relations),
         "structuralRelations": sum(
             1 for relation in contract_model.class_relations
@@ -1280,7 +1306,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "6.3",
+        "schemaVersion": "6.4",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,
@@ -1379,9 +1405,15 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                     "armSummaries": node.get("armSummaries", {}),
                                     "implicitNext": node.get("implicitNext"),
                                     "drilldown": {
+                                        "kind": (node.get("drilldown") or {}).get("kind"),
                                         "scopeId": (node.get("drilldown") or {}).get("scopeId"),
+                                        "dispatchGroupId": (node.get("drilldown") or {}).get("dispatchGroupId"),
                                         "reason": (node.get("drilldown") or {}).get("reason"),
                                         "autoDetected": (node.get("drilldown") or {}).get("autoDetected"),
+                                        "candidateSource": (node.get("drilldown") or {}).get("candidateSource"),
+                                        "candidateSetComplete": (node.get("drilldown") or {}).get("candidateSetComplete"),
+                                        "candidateCount": (node.get("drilldown") or {}).get("candidateCount"),
+                                        "candidateScopeCount": (node.get("drilldown") or {}).get("candidateScopeCount"),
                                     } if node.get("drilldown") else None,
                                 }
                                 for node in flow.get("nodes", [])
@@ -1449,6 +1481,76 @@ def semantic_fingerprint(bundle: dict[str, Any]) -> str:
                                     "interfaceSummary": scope.get("interfaceSummary", []),
                                 }
                                 for scope in flow.get("scopes", [])
+                            ],
+                            key=lambda item: item["id"] or "",
+                        ),
+                        "dispatchGroups": sorted(
+                            [
+                                {
+                                    "id": group.get("id"),
+                                    "parentNodeId": group.get("parentNodeId"),
+                                    "candidateSource": group.get("candidateSource"),
+                                    "candidateSetComplete": group.get("candidateSetComplete"),
+                                    "candidateIds": sorted(group.get("candidateIds", [])),
+                                    "scopeIds": sorted(group.get("scopeIds", [])),
+                                    "omittedCandidateIds": sorted(
+                                        group.get("omittedCandidateIds", [])
+                                    ),
+                                    "truncated": group.get("truncated"),
+                                    "scopes": sorted(
+                                        [
+                                            {
+                                                "id": scope.get("id"),
+                                                "parentNodeId": scope.get("parentNodeId"),
+                                                "rootFunctionId": scope.get("rootFunctionId"),
+                                                "origin": scope.get("origin"),
+                                                "candidateSource": scope.get("candidateSource"),
+                                                "depth": scope.get("depth"),
+                                                "truncated": scope.get("truncated"),
+                                                "nodes": sorted(
+                                                    [
+                                                        {
+                                                            "id": node.get("id"),
+                                                            "kind": node.get("kind"),
+                                                            "functionId": node.get("functionId"),
+                                                            "targetFunctionId": node.get("targetFunctionId"),
+                                                            "capabilityId": node.get("capabilityId"),
+                                                            "moduleId": node.get("moduleId"),
+                                                            "label": node.get("label"),
+                                                            "candidateCount": node.get("candidateCount"),
+                                                            "candidateSetComplete": node.get("candidateSetComplete"),
+                                                            "candidateSource": node.get("candidateSource"),
+                                                            "armSummaries": node.get("armSummaries", {}),
+                                                            "implicitNext": node.get("implicitNext"),
+                                                        }
+                                                        for node in scope.get("nodes", [])
+                                                    ],
+                                                    key=lambda item: item["id"] or "",
+                                                ),
+                                                "edges": sorted(
+                                                    [
+                                                        {
+                                                            "from": edge.get("from"),
+                                                            "to": edge.get("to"),
+                                                            "kind": edge.get("kind"),
+                                                            "label": edge.get("label"),
+                                                            "statements": edge.get("statements", []),
+                                                            "statementLines": edge.get("statementLines", []),
+                                                        }
+                                                        for edge in scope.get("edges", [])
+                                                    ],
+                                                    key=lambda item: (
+                                                        item["from"], item["to"], item["kind"], item["label"] or ""
+                                                    ),
+                                                ),
+                                                "interfaceSummary": scope.get("interfaceSummary", []),
+                                            }
+                                            for scope in group.get("scopes", [])
+                                        ],
+                                        key=lambda item: item["id"] or "",
+                                    ),
+                                }
+                                for group in flow.get("dispatchGroups", [])
                             ],
                             key=lambda item: item["id"] or "",
                         ),

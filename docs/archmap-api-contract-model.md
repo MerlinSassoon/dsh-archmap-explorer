@@ -1,6 +1,6 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1-P10 已实现（当前 bundle schema 6.3）<br>
+> 状态：P2.1-P11 已实现（当前 bundle schema 6.4）<br>
 > 日期：2026-11-19<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 
@@ -139,7 +139,7 @@ config.providerRoles 显式覆盖
 
 `FunctionInfo` 属于 `model`；`ProjectConfig` / `ModuleConfig` 属于 `config`；`CallResolver` / `PythonFrontend` / `MenuSystem` / `Database` 属于 `manager`。
 
-P7 后入口状态由项目级 entrypoints / execution flow 承担，不修改 Provider Role。execution flow 使用标准 `entry` 节点和原子 callable/interface 节点；动态分发候选只保留在 dispatch 节点详情中。
+P7 后入口状态由项目级 entrypoints / execution flow 承担，不修改 Provider Role。execution flow 使用标准 `entry` 节点和原子 callable/interface 节点；动态分发候选保留在 dispatch 节点详情中；P11 可将完整候选投影为独立候选 scope。
 
 P9 增加 `defaultFreeFunctionSurface`：模块级自由函数默认采用保守能力边界，`auto` 仅在显式公开 API 或跨模块调用等强证据下进入能力面；`internal` / `capability` 可声明模块默认面，单函数继续用 `apiExposure` 例外。自由函数 FunctionDetail 输出 `functionSurface` / `functionSurfaceSource`。
 

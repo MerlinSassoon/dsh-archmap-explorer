@@ -11,7 +11,7 @@ import hashlib
 from collections import defaultdict
 from typing import Any, Iterable
 
-from ..config.project_config import DispatchHint
+from ..config.project_config import DispatchCandidateConfig, DispatchHint
 from ..frontends.python.execution_utility import build_entry_execution_skeleton
 from ..model.analysis_model import AnalysisResult
 from ..model.call_model import CallSite
@@ -422,27 +422,31 @@ def _scope_root_reason(
     return None
 
 
-def _build_scope_payload(
+def _build_callable_scope_payload(
     *,
     analysis: AnalysisResult,
     call_sites: list[CallSite],
-    flow: dict[str, Any],
     node: dict[str, Any],
     target,
+    scope_id: str,
+    scope_key: str,
+    name: str,
     reason: str,
-    scope_index: int,
+    origin: str | None,
+    candidate_source: str | None,
     resolver,
     module_meta: dict[str, dict[str, Any]],
     max_nodes: int,
     max_edges: int,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Build one scope payload for a resolved free-function root."""
+    """Build one depth-1 callable scope payload shared by callers.
 
-    digest = hashlib.sha1(
-        f"{flow.get('id')}:{node.get('id')}:{target.id}".encode("utf-8")
-    ).hexdigest()[:10]
-    scope_id = f"scope:{flow.get('id')}:{scope_index}:{digest}"
-    scope_key = f"{flow.get('id')}:scope{scope_index}:{digest}"
+    Interface scopes under ``flow.scopes`` and dispatch candidate scopes under
+    ``flow.dispatchGroups[].scopes`` share the same bounded execution skeleton
+    machinery.  Keeping this projection in one place prevents the two contract
+    variants from drifting apart.
+    """
+
     skeleton = build_entry_execution_skeleton(
         analysis,
         call_sites,
@@ -493,7 +497,7 @@ def _build_scope_payload(
         "moduleId": target.module_id,
         "depth": 1,
         "entrypointId": target.id,
-        "name": f"{target.name}() 接口",
+        "name": name,
         "reason": reason,
         "autoDetected": reason == "auto_orchestrator",
         "nodes": scope_nodes,
@@ -516,7 +520,50 @@ def _build_scope_payload(
         "diagnostics": scope_diagnostics,
         "interfaceSummary": interface_summary,
     }
+    if origin:
+        scope["origin"] = origin
+    if candidate_source:
+        scope["candidateSource"] = candidate_source
     return scope, scope_diagnostics
+
+
+def _build_scope_payload(
+    *,
+    analysis: AnalysisResult,
+    call_sites: list[CallSite],
+    flow: dict[str, Any],
+    node: dict[str, Any],
+    target,
+    reason: str,
+    scope_index: int,
+    resolver,
+    module_meta: dict[str, dict[str, Any]],
+    max_nodes: int,
+    max_edges: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Build one interface scope payload for a resolved free-function root."""
+
+    digest = hashlib.sha1(
+        f"{flow.get('id')}:{node.get('id')}:{target.id}".encode("utf-8")
+    ).hexdigest()[:10]
+    scope_id = f"scope:{flow.get('id')}:{scope_index}:{digest}"
+    scope_key = f"{flow.get('id')}:scope{scope_index}:{digest}"
+    return _build_callable_scope_payload(
+        analysis=analysis,
+        call_sites=call_sites,
+        node=node,
+        target=target,
+        scope_id=scope_id,
+        scope_key=scope_key,
+        name=f"{target.name}() 接口",
+        reason=reason,
+        origin=None,
+        candidate_source=None,
+        resolver=resolver,
+        module_meta=module_meta,
+        max_nodes=max_nodes,
+        max_edges=max_edges,
+    )
 
 
 def _scope_control_node_count(scope: dict[str, Any]) -> int:
@@ -713,6 +760,284 @@ def _build_flow_scopes(
         )
     return scopes, diagnostics
 
+def _build_dispatch_candidate_scope_payload(
+    *,
+    analysis: AnalysisResult,
+    call_sites: list[CallSite],
+    flow: dict[str, Any],
+    node: dict[str, Any],
+    target,
+    candidate_source: str,
+    scope_index: int,
+    resolver,
+    module_meta: dict[str, dict[str, Any]],
+    max_nodes: int,
+    max_edges: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Build one depth-1 scope for a dispatch candidate callable."""
+
+    digest = hashlib.sha1(
+        f"{flow.get('id')}:{node.get('id')}:{target.id}:dispatch".encode("utf-8")
+    ).hexdigest()[:10]
+    scope_id = f"scope:dispatch:{flow.get('id')}:{scope_index}:{digest}"
+    scope_key = f"{flow.get('id')}:dispatch{scope_index}:{digest}"
+    return _build_callable_scope_payload(
+        analysis=analysis,
+        call_sites=call_sites,
+        node=node,
+        target=target,
+        scope_id=scope_id,
+        scope_key=scope_key,
+        name=f"{target.name}() 候选流程",
+        reason="dispatch_candidate",
+        origin="dispatch_candidate",
+        candidate_source=candidate_source,
+        resolver=resolver,
+        module_meta=module_meta,
+        max_nodes=max_nodes,
+        max_edges=max_edges,
+    )
+
+
+def _build_dispatch_groups(
+    *,
+    analysis: AnalysisResult,
+    call_sites: list[CallSite],
+    flow: dict[str, Any],
+    resolver,
+    module_meta: dict[str, dict[str, Any]],
+    config: DispatchCandidateConfig,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build opt-in candidate journey groups for dispatch nodes.
+
+    A dispatch node remains a single router boundary in the main flow.  This
+    function only projects the resolved candidates into independent depth-1
+    scopes; it never adds candidate control edges to ``flow.edges``.
+    """
+
+    groups: list[dict[str, Any]] = []
+    diagnostics: list[dict[str, Any]] = []
+    if not config.enabled:
+        return groups, diagnostics
+
+    total_scope_count = 0
+    for node_index, node in enumerate(flow.get("nodes", []), start=1):
+        if node.get("kind") != "dispatch":
+            continue
+        node_id = str(node.get("id") or "")
+        candidates = [str(item) for item in node.get("candidates", []) if item]
+        candidate_source = str(node.get("candidateSource") or "unknown")
+        candidate_set_complete = bool(node.get("candidateSetComplete"))
+        if not candidates:
+            node["drilldown"] = {
+                "kind": "dispatch",
+                "status": "blocked",
+                "reason": "no_candidates",
+                "candidateSource": candidate_source,
+                "candidateSetComplete": candidate_set_complete,
+                "candidateCount": 0,
+                "candidateScopeCount": 0,
+                "interfaceSummary": [],
+            }
+            continue
+        if config.complete_only and not candidate_set_complete:
+            diagnostics.append(
+                {
+                    "severity": "info",
+                    "code": "DISPATCH_CANDIDATE_SET_INCOMPLETE",
+                    "message": (
+                        f"dispatch {node_id} has an incomplete candidate set; "
+                        "candidate journeys are skipped because completeOnly=true"
+                    ),
+                    "nodeId": node_id,
+                }
+            )
+            node["drilldown"] = {
+                "kind": "dispatch",
+                "status": "blocked",
+                "reason": "candidate_set_incomplete",
+                "candidateSource": candidate_source,
+                "candidateSetComplete": candidate_set_complete,
+                "candidateCount": len(candidates),
+                "candidateScopeCount": 0,
+                "interfaceSummary": [],
+            }
+            continue
+
+        resolved_targets = []
+        seen_targets: set[str] = set()
+        for candidate_id in candidates:
+            target = analysis.function_by_id.get(candidate_id)
+            if target is None or target.synthetic:
+                diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "DISPATCH_CANDIDATE_ROOT_UNRESOLVED",
+                        "message": (
+                            f"dispatch candidate {candidate_id} for {node_id} "
+                            "does not resolve to a project callable"
+                        ),
+                        "nodeId": node_id,
+                        "functionId": candidate_id,
+                    }
+                )
+                continue
+            if target.id == str(flow.get("entrypointId") or ""):
+                diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "DISPATCH_CANDIDATE_RECURSION_BLOCKED",
+                        "message": (
+                            f"dispatch candidate {target.id} is the flow entrypoint; "
+                            "recursive candidate scope is not expanded"
+                        ),
+                        "nodeId": node_id,
+                        "functionId": target.id,
+                    }
+                )
+                continue
+            if target.id in seen_targets:
+                continue
+            seen_targets.add(target.id)
+            resolved_targets.append(target)
+
+        if not resolved_targets:
+            node["drilldown"] = {
+                "kind": "dispatch",
+                "status": "blocked",
+                "reason": "no_resolved_candidates",
+                "candidateSource": candidate_source,
+                "candidateSetComplete": candidate_set_complete,
+                "candidateCount": len(candidates),
+                "candidateScopeCount": 0,
+                "interfaceSummary": [],
+            }
+            continue
+
+        remaining_flow_budget = max(config.max_scopes_per_flow - total_scope_count, 0)
+        allowed_count = min(
+            config.max_scopes_per_dispatch,
+            remaining_flow_budget,
+            len(resolved_targets),
+        )
+        included_targets = resolved_targets[:allowed_count]
+        omitted_targets = resolved_targets[allowed_count:]
+        group_diagnostics: list[dict[str, Any]] = []
+        if omitted_targets:
+            if remaining_flow_budget < config.max_scopes_per_dispatch:
+                code = "DISPATCH_CANDIDATE_FLOW_BUDGET"
+                message = (
+                    f"flow {flow.get('id')} reached maxScopesPerFlow="
+                    f"{config.max_scopes_per_flow}; omitted "\
+                    f"{len(omitted_targets)} dispatch candidate scope(s)"
+                )
+            else:
+                code = "DISPATCH_CANDIDATE_DISPATCH_BUDGET"
+                message = (
+                    f"dispatch {node_id} reached maxScopesPerDispatch="
+                    f"{config.max_scopes_per_dispatch}; omitted "
+                    f"{len(omitted_targets)} candidate scope(s)"
+                )
+            group_diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": code,
+                    "message": message,
+                    "nodeId": node_id,
+                }
+            )
+
+        scopes: list[dict[str, Any]] = []
+        for target in included_targets:
+            scope, scope_diagnostics = _build_dispatch_candidate_scope_payload(
+                analysis=analysis,
+                call_sites=call_sites,
+                flow=flow,
+                node=node,
+                target=target,
+                candidate_source=candidate_source,
+                scope_index=total_scope_count + 1,
+                resolver=resolver,
+                module_meta=module_meta,
+                max_nodes=config.max_nodes_per_scope,
+                max_edges=config.max_edges_per_scope,
+            )
+            scopes.append(scope)
+            total_scope_count += 1
+            group_diagnostics.extend(scope_diagnostics)
+            diagnostics.extend(
+                item
+                for item in scope_diagnostics
+                if item.get("severity") in {"warning", "error"}
+            )
+            if scope.get("truncated"):
+                group_diagnostics.append(
+                    {
+                        "severity": "info",
+                        "code": "DISPATCH_CANDIDATE_SCOPE_TRUNCATED",
+                        "message": (
+                            f"dispatch candidate scope {scope.get('id')} was truncated "
+                            "by the configured node/edge budget"
+                        ),
+                        "nodeId": node_id,
+                        "functionId": target.id,
+                    }
+                )
+
+        if not scopes:
+            node["drilldown"] = {
+                "kind": "dispatch",
+                "status": "blocked",
+                "reason": "scope_budget_exhausted",
+                "candidateSource": candidate_source,
+                "candidateSetComplete": candidate_set_complete,
+                "candidateCount": len(candidates),
+                "candidateScopeCount": 0,
+                "interfaceSummary": [],
+            }
+            diagnostics.extend(group_diagnostics)
+            continue
+
+        digest = hashlib.sha1(
+            f"{flow.get('id')}:{node_id}:{candidate_source}".encode("utf-8")
+        ).hexdigest()[:10]
+        group_id = f"dispatch-group:{flow.get('id')}:{node_index}:{digest}"
+        group = {
+            "kind": "archmap.dispatch-group",
+            "id": group_id,
+            "parentNodeId": node_id,
+            "expression": str(node.get("expression") or node.get("label") or ""),
+            "candidateSource": candidate_source,
+            "candidateSetComplete": candidate_set_complete,
+            "candidateCount": len(resolved_targets),
+            "candidateIds": [target.id for target in resolved_targets],
+            "scopeIds": [scope["id"] for scope in scopes],
+            "omittedCandidateIds": [target.id for target in omitted_targets],
+            "scopes": scopes,
+            "truncated": bool(omitted_targets) or any(
+                scope.get("truncated") for scope in scopes
+            ),
+            "diagnostics": group_diagnostics,
+        }
+        groups.append(group)
+        node["note"] = (
+            "动态分发边界；候选以独立旅程下钻，"
+            "不在主画布生成候选控制分支。"
+        )
+        node["drilldown"] = {
+            "kind": "dispatch",
+            "status": "available",
+            "reason": "dispatch_candidates",
+            "dispatchGroupId": group_id,
+            "candidateSource": candidate_source,
+            "candidateSetComplete": candidate_set_complete,
+            "candidateCount": len(candidates),
+            "candidateScopeCount": len(scopes),
+            "interfaceSummary": [],
+        }
+    return groups, diagnostics
+
+
 def build_execution_flows(
     analysis: AnalysisResult,
     call_sites: Iterable[CallSite],
@@ -774,6 +1099,16 @@ def build_execution_flows(
             max_edges=analysis.config.flow_scopes.max_edges_per_scope,
         )
         skeleton["scopes"] = scopes
+        dispatch_groups, dispatch_diagnostics = _build_dispatch_groups(
+            analysis=analysis,
+            call_sites=call_list,
+            flow=skeleton,
+            resolver=resolver,
+            module_meta=module_meta,
+            config=analysis.config.dispatch_candidates,
+        )
+        skeleton["dispatchGroups"] = dispatch_groups
+        diagnostics.extend(dispatch_diagnostics)
         skeleton["layout"] = layout_execution_flow(
             list(skeleton.get("nodes") or []),
             list(skeleton.get("edges") or []),

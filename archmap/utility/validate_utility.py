@@ -368,14 +368,126 @@ def _validate_execution_flow(
         if not isinstance(drilldown, dict):
             issues.append(_issue("error", "EXEC_DRILLDOWN_PAYLOAD", f"execution flow {flow_id} node {node.get('id')} has invalid drilldown metadata"))
             continue
+        drilldown_kind = str(drilldown.get("kind") or "interface")
+        if drilldown_kind == "dispatch" and node.get("kind") != "dispatch":
+            issues.append(_issue("error", "EXEC_DISPATCH_DRILLDOWN_NODE", f"execution flow {flow_id} node {node.get('id')} is not a dispatch but has dispatch drilldown"))
+        if drilldown_kind == "interface" and node.get("kind") != "free_function":
+            issues.append(_issue("error", "EXEC_INTERFACE_DRILLDOWN_NODE", f"execution flow {flow_id} node {node.get('id')} interface drilldown must belong to a free_function"))
         if drilldown.get("status") == "available":
-            linked_scope = str(drilldown.get("scopeId") or "")
-            if not linked_scope or linked_scope not in {str(item.get("id") or "") for item in flow.get("scopes", [])}:
-                issues.append(_issue("error", "EXEC_DRILLDOWN_SCOPE", f"execution flow {flow_id} node {node.get('id')} references missing scope {linked_scope}"))
+            if drilldown_kind == "dispatch":
+                group_id = str(drilldown.get("dispatchGroupId") or "")
+                group_ids = {
+                    str(group.get("id") or "")
+                    for group in flow.get("dispatchGroups", [])
+                }
+                if not group_id or group_id not in group_ids:
+                    issues.append(_issue("error", "EXEC_DISPATCH_DRILLDOWN_GROUP", f"execution flow {flow_id} node {node.get('id')} references missing dispatch group {group_id}"))
+            else:
+                linked_scope = str(drilldown.get("scopeId") or "")
+                if not linked_scope or linked_scope not in {str(item.get("id") or "") for item in flow.get("scopes", [])}:
+                    issues.append(_issue("error", "EXEC_DRILLDOWN_SCOPE", f"execution flow {flow_id} node {node.get('id')} references missing scope {linked_scope}"))
             if not isinstance(drilldown.get("interfaceSummary"), list):
                 issues.append(_issue("error", "EXEC_DRILLDOWN_SUMMARY", f"execution flow {flow_id} node {node.get('id')} drilldown summary must be an array"))
             if drilldown.get("autoDetected") is not None and not isinstance(drilldown.get("autoDetected"), bool):
                 issues.append(_issue("error", "EXEC_DRILLDOWN_AUTO", f"execution flow {flow_id} node {node.get('id')} drilldown autoDetected must be boolean"))
+
+    node_by_id = {str(node.get("id") or ""): node for node in nodes}
+    group_ids: set[str] = set()
+    for group in flow.get("dispatchGroups", []) or []:
+        if not isinstance(group, dict):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_PAYLOAD", f"execution flow {flow_id} dispatch group must be an object"))
+            continue
+        group_id = str(group.get("id") or "")
+        if not group_id or group_id in group_ids:
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_ID", f"execution flow {flow_id} has duplicate/missing dispatch group id: {group_id}"))
+        group_ids.add(group_id)
+        if group.get("kind") != "archmap.dispatch-group":
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_KIND", f"execution flow {flow_id} dispatch group {group_id} has invalid kind"))
+        parent_node_id = str(group.get("parentNodeId") or "")
+        parent_node = node_by_id.get(parent_node_id)
+        if parent_node is None:
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_PARENT", f"dispatch group {group_id} references missing parent node {parent_node_id}"))
+        elif parent_node.get("kind") != "dispatch":
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_PARENT_KIND", f"dispatch group {group_id} parent {parent_node_id} must be a dispatch node"))
+        else:
+            drilldown = parent_node.get("drilldown") or {}
+            if drilldown.get("kind") != "dispatch" or drilldown.get("dispatchGroupId") != group_id:
+                issues.append(_issue("error", "EXEC_DISPATCH_GROUP_PARENT_LINK", f"dispatch group {group_id} parent drilldown link mismatch"))
+        if not isinstance(group.get("candidateSource"), str):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_SOURCE", f"dispatch group {group_id} candidateSource must be a string"))
+        if not isinstance(group.get("candidateSetComplete"), bool):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_COMPLETE", f"dispatch group {group_id} candidateSetComplete must be boolean"))
+        candidate_ids = group.get("candidateIds")
+        if not isinstance(candidate_ids, list) or not all(isinstance(item, str) for item in candidate_ids):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_CANDIDATES", f"dispatch group {group_id} candidateIds must be a string array"))
+            candidate_ids = []
+        if len(set(candidate_ids)) != len(candidate_ids):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_DUPLICATE_CANDIDATE", f"dispatch group {group_id} candidateIds contains duplicates"))
+        if group.get("candidateCount") != len(candidate_ids):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_CANDIDATE_COUNT", f"dispatch group {group_id} candidateCount mismatch"))
+        omitted_ids = group.get("omittedCandidateIds", [])
+        if not isinstance(omitted_ids, list) or not all(isinstance(item, str) for item in omitted_ids):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_OMITTED", f"dispatch group {group_id} omittedCandidateIds must be a string array"))
+            omitted_ids = []
+        scopes = group.get("scopes")
+        if not isinstance(scopes, list):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_SCOPES", f"dispatch group {group_id} scopes must be an array"))
+            scopes = []
+        scope_ids = group.get("scopeIds")
+        if not isinstance(scope_ids, list) or not all(isinstance(item, str) for item in scope_ids):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_SCOPE_IDS", f"dispatch group {group_id} scopeIds must be a string array"))
+            scope_ids = []
+        actual_scope_ids = [str(scope.get("id") or "") for scope in scopes if isinstance(scope, dict)]
+        if sorted(scope_ids) != sorted(actual_scope_ids):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_SCOPE_LINK", f"dispatch group {group_id} scopeIds do not match scopes"))
+        scope_roots = {
+            str(scope.get("rootFunctionId") or "")
+            for scope in scopes
+            if isinstance(scope, dict)
+        }
+        if not scope_roots.issubset(set(candidate_ids)):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_ROOT", f"dispatch group {group_id} contains a scope root outside candidateIds"))
+        if set(candidate_ids) != scope_roots | set(omitted_ids):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_COVERAGE", f"dispatch group {group_id} candidateIds must cover generated and omitted candidates"))
+        if not isinstance(group.get("truncated"), bool):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_TRUNCATED", f"dispatch group {group_id} truncated must be boolean"))
+        if not isinstance(group.get("diagnostics"), list):
+            issues.append(_issue("error", "EXEC_DISPATCH_GROUP_DIAGNOSTICS", f"dispatch group {group_id} diagnostics must be an array"))
+        for scope in scopes:
+            if not isinstance(scope, dict):
+                issues.append(_issue("error", "EXEC_DISPATCH_SCOPE_PAYLOAD", f"dispatch group {group_id} scope must be an object"))
+                continue
+            scope_id = str(scope.get("id") or "")
+            if not scope_id or scope_id in seen_scope_ids:
+                issues.append(_issue("error", "EXEC_DISPATCH_SCOPE_ID", f"dispatch group {group_id} has duplicate/missing scope id: {scope_id}"))
+            seen_scope_ids.add(scope_id)
+            if scope.get("parentNodeId") != parent_node_id:
+                issues.append(_issue("error", "EXEC_DISPATCH_SCOPE_PARENT", f"dispatch scope {scope_id} parentNodeId must match group parent"))
+            if scope.get("origin") != "dispatch_candidate":
+                issues.append(_issue("error", "EXEC_DISPATCH_SCOPE_ORIGIN", f"dispatch scope {scope_id} origin must be dispatch_candidate"))
+            if scope.get("rootFunctionId") not in detail_by_id:
+                issues.append(_issue("error", "EXEC_DISPATCH_SCOPE_ROOT", f"dispatch scope {scope_id} references missing root function"))
+            if scope.get("depth") != 1:
+                issues.append(_issue("error", "EXEC_DISPATCH_SCOPE_DEPTH", f"dispatch scope {scope_id} must have depth=1"))
+            if scope.get("scopes") or scope.get("dispatchGroups"):
+                issues.append(_issue("error", "EXEC_DISPATCH_SCOPE_NESTED", f"dispatch scope {scope_id} must not contain nested scopes or dispatch groups"))
+            pseudo_flow = {
+                **scope,
+                "kind": "archmap.execution-flow",
+                "entrypointId": scope.get("rootFunctionId"),
+                "scopes": [],
+                "dispatchGroups": [],
+            }
+            issues.extend(
+                _validate_execution_flow(
+                    pseudo_flow,
+                    detail_by_id=detail_by_id,
+                    module_ids=module_ids,
+                    capability_by_id=capability_by_id,
+                    call_site_ids=call_site_ids,
+                    scope_ids=seen_scope_ids,
+                )
+            )
     return issues
 
 
@@ -383,8 +495,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "6.3":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 6.3"))
+    if str(bundle.get("schemaVersion")) != "6.4":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 6.4"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []
