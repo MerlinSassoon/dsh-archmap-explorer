@@ -283,7 +283,7 @@ ai-adapter     ai.py
 
 ## 10. 过渡期注意事项
 
-P6.2 已落地 schema 5.0。当前运行时：
+P7.5 已落地 schema 6.0。当前运行时：
 
 - 读取旧 `mainModule` / `kind` 字段时只产生 deprecation warning，不再参与模块模型；
 - 新配置生成器不应再输出 `mainModule`、`kind: main` 或 `kind: functional`；

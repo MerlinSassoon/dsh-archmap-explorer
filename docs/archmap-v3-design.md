@@ -1,6 +1,6 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档记录 v3.8 基础数据契约及 P5.1-P5.5 增量修订，并作为实现和后续 ArkTS 扩展的依据。当前 bundle schema 为 5.0；历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)。发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
+> 本文档记录 v3.8 基础数据契约及 P5.1-P5.5 增量修订，并作为实现和后续 ArkTS 扩展的依据。当前 bundle schema 为 6.0；历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)。发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
 >
 > **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 4.1；P5.2 增加可选 `executionEntrypoints`，用于将主执行流起点与分析入口解耦；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
 >
@@ -15,9 +15,9 @@
 > **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4/P5/P5.1/P5.2/P5.3/P5.4/P5.5 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
 >
 > **P6 计划（2026-11-18）**：项目模型重构已批准，目标为取消主模块、项目级主流程、单一 executionFlows 投影和纵向能力模块。实施契约、阶段与验收以 [`p6-project-model-plan.md`](p6-project-model-plan.md) 为准。<br>
-> **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明，当前契约以本节及 schema 5.0 为准。
+> **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明；P7.5 当前契约以 schema 6.0 为准。
 >
-> **P7 计划（2026-11-18）**：修复入口语义分层。Provider Role 将移除 `entry`，execution flow 恢复标准 `entry` 节点，项目页 flow card 与 module card 同级布局。实施前当前契约仍为 P6 的 schema 5.0。
+> **P7 已实施（2026-11-18）**：bundle schema 升级为 6.0；Provider Role 删除 `entry`，模块 role 删除 `entry`；execution flow 恢复标准 `entry` 节点；项目页新增 `flowCards` 并与 module card 同布局；入口语义完全由项目级 entrypoints / execution flow 承担。
 
 ## 1. 三层投影
 
@@ -38,8 +38,8 @@
 
 `mainFlows` 已在 schema 5.0 删除；当前主流程页面只使用 `executionFlows`。
 
-- 节点类型：`exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；
-- 不生成语义 `entry` 节点；入口由 flow 元数据和标准流程卡片表达；
+- 节点类型：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；
+- 每条 flow 恰好一个标准 `entry` 节点；入口由项目级 entrypoints 解析生成；
 - 边只表达控制连接：`next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
 - 执行流保留原子 callable / interface 节点；具体分类不依赖主模块；
 - 项目级分析不修改 Provider Role、visibility 或 API 分类；
@@ -103,7 +103,6 @@ config / model / manager / adapter / component / contract / utility
 - `config`：类型定义、字段、默认值、常量表、枚举；展示类型卡片；
 - `model`：运行期数据记录、DTO、分析结果；展示类型卡片；
 - `manager`：管理 model/config 实例，组织行为，对外 API；
-- `entry`：CLI、用户入口或入口函数 Provider；
 - `adapter`：外部系统适配，展示适配器入口能力；
 - `component`：UI/协议组件；
 - `contract`：抽象类、Protocol、接口；
@@ -201,7 +200,7 @@ user surface    最终用户能感知或操作的交互面
 - 沿 entrypoint 调用路径传播，带 confidence；
 - 支持 `userSurface.overrides` 配置覆盖，不硬编码具体项目函数名。
 
-入口模块可展示 `entry` + `userSurfaces`；其他能力模块仍以 developer API 为主。
+入口来源可在项目页 flow card 中展示；能力模块仍以 developer API 为主。
 
 ### Impact / Trace / DSM（P4 已实现）
 
@@ -326,7 +325,7 @@ v1 只读取并在详情面板展示，不调用 LLM。`sourceHash` 不匹配时
 
 ```json
 {
-  "schemaVersion": "5.0",
+  "schemaVersion": "6.0",
   "kind": "archmap.bundle",
   "project": {},
   "entrypoints": [],

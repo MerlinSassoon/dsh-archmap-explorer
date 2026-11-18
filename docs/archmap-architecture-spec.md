@@ -1,7 +1,7 @@
 # ArchMap 架构与编码规范
 
 > 状态：P2.3 规范已落盘，P2.4/P3/P4 已按该规范完成<br>
-> 版本：ArchMap 2.0.0 / bundle schema 5.0<br>
+> 版本：ArchMap 2.1.0 / bundle schema 6.0<br>
 > 日期：2026-11-18<br>
 > 适用范围：ArchMap 自身源码、后续语言前端和架构分析扩展。
 
@@ -164,33 +164,7 @@ contract > adapter > component > manager > config > model > utility
 
 展示：manager 卡片与公开方法/协议能力。
 
-### 2.6 entry
-
-外部世界进入系统的最外层触发器。
-
-包括：
-
-- CLI `main()`；
-- `if __name__ == "__main__"`；
-- HTTP route；
-- Celery task；
-- 框架启动函数；
-- 消息消费者入口。
-
-entry 只做：
-
-- 接收原始外部输入；
-- 最小解析、校验、反序列化；
-- 委托给 manager；
-- 序列化输出。
-
-entry 不持有领域状态，不承担深层业务编排。
-
-物理归属：`main.py`、`cli.py`、`__main__.py`，或逻辑上位于 manager 文件中的入口函数。
-
-展示：入口节点；P4 中作为 user surface 起点。
-
-### 2.7 adapter
+### 2.6 adapter
 
 外部系统边界的具体实现，把外部接口适配成内部 contract。
 
@@ -209,7 +183,7 @@ adapter 是 manager 的特化，但逻辑角色保持独立。
 
 展示：adapter 节点，表示系统外部边界。
 
-### 2.8 component
+### 2.7 component
 
 通过协议或生命周期被消费的、可复用的自包含运行期组件。
 
@@ -240,7 +214,6 @@ component 不是通用 manager 的同义词。无法明确判断时：
 config ← model ← manager
 utility ← manager
 contract ← manager
-entry → manager
 adapter → contract
 ```
 
@@ -251,7 +224,6 @@ adapter → contract
 - config 不依赖 manager；
 - model 不依赖 manager；
 - manager 可依赖 config/model/contract/utility/adapter；
-- entry 只依赖 manager；
 - manager 之间通过明确接口或上层编排协作，禁止循环依赖；
 - adapter 通过 contract 被 manager 使用。
 
@@ -276,8 +248,8 @@ service / adapter / component / test / other
 执行流约束：
 
 - 执行流是项目级视图，不属于任何模块；
-- 节点类型：exit / free_function / interface / branch / multi_branch / loop / break / continue / return / dispatch；
-- 不生成语义 `entry` 节点；入口由 flow 元数据和标准入口卡片表达；
+- 节点类型：entry / exit / free_function / interface / branch / multi_branch / loop / break / continue / return / dispatch；
+- 每条 flow 生成一个标准 `entry` 节点，与 loop / branch 同级；不使用异形样式；
 - 执行边只表达控制连接；不输出 composition/call 调用边；
 - dispatch 候选必须显式标记完整性，无法推断时保留 unresolved；
 - 执行流只展开 entrypoint 自身控制骨架，调用目标作为原子节点，不继续穿透实现；
@@ -290,7 +262,7 @@ Project
 └─ Module
    ├─ Submodule
    │  ├─ config/model/contract providers
-   │  ├─ manager/adapter/component/entry providers
+   │  ├─ manager/adapter/component/contract providers
    │  └─ internal utility implementation
    └─ Submodule
 ```
@@ -320,7 +292,7 @@ presentationGroup   public_surface / internal_implementation
 默认规则：
 
 - utility 一律 internal；
-- entry/manager/adapter/component/contract 的公开 Provider 可进入默认视图；
+- manager/adapter/component/contract 的公开 Provider 可进入默认视图；
 - config/model 以类型卡片展示；
 - internal 实现保留在事实层，不进入项目页/模块页默认视图；
 - 项目页角色计数只统计公开 Provider；
@@ -392,7 +364,7 @@ visibility → default presentation
 ## 7. P2.3 迁移原则
 
 - 先冻结契约，再迁移代码；
-- 先 config/model，再 utility，再 manager，最后 entry；
+- 先 config/model，再 utility，再 manager；
 - 旧 import shim 最终已删除，所有内部引用使用新目录；
 - CLI、bundle schema、HTML 行为保持稳定；
 - utility 默认不进入主视图；

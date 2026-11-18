@@ -1,6 +1,6 @@
 # ArchMap
 
-> 版本：ArchMap 2.0.0 / bundle schema 5.0<br>
+> 版本：ArchMap 2.1.0 / bundle schema 6.0<br>
 > 最后更新：2026-11-18
 
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
@@ -40,17 +40,24 @@ P6.2  schema 5.0、取消主模块与 mainFlows     已完成
 P6.3  模块归属与 student/gomoku/self 规范化  已完成
 P6.4  标准流程卡片与模块能力页收口         已完成
 P6.5  回归、迁移、版本与文档收口           已完成
+P7.0  入口语义与项目页布局修复计划         已完成
+P7.1  Provider Role 七角色化               已完成
+P7.2  标准 execution flow entry 节点恢复   已完成
+P7.3  项目页 flow card 与模块卡片同层      已完成
+P7.4  入口来源与样例模块配置归一化         已完成
+P7.5  schema 6.0、回归与文档收口           已完成
 ```
 
 当前产品边界：
 
-- 所有模块都是普通能力模块；schema 5.0 不再有主模块或 `moduleKind`。
+- 所有模块都是普通能力模块；schema 6.0 不再有主模块或 `moduleKind`。
 - 主流程是项目级视图，不属于任何模块。
 - 主流程只展开入口函数控制骨架；调用目标作为原子执行步骤，不穿透实现。
 - 模块能力页只展示 Provider/Capability 与结构关系，不默认展示调用边。
-- 项目页使用标准卡片展示一个或多个项目级执行流；主流程页只展示有界执行流。
-- `mainFlows` / `primaryFlowId` 已从 schema 5.0 删除。
-- execution flow 不再生成语义 `entry` 节点；入口由 flow 元数据和入口卡片表达。
+- 项目页 flow card 与 module card 同层、同网格；flow card 标注“主流程”。
+- 主流程页只展示有界执行流。
+- Provider Role 为七角色；`entry` 不再是 Provider Role。
+- 每条 execution flow 生成一个标准 `entry` 节点，与 loop / branch / dispatch 同级。
 - P5 执行流不会恢复旧语句级 FunctionFlow；边界见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 - 类焦点页和类内方法图不在当前产品计划中。
 - 旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
@@ -112,10 +119,10 @@ P5 把项目主流程从“函数级调用/模块组合 DAG”升级为**有界�
 
 - 只展示 selected entrypoint 函数内部的控制骨架；
 - 项目内 callable（自由函数与类方法统一为同一原子语义）和 canonical interface 都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
-- 使用封闭节点集合：`exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；P6.2 起不再生成语义 `entry` 节点，`free_function` 通过 `callableKind` 区分函数与方法；
+- 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；`entry` 使用标准执行卡片样式；`free_function` 通过 `callableKind` 区分函数与方法；
 - `return` 是终止节点，不生成出边；`exit` 只用于隐式落空等真正到达结束锚点的路径；
 - `break` / `continue` 是循环内部终止标记，不生成出边；循环节点通过 `loop_complete` 作为唯一结构化离开边界；
-- bundle schema 5.0 的执行边只允许 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
+- bundle schema 6.0 的执行边只允许 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；
 - 汇合不再生成 `merge` 节点，多条路径直接 fan-in 到同一个真实后继节点或 `exit`；
 - 执行流实线只表示静态确定的直接控制/执行关系；虚线只表示推断、不完整或间接关系；
 - 执行流卡片不渲染函数签名，正文展示人类备注；完整签名在 Method Detail / 节点详情中查看；
@@ -123,9 +130,9 @@ P5 把项目主流程从“函数级调用/模块组合 DAG”升级为**有界�
 - 节点使用项目执行流卡片：彩色标题栏、深色主体、内嵌端口行、贝塞尔曲线；端口行无方框和独立背景，卡片外不再挂边标签胶囊；
 - 节点位置可在浏览器中拖拽覆盖，关联曲线实时重算并持久化；
 - 不生成逐语句节点、列表操作节点、`try/except` 异常控制、数据流边或图内下钻；
-- 项目级执行视图只保留 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 已在 schema 5.0 删除；
+- 项目级执行视图保留 `executionFlows`、`flowCards` 和 `primaryExecutionFlowId`；`mainFlows` 已删除；
 - 动态分发统一由共享 resolver 处理；新配置使用顶层 `dispatchHints`，旧 `mainFlow.dispatches` 仅作迁移兼容；
-- P5 使用 schema 4.0/4.1；P6.2 升级为 schema 5.0。
+- P5 使用 schema 4.0/4.1；P6.2 升级到 5.0；P7.5 升级到 6.0。
 
 P5 的防误解与防滑坡边界、student_system 目标快照、数据契约和验收标准见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 
@@ -157,8 +164,8 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
       "role": "service"
     },
     {
-      "id": "terminal-entry",
-      "name": "终端入口",
+      "id": "terminal",
+      "name": "终端交互",
       "include": ["src/main.py", "src/app/**"],
       "note": "CLI 入口与顶层编排；普通模块，不是主模块",
       "color": "#8bdc64",
@@ -170,7 +177,7 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
 
 模块识别优先级：显式配置 → 包/命名空间 → 单模块兜底。文件仅作为源码证据，不直接作为页面模块。
 
-`entrypoints` 是项目分析根，用于入口角色、User Surface 传播、调用关系和主流程事实。`executionEntrypoints` 可选，只用于选择 P5 主执行流的叙事起点；省略时回退到 `entrypoints`。它支持类方法（例如 `gomoku.cli:GameCli.run`），适合配置入口只是薄启动包装、真正用户旅程从类方法开始的项目。执行流节点仍只展开该有效入口自身的控制骨架，不递归展开 callee。
+`entrypoints` 是项目分析根，用于项目级入口解析、User Surface 传播、调用关系和主流程事实。`executionEntrypoints` 可选，只用于选择 P5 主执行流的叙事起点；省略时回退到 `entrypoints`。它支持类方法（例如 `gomoku.cli:GameCli.run`），适合配置入口只是薄启动包装、真正用户旅程从类方法开始的项目。执行流节点仍只展开该有效入口自身的控制骨架，不递归展开 callee。
 
 模块不再区分主模块与功能模块。模块 `role` 只表达职责：
 
@@ -178,7 +185,7 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
 service / adapter / component / test / other
 ```
 
-拥有入口函数的模块仍是普通能力模块；入口状态由项目级 `entrypoints` / `executionEntrypoints` 和 execution flow 表达。旧配置中的 `mainModule`、`kind`、`role: "entry"` 在迁移期只产生 deprecation warning。
+拥有入口函数的模块仍是普通能力模块；入口状态由项目级 `entrypoints` / `executionEntrypoints` 和 execution flow 表达。旧配置中的 `mainModule`、`kind`、`role: "entry"` 以及 `contract.providerRoles` 中的 `entry` 只产生 deprecation warning。
 
 ## 模块能力契约
 
@@ -192,7 +199,7 @@ service / adapter / component / test / other
 }
 ```
 
-当前模块角色：`service` / `adapter` / `component` / `entry` / `test` / `other`。显式配置优先；未配置时，包含入口函数的模块视为 `entry`，其余为 `service`。
+当前模块角色：`service` / `adapter` / `component` / `test` / `other`。显式配置优先；未配置时默认为 `service`。
 
 每个 `moduleGraph` 会从已有事实派生 `providedApis` 和按 Provider 分组的 `apiProviders`：
 
@@ -217,7 +224,6 @@ P2.2 在 Capability 之上增加 Provider 级职责：
 config    类型定义、字段、默认值、常量表、枚举
 model     运行期数据模型 / DTO / 分析结果
 manager   管理 model/config 实例，组织行为，对外 API
-entry     CLI / 用户入口 / 入口函数
 adapter   外部系统适配
 component UI / 协议组件
 contract  抽象类 / Protocol / 接口
@@ -253,7 +259,6 @@ contract.providerRoles 显式覆盖
     "config": ["cls:app.config.AppConfig"],
     "model": ["cls:app.model.Order"],
     "manager": ["cls:app.manager.OrderManager"],
-    "entry": ["fn:app.main.main"],
     "adapter": [],
     "component": [],
     "contract": [],
@@ -263,7 +268,6 @@ contract.providerRoles 显式覆盖
     "config": 1,
     "model": 1,
     "manager": 1,
-    "entry": 1,
     "adapter": 0,
     "component": 0,
     "contract": 0,
@@ -274,7 +278,7 @@ contract.providerRoles 显式覆盖
 
 展示规则：
 
-- `manager` / `entry` / `component` / `contract`：展示方法/协议能力；
+- `manager` / `component` / `contract`：展示方法/协议能力；
 - `config` / `model`：展示类型卡片、字段摘要和默认值，不把 `as_dict()` 等序列化方法当作模块 API；
 - `adapter`：展示适配器入口能力；
 - `utility`：展示函数签名，但默认 internal，不进入项目页/模块页默认视图。
@@ -353,7 +357,7 @@ config / model / manager / adapter / component / contract / utility
 - 项目页角色计数只使用 `publicProviderRoleCounts`；
 - 每个领域只暴露少量 facade manager；Python 前端的 `analyze_project`、`collect_call_sites` 等阶段函数是 `PythonFrontend` 的内部 utility；
 - 内部 utility 通过 `ownerProviderId` 归属到 facade manager，不生成独立卡片；
-- 依赖方向为 `config ← model ← manager`、`utility ← manager`、`entry → manager`。
+- 依赖方向为 `config ← model ← manager`、`utility ← manager`。
 
 当前目录：
 
@@ -453,7 +457,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         101 passed, 1 skipped
+pytest:         109 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -476,7 +480,7 @@ browser smoke:  1 passed（显式开启）
 - 宏布局几何、执行流正交布局、指纹稳定性、布局无关性和模块无调用边约束。
 - 自包含 HTML、方法详情页和 LLM 注解嵌入。
 - CLI build/check/method 闭环。
-- schema 5.0、无主模块、模块页无调用边、student/gomoku/self 配置规范化。
+- schema 6.0、七 Provider Role、标准 flow entry 节点、flow card 与 module card 同层、student/gomoku/self 配置规范化。
 
 浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
@@ -489,14 +493,15 @@ modules:              5
 classes:              33
 functions:            264
 methods:              75
-callSites:            3424
-resolvedCalls:        610
+callSites:            3522
+resolvedCalls:        622
 typeRelations:        64
 structuralRelations:  64
 userSurfaces:         0
 executionFlows:       1
-executionNodes:       3
-executionEdges:       2
+executionNodes:       4
+executionEdges:       3
+flowCards:            1
 diagnostics:          0
 self build/check:     OK
 ```
@@ -514,8 +519,9 @@ typeRelations:        5
 structuralRelations:  5
 userSurfaces:         14
 executionFlows:       1
-executionNodes:       8
-executionEdges:       9
+executionNodes:       9
+executionEdges:       10
+flowCards:            1
 diagnostics:          0
 build/check:          OK
 ```
@@ -533,8 +539,9 @@ typeRelations:        54
 structuralRelations:  54
 userSurfaces:         4
 executionFlows:       1
-executionNodes:       10
-executionEdges:       9
+executionNodes:       11
+executionEdges:       10
+flowCards:            1
 diagnostics:          0
 build/check:          OK
 ```
@@ -560,7 +567,7 @@ ArkTS 接入时需要：
 
 - 将文件、类、函数、调用和注释转换为与 Python 相同的 canonical IR；
 - 实现 `build_contracts`：`export`、`public` / `private` / `protected`、JSDoc `@public` / `@internal`、getter/setter、`Symbol.iterator` 等映射为 canonical capability；
-- 实现 Provider Role 映射：`interface` / `type` / `enum` / const object → config；data class → model；有公开方法的 class → manager；`@Entry` / `@Component` → entry/component；
+- 实现 Provider Role 映射：`interface` / `type` / `enum` / const object → config；data class → model；有公开方法的 class → manager；`@Entry` / `@Component` → component；
 - 把 `@Entry` / `@Component` / `@Builder` / `TextInput` / `Button` / router / network API 映射为 User Surface；
 - `@Entry` / `@Component` 作为 entrypoint，不默认当作公开 API；
 - ArkTS 没有 Python 的 `__enter__` / `__exit__`，不伪造 context manager；
@@ -574,21 +581,23 @@ ArkTS 接入时需要：
 | 文档 | 内容 |
 |---|---|
 | [`README.md`](README.md) | 产品定位、快速开始、配置、CLI、验收数据和已知边界 |
-| [`docs/archmap-v3-design.md`](docs/archmap-v3-design.md) | 当前 v3.8 基础数据契约与 P5/P6 增量：三层投影、P3/P4 关系、schema 5.0 与项目级流程 |
+| [`docs/archmap-v3-design.md`](docs/archmap-v3-design.md) | 当前 v3.8 基础数据契约与 P5/P6/P7 增量：三层投影、P3/P4 关系、schema 6.0 与项目级流程 |
 | [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、七角色语义、依赖方向、普通能力模块与项目级主流程边界 |
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
-| [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | P2.4 历史主模块/主流程契约；已被 schema 5.0 取代 |
-| [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流历史与现行边界；P6.2 已升级 schema 5.0 |
+| [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | P2.4 历史主模块/主流程契约；已被后续 schema 取代 |
+| [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流历史与现行边界；P7.5 当前 schema 6.0 |
 | [`docs/p5.1-execution-card-style.md`](docs/p5.1-execution-card-style.md) | P5.1 执行流项目节点样式：卡片结构、内嵌端口、端口语义与实现位置 |
 | [`docs/p5.1-execution-flow-fan-in-plan.md`](docs/p5.1-execution-flow-fan-in-plan.md) | 汇入与边束的分层设计：直接 fan-in 已实现，视觉边束与模块级边束为未来方向 |
 | [`docs/约定编程skill.md`](docs/约定编程skill.md) | 项目无关的约定编程 Skill：分层架构、契约、功能备注、测试与提交检查清单 |
-| [`docs/schema/archmap-v5-bundle.schema.json`](docs/schema/archmap-v5-bundle.schema.json) | 当前 bundle JSON Schema 5.0：无主模块、无 mainFlows、无执行流 entry 节点 |
+| [`docs/schema/archmap-v6-bundle.schema.json`](docs/schema/archmap-v6-bundle.schema.json) | 当前 bundle JSON Schema 6.0：七角色、标准 entry 节点、flowCards 同层布局 |
+| [`docs/schema/archmap-v5-bundle.schema.json`](docs/schema/archmap-v5-bundle.schema.json) | 历史 bundle JSON Schema 5.0，供 P6 产物追溯 |
 | [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 历史 bundle JSON Schema 4.1，供 P5 产物追溯 |
 | [`docs/schema/archmap-v4.0-bundle.schema.json`](docs/schema/archmap-v4.0-bundle.schema.json) | 历史 bundle JSON Schema 4.0，供旧产物追溯 |
 | [`docs/HANDOFF-P5.5.md`](docs/HANDOFF-P5.5.md) | P5.5 历史交接；后续步骤已由 P6 计划接管 |
 | [`docs/p6-project-model-plan.md`](docs/p6-project-model-plan.md) | P6 实施计划与进度：取消主模块、项目级主流程、schema 5.0、纵向能力模块、标准流程卡片与分阶段验收 |
 | [`docs/p6-project-model-discussion.md`](docs/p6-project-model-discussion.md) | P6 讨论背景：问题分析、目标模型、Provider 归属与调用视图清理 |
-| [`docs/HANDOFF-P6.md`](docs/HANDOFF-P6.md) | P6 完成交接：schema 5.0、项目级流程、能力模块规范、验收基线与后续方向 |
+| [`docs/HANDOFF-P6.md`](docs/HANDOFF-P6.md) | P6 历史交接：schema 5.0、项目级流程与能力模块规范 |
+| [`docs/HANDOFF-P7.md`](docs/HANDOFF-P7.md) | P7 完成交接：七角色、标准 flow entry、flow card 同层布局与验收基线 |
 | [`docs/p7-entry-model-plan.md`](docs/p7-entry-model-plan.md) | P7 修复计划：七角色、标准 flow entry 节点、项目页 flow card 同层布局 |
 | [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | 规范化项目配置生成指南：模块划分、入口/流程区分、Provider 归属与常见误配 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
@@ -604,7 +613,7 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 ## 文档维护规则
 
 1. 当前产品状态只写入根 `README.md` 和 `docs/` 下的当前权威文档；历史材料只进入 `docs/旧文档/`，不反向修改为“当前设计”。
-2. 数据契约以 `docs/archmap-v3-design.md`、`docs/p5-main-execution-flow.md`、`docs/p6-project-model-plan.md` 和 `docs/schema/archmap-v5-bundle.schema.json` 为准。
+2. 数据契约以 `docs/archmap-v3-design.md`、`docs/p5-main-execution-flow.md`、`docs/p7-entry-model-plan.md` 和 `docs/schema/archmap-v6-bundle.schema.json` 为准。
 3. P1.5 之后的实现页统一称 **Method Detail**；不要再把 FunctionFlow 写回主产品路径。
 4. 新增 P5 及以后能力时，先更新数据契约和当前文档，再更新根 README 的使用说明与验收数据。
 5. 文档中的示例命令若引用自举配置，应同时核对 `examples/archmap_v3.archmap.json` 是否仍与源码模块一致。
@@ -631,4 +640,4 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 - P5 执行流只提取 entrypoint 控制骨架，不展开调用目标内部实现；更多内部逻辑通过 Method Detail / 源码查看。
 - P5 明确不实现逐语句节点、列表操作节点、`try/except` 异常控制、数据流边和图内下钻；这些是产品边界，不是待补延期项。
 - 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。
-- 当前 bundle schema 为 5.0；4.1/4.0 旧产物需要重新 build，历史 schema 仅用于追溯。
+- 当前 bundle schema 为 6.0；5.0/4.1/4.0 旧产物需要重新 build，历史 schema 仅用于追溯。

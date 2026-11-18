@@ -1,6 +1,6 @@
 # ArchMap API 契约模型
 
-> 状态：P2.1 / P2.2 / P2.3 / P2.4 / P3 / P4 / P5 已实现（bundle schema 4.1）<br>
+> 状态：P2.1-P7.5 已实现（当前 bundle schema 6.0）<br>
 > 日期：2026-11-18<br>
 > 目标：把“类有哪些方法”升级为“模块/类/函数对外提供什么能力”，并保持语言中立的 Provider + Capability 模型。
 
@@ -130,7 +130,7 @@ config.providerRoles 显式覆盖
 
 展示与投影规则：
 
-- `manager` / `entry` / `component` / `contract`：展示方法/协议能力；
+- `manager` / `component` / `contract`：展示方法/协议能力；
 - `config` / `model`：展示类型卡片、字段摘要、默认值，不把 `as_dict()` 等序列化方法当模块 API；其 `providedApis` 必须为空；
 - `adapter`：展示适配器入口能力；
 - `utility`：默认 internal，不进入项目页/模块页默认视图；仅保留为事实层实现细节；
@@ -139,7 +139,7 @@ config.providerRoles 显式覆盖
 
 `FunctionInfo` 属于 `model`；`ProjectConfig` / `ModuleConfig` 属于 `config`；`CallResolver` / `PythonFrontend` / `MenuSystem` / `Database` 属于 `manager`。
 
-P2.4 增加独立的主流程 `flowRole`。主流程可以把主模块自由函数投影为 orchestrator、把功能模块公开能力投影为 interface/provider，但不得反向修改 Provider Role、API Exposure 或 providerVisibility。动态分发候选使用 `dispatch` 节点和 `composition` 边；composition 必须低置信度虚线。
+P7 后入口状态由项目级 entrypoints / execution flow 承担，不修改 Provider Role。execution flow 使用标准 `entry` 节点和原子 callable/interface 节点；动态分发候选只保留在 dispatch 节点详情中。
 
 ## 3. 暴露级别判定
 
@@ -375,7 +375,7 @@ user surface    最终用户能感知或操作的交互面
 主模块规则：
 
 - 主模块默认不展示 developer API；
-- 主模块展示 `entry` + `userSurfaces`；
+- 项目页以 flow card 展示入口来源；
 - `MenuSystem.run()` 属于 menu 模块 manager API，同时作为用户交互面被项目入口引用；
 - 不同项目用户交互面不同，必须数据驱动、支持配置覆盖。
 
