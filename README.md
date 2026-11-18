@@ -162,7 +162,7 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
       "include": ["src/main.py", "src/app/**"],
       "note": "CLI 入口与顶层编排；普通模块，不是主模块",
       "color": "#8bdc64",
-      "role": "entry"
+      "role": "service"
     }
   ]
 }
@@ -175,10 +175,10 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
 模块不再区分主模块与功能模块。模块 `role` 只表达职责：
 
 ```text
-service / adapter / component / entry / test / other
+service / adapter / component / test / other
 ```
 
-拥有入口函数的模块可显式配置 `role: "entry"`，但它仍是普通能力模块。旧配置中的 `mainModule`、`kind: "main"`、`kind: "functional"` 在迁移期只产生 deprecation warning，不再参与模块模型。
+拥有入口函数的模块仍是普通能力模块；入口状态由项目级 `entrypoints` / `executionEntrypoints` 和 execution flow 表达。旧配置中的 `mainModule`、`kind`、`role: "entry"` 在迁移期只产生 deprecation warning。
 
 ## 模块能力契约
 
@@ -575,7 +575,7 @@ ArkTS 接入时需要：
 |---|---|
 | [`README.md`](README.md) | 产品定位、快速开始、配置、CLI、验收数据和已知边界 |
 | [`docs/archmap-v3-design.md`](docs/archmap-v3-design.md) | 当前 v3.8 基础数据契约与 P5/P6 增量：三层投影、P3/P4 关系、schema 5.0 与项目级流程 |
-| [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、八角色语义、依赖方向、普通能力模块与项目级主流程边界 |
+| [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、七角色语义、依赖方向、普通能力模块与项目级主流程边界 |
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
 | [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | P2.4 历史主模块/主流程契约；已被 schema 5.0 取代 |
 | [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流历史与现行边界；P6.2 已升级 schema 5.0 |

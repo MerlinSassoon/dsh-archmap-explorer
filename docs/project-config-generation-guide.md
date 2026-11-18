@@ -19,7 +19,7 @@
 | `executionEntrypoints` | 主流程叙事从哪个函数/方法开始 | 模块配置 |
 | dispatch hints | 动态调用候选如何解析 | 模块 API |
 
-主流程是项目级视图，不是模块；`entry` 是 Provider Role，不是模块类型。
+主流程是项目级视图，不是模块；`entry` 是 execution flow 节点类型，不再属于 Provider Role。
 
 ## 2. 模块划分原则
 
@@ -158,7 +158,7 @@ network / menu 使用 with Spinner(...)
 
 ### 4.3 不为入口伪造模块
 
-- 入口函数可以属于普通模块，Role 可设为 `entry`；
+- 入口函数可以属于普通模块，但不为其设置 `entry` Provider Role；
 - 不要求创建名为 `main` 的特殊模块；
 - 不把主流程页挂到某个模块页面；
 - 过渡期若运行时仍兼容主模块字段，应将其视为兼容占位，不据此把无关文件塞入该模块。
@@ -188,13 +188,12 @@ Provider Role 判定优先级：
 - `manager`：组织行为、维护状态、提供业务 API；
 - `adapter`：外部系统适配；
 - `component`：UI / 协议组件；
-- `entry`：入口函数或入口类；
 - `config`：静态配置、常量、枚举；
 - `model`：运行期数据模型、DTO、结果；
 - `contract`：抽象类、Protocol、接口；
 - `utility`：无状态内部辅助逻辑。
 
-`entry` 不应被理解为“主模块”；`config` / `model` 不应被理解为“技术层模块”。
+`entrypoints` 不应被理解为模块；`config` / `model` 不应被理解为“技术层模块”。
 
 ## 6. 常见错误配置
 
@@ -254,7 +253,7 @@ python3 -m archmap check <output>/architecture.json
 ### 9.1 student_system
 
 ```text
-app              入口与顶层编排（role=entry）
+app              入口与顶层编排（role=service）
 network          NetworkAdapter + ProtocolMessage + ProtocolCodec
 database         Database + DatabaseConfig
 menu             MenuSystem + StudentRecord + display utility
@@ -273,7 +272,7 @@ test             表格验证脚本
 ### 9.2 gomoku
 
 ```text
-entry          main.py / __main__.py / cli.py
+terminal       main.py / __main__.py / cli.py
 terminal-ui    input_parser.py / renderer.py
 application    game.py + GameConfig
 domain         board.py + models.py
@@ -290,7 +289,7 @@ P6.2 已落地 schema 5.0。当前运行时：
 - 新配置生成器不应再输出 `mainModule`、`kind: main` 或 `kind: functional`；
 - `mainFlows` / `primaryFlowId` 已从 bundle 删除；
 - 模块页不渲染调用边；
-- execution flow 不再生成语义 `entry` 节点。
+- execution flow 保留标准 `entry` 节点；入口状态不再属于 Provider Role。
 
 最终目标是：
 

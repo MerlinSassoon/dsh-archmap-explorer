@@ -12,8 +12,8 @@
   ],
   "modules": [
     {
-      "id": "pipeline-entry",
-      "name": "入口与流水线",
+      "id": "pipeline",
+      "name": "流水线",
       "include": [
         "archmap/__init__.py",
         "archmap/__main__.py",

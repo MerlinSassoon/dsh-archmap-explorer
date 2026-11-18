@@ -61,10 +61,19 @@ def test_gomoku_has_no_main_module_and_no_module_call_view() -> None:
         REPO_ROOT / "examples" / "gomoku.archmap.json",
     )
     modules = {module["id"]: module for module in bundle["projectGraph"]["modules"]}
-    assert set(modules) == {"entry", "terminal-ui", "application", "domain", "ai-adapter"}
-    assert "main" not in modules
-    assert modules["entry"]["role"] == "service"
+    assert set(modules) == {"terminal", "terminal-ui", "application", "domain", "ai-adapter"}
+    assert "main" not in modules and "entry" not in modules
+    assert modules["terminal"]["role"] == "component"
     assert modules["terminal-ui"]["role"] == "component"
+    terminal_graph = next(
+        graph for graph in bundle["moduleGraphs"] if graph["moduleId"] == "terminal"
+    )
+    game_cli = next(
+        node for node in terminal_graph["nodes"]
+        if node.get("name") == "GameCli"
+    )
+    assert game_cli["providerRole"] == "component"
+    assert bundle["projectGraph"]["flowCards"][0]["entrypointId"] == "fn:gomoku.cli.GameCli.run"
     assert not bundle["diagnostics"]
     assert all("edges" not in graph for graph in bundle["moduleGraphs"])
     project = bundle["projectGraph"]
@@ -82,7 +91,7 @@ def test_self_config_has_no_shared_contracts_module() -> None:
     )
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
     assert module_ids == {
-        "pipeline-entry",
+        "pipeline",
         "python-frontend",
         "graph-projection",
         "validation",

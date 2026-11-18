@@ -602,6 +602,7 @@ def build_bundle(
     execution_entry_ids = {
         str(item.get("functionId") or "") for item in execution_entrypoints
     }
+    entry_source_ids = set(entry_id_set) | execution_entry_ids
     contract_model = contract_model or ContractModel()
     role_infos = contract_model.provider_roles
     for capability in contract_model.capabilities:
@@ -687,6 +688,12 @@ def build_bundle(
             "role": role,
             "functions": function_ids,
             "freeFunctions": free_function_ids,
+            "entryFunctionIds": sorted(
+                fn_id for fn_id in function_ids if fn_id in entry_source_ids
+            ),
+            "flowEntryFunctionIds": sorted(
+                fn_id for fn_id in function_ids if fn_id in execution_entry_ids
+            ),
             "classes": class_ids,
             "methods": method_function_ids,
             "moduleComposition": module_composition,
@@ -889,6 +896,12 @@ def build_bundle(
                 "providerRoleCounts": provider_role_counts,
                 "publicModuleComposition": public_composition,
                 "publicProviderRoleCounts": public_provider_role_counts,
+                "entryFunctionIds": sorted(
+                    fn_id for fn_id in function_ids if fn_id in entry_source_ids
+                ),
+                "flowEntryFunctionIds": sorted(
+                    fn_id for fn_id in function_ids if fn_id in execution_entry_ids
+                ),
                 "typeRelations": [
                     relation.as_dict()
                     for relation in contract_model.class_relations

@@ -97,3 +97,25 @@ def test_project_flow_cards_share_module_card_grid() -> None:
     module_ids = {module["id"] for module in project["modules"]}
     assert card["id"] not in module_ids
     assert set(project["layout"]["nodes"]) == module_ids | {card["id"]}
+
+
+def test_entrypoints_are_flow_facts_not_module_capability_roles() -> None:
+    """Flow entrypoints keep source ownership but no module-level entry role."""
+
+    bundle = build_architecture(
+        REPO_ROOT / "Projects" / "student_system",
+        REPO_ROOT / "examples" / "student_system.archmap.json",
+    )
+    for graph in bundle["moduleGraphs"]:
+        assert "entry" not in graph["moduleComposition"]
+        assert all(api["providerRole"] != "entry" for api in graph["providedApis"])
+        assert all(
+            node.get("providerRole") != "entry"
+            for node in graph["nodes"]
+            if node.get("kind") in {"class", "function"}
+        )
+    app = next(
+        graph for graph in bundle["moduleGraphs"] if graph["moduleId"] == "app"
+    )
+    assert app["flowEntryFunctionIds"] == ["fn:student_system.app.main.main"]
+    assert "fn:student_system.app.main.main" in app["entryFunctionIds"]

@@ -88,9 +88,9 @@ def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
     ]
     assert internal_edges
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
-    assert {"pipeline-entry", "python-frontend", "graph-projection", "validation", "rendering"} == module_ids
+    assert {"pipeline", "python-frontend", "graph-projection", "validation", "rendering"} == module_ids
     roles = {module["id"]: module["role"] for module in bundle["projectGraph"]["modules"]}
-    assert roles["pipeline-entry"] == "service"
+    assert roles["pipeline"] == "service"
     assert roles["python-frontend"] == "service"
     assert "core-contracts" not in module_ids
     assert "mainModuleId" not in bundle["projectGraph"]

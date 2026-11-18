@@ -595,6 +595,12 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
         for class_id in module.get("classes", []):
             if class_id not in class_ids:
                 issues.append(_issue("error", "MODULE_CLASS_MISSING", f"module {module.get('id')} references missing class {class_id}"))
+        for fn_id in module.get("entryFunctionIds", []):
+            if fn_id not in detail_by_id:
+                issues.append(_issue("error", "MODULE_ENTRY_FUNCTION", f"module {module.get('id')} entry function missing: {fn_id}"))
+        for fn_id in module.get("flowEntryFunctionIds", []):
+            if fn_id not in detail_by_id:
+                issues.append(_issue("error", "MODULE_FLOW_ENTRY", f"module {module.get('id')} flow entry missing: {fn_id}"))
 
     for edge in project_graph.get("edges", []):
         if edge.get("from") not in module_ids or edge.get("to") not in module_ids:

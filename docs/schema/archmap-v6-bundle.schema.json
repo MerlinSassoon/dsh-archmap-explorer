@@ -513,6 +513,18 @@
         },
         "kind": {
           "type": "string"
+        },
+        "entryFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "flowEntryFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
         }
       }
     },
@@ -799,6 +811,18 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/userSurface"
+          }
+        },
+        "entryFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "flowEntryFunctionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
           }
         }
       }

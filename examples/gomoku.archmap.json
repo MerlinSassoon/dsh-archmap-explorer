@@ -21,8 +21,8 @@
   ],
   "modules": [
     {
-      "id": "entry",
-      "name": "程序入口",
+      "id": "terminal",
+      "name": "终端入口与交互",
       "include": [
         "main.py",
         "gomoku/__init__.py",
@@ -31,7 +31,7 @@
       ],
       "note": "脚本入口、python -m 入口与终端主菜单/对局交互入口。",
       "color": "#f59e0b",
-      "role": "service"
+      "role": "component"
     },
     {
       "id": "terminal-ui",
@@ -97,7 +97,8 @@
       "gomoku.renderer.describe_stone": "utility",
       "gomoku.renderer.format_move_hint": "utility",
       "gomoku.config.GameConfig": "config",
-      "gomoku.ai.SimpleAiPlayer": "adapter"
+      "gomoku.ai.SimpleAiPlayer": "adapter",
+      "gomoku.cli.GameCli": "component"
     }
   },
   "userSurface": {

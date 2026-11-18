@@ -260,13 +260,13 @@ adapter → contract
 P6.2 起所有模块都是普通能力模块：
 
 ```text
-service / adapter / component / entry / test / other
+service / adapter / component / test / other
 ```
 
 约束：
 
 - 不存在主模块、`mainModuleId` 或 `moduleKind`；
-- 入口文件可归入普通能力模块，模块 role 可为 `entry`；
+- 入口文件可归入普通能力模块，但模块 role 不再包含 `entry`；
 - 模块不拥有输入/输出端口；能力由 `providedApis` 表达；
 - `config` / `model` / `utility` 围绕所属 manager 或能力 facade 归属；
 - 每个源码文件、Provider 和模型有且仅有一个 owner 模块；
