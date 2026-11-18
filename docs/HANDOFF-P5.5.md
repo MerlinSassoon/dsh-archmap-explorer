@@ -1,10 +1,12 @@
 # ArchMap P5.5 交接文档
 
-> 状态：P5.5 已完成；下一步为“共享调用/动态分发解析”与“主流程调用图数据契约收缩”<br>
+> 状态：P5.5 已完成；原“共享调用/动态分发解析”与“契约收缩”已并入 P6 计划<br>
 > 分支：`P5.1`<br>
 > 功能基线：`d4e47f0 chore: align example configs with current source layout`<br>
 > 版本：ArchMap 1.9.0 / bundle schema 4.1<br>
 > 日期：2026-11-18
+
+> **后续规划更新**：P6 项目模型重构已批准。本文第 5、6 节保留为历史技术分析；正式阶段以 [`p6-project-model-plan.md`](p6-project-model-plan.md) 为准。
 
 ## 1. 交接摘要
 

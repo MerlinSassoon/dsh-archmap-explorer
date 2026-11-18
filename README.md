@@ -552,6 +552,9 @@ ArkTS 接入时需要：
 | [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 当前 bundle JSON Schema 4.1，包含 P5 executionFlows |
 | [`docs/schema/archmap-v4.0-bundle.schema.json`](docs/schema/archmap-v4.0-bundle.schema.json) | 历史 bundle JSON Schema 4.0，供旧产物追溯 |
 | [`docs/HANDOFF-P5.5.md`](docs/HANDOFF-P5.5.md) | P5.5 当前交接：已完成边界、下一步共享动态分发解析与数据契约收缩计划 |
+| [`docs/p6-project-model-plan.md`](docs/p6-project-model-plan.md) | P6 已批准实施计划：取消主模块、项目级主流程、schema 5.0、纵向能力模块与分阶段验收 |
+| [`docs/p6-project-model-discussion.md`](docs/p6-project-model-discussion.md) | P6 讨论背景：问题分析、目标模型、Provider 归属与调用视图清理 |
+| [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | 规范化项目配置生成指南：模块划分、入口/流程区分、Provider 归属与常见误配 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 
 ### 历史归档
