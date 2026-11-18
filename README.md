@@ -53,6 +53,7 @@ P9    保守自由函数推断、默认函数面收口     已完成
 P10   一级接口 scope 下钻与 schema 6.3      已完成
 P10.3 本地编排 callable 自动发现（保守）    已完成
 P11   dispatch 候选旅程与 schema 6.4        已完成
+P12   UI 美化、可调侧栏与模块依赖线移除      已完成
 ```
 
 当前产品边界：
@@ -118,13 +119,15 @@ yield/student_system/
 
 ## 页面视图
 
-- **项目页**：以与模块卡片同构的标准流程卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。双击模块卡片进入能力页，流程卡片进入 `#/flow`。
+- **项目页**：以与模块卡片同构的标准流程卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片；不绘制模块间依赖线，`projectGraph.edges` 仅保留为空数组用于 schema 兼容。双击模块卡片进入能力页，流程卡片进入 `#/flow`。
 - **主流程页**：只展示 P5 横向有界执行流；支持多 flow 选择、拖拽布局、节点详情和源码下钻。不再显示调用总览或模块能力契约。dispatch 节点可进入独立候选旅程，但主画布不新增候选控制边。
-- **模块能力页**：所有能力模块统一展示提供接口、Provider Role、类/自由函数与类型关系；不默认展示调用连线；config/model Provider 以类型卡片展示字段摘要。
+- **模块能力页**：所有能力模块统一展示提供接口、Provider Role、类/自由函数与类型关系；顶部能力概览使用响应式网格，模块画布使用矩形卡片网格；不展示调用连线；config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗：`#/project`、`#/flow[/<id>]`、`#/flow/<flowId>/scope/<nodeId>`、`#/flow/<flowId>/dispatch/<nodeId>/candidate/<candidateScopeId>`、`#/module/<moduleId>`、`#/module/<moduleId>/function/<functionId>`。
 - 项目页、模块页和执行流节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存用户覆盖；可用“适应画布”或“重置布局”找回节点。
+- 右侧详情栏支持拖拽调宽，宽度独立持久化到浏览器；默认 `420px`、最小 `360px`、最大 `720px / 55vw`。
+- 详情栏中的 API 与 dispatch 候选签名会展示人类注释摘要；注释缺失时显示占位提示。
 - P5 执行流只展开 entrypoint 的控制骨架；项目内 callable 和 canonical interface 均为原子节点，双击进入源码。
 - P10 的 L1 scope 是显式一级投影，不改变主流程原子节点语义；外部模块接口在 scope 内成为可点击节点或 helper 提示。
 - 不生成或渲染函数内部完整 CFG、逐语句执行流图；函数实现以源码为最终事实来源。
@@ -499,8 +502,7 @@ archmap.entry.*
 - `callSites`：每次调用的文件、行、列、调用文本、`usageKind`、解析状态、外部/未解析标记和多态 candidate 信息。
 - `functionDetails[].callers` / `callees`：函数级入/出调用邻域。
 - `moduleGraphs[].methodEdges`：类内和模块内的方法级调用关系。
-- `moduleGraphs[].edges`：类/函数组件级聚合边。
-- `projectGraph.edges`：模块级聚合边。
+- `projectGraph.edges`：兼容字段，固定为空数组；项目页不生成或渲染模块间依赖线。
 - `projectGraph.typeRelations`：继承/实现/组合/聚合/使用/实例化关系。
 - `projectGraph.userSurfaces`：用户交互面投影。
 
@@ -545,7 +547,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         140 passed, 1 skipped
+pytest:         142 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -562,7 +564,7 @@ browser smoke:  1 passed（显式开启）
 - Impact / Trace / DSM 查询、CLI JSON 输出与截断边界。
 - 类节点、方法归属、抽象类边界。
 - FunctionDetail、源码切片、sourceHash。
-- CallSite 提取、callers/callees、模块级聚合边。
+- CallSite 提取、callers/callees、函数级调用邻域；项目级模块依赖边已移除。
 - API exposure、协议能力合成、Provider 分组和契约校验。
 - Provider Role 判定、模块组合、config/model 类型卡片与 API 过滤。
 - 宏布局几何、执行流正交布局、指纹稳定性、布局无关性和模块无调用边约束。
@@ -576,6 +578,7 @@ browser smoke:  1 passed（显式开启）
 - P10.2 控制臂语句摘要、edge statement 标签、隐式循环继续语义、无 statement/basic-block 节点，以及画布空白点击/双击清除选择高亮的回归。
 - P10.3 本地编排 callable 自动发现、显式/executionOnly 优先级、interface 排除、外部接口与控制结构门槛、自动来源标识。
 - P11 dispatch 候选旅程：候选 group、候选 free_function scope、opt-in 配置、完整性/来源展示、双预算截断、Hash 路由恢复、schema 6.4 与浏览器回归。
+- P12 UI：中文导航/指示、统一字号提升、详情栏拖拽调宽、模块顶部栏目网格、模块画布卡片网格、人类注释摘要、移除“关系/单模块”按钮与模块依赖线后端生成。
 
 浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、dispatch 候选旅程、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
@@ -586,10 +589,10 @@ ArchMap 自举：
 ```text
 modules:              5
 classes:              35
-functions:            283
+functions:            284
 methods:              81
-callSites:            4564
-resolvedCalls:        757
+callSites:            4583
+resolvedCalls:        754
 typeRelations:        68
 structuralRelations:  68
 userSurfaces:         0
@@ -606,7 +609,7 @@ dispatchScopeNodes:  81
 dispatchScopeEdges:  84
 dispatchScopeTruncated: 0
 executionOnly:        1
-freeFunctionSurface:  0 capability / 201 internal / 1 execution
+freeFunctionSurface:  0 capability / 202 internal / 1 execution
 capabilityModules:    5
 emptyModules:         0
 diagnostics:          0
@@ -770,6 +773,7 @@ P2–P11 过程交接、阶段计划、分支说明、迁移计划、旧验收�
 - 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。
 - 当前 bundle schema 为 6.4；6.3/6.2/6.1/6.0/5.0/4.1/4.0 旧产物需要重新 build，历史 schema 仅用于追溯。
 - P11 候选旅程默认关闭；开启后只对已解析且（默认）声明完整的 dispatch candidate set 生成 scope，不展开真实运行时路径，也不递归穿透候选内部 dispatch。
+- P12 起项目页不再生成模块间聚合边；`projectGraph.edges` 为空数组，调用事实仍保留在 `callSites`、`functionDetails` 和模块内 `methodEdges` 中。
 - executionOnly callable 与模块默认自由函数面均由维护者显式配置；自动推断只使用显式公开 API 和跨模块调用等强证据。
 - 空能力模块后端保留与默认 layout 位置，前端直接路由会回到项目页；默认布局把空模块追加到可见卡片之后，可见网格不留空洞。
 - P10 scope 只覆盖直接外部接口和内部 helper 接口提示；静态解析不到的接口不会伪造，预算截断会显式标记。

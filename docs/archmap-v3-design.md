@@ -1,6 +1,6 @@
 # ArchMap v3 数据与扩展设计
 
-> 本文档记录 v3.8 基础数据契约及 P5.1-P11 增量修订，并作为实现和后续 ArkTS 扩展的依据。当前 bundle schema 为 6.4；历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)。发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
+> 本文档记录 v3.8 基础数据契约及 P5.1-P12 增量修订，并作为实现和后续 ArkTS 扩展的依据。当前 bundle schema 为 6.4；历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)。发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
 >
 > **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 4.1；P5.2 增加可选 `executionEntrypoints`，用于将主执行流起点与分析入口解耦；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
 >
@@ -12,7 +12,7 @@
 >
 > **P5.5 补充（2026-11-18）**：主流程页独立为 `#/flow` 项目级视图，只展示 `executionFlows`；主模块与功能模块统一进入 `#/module/<id>` 能力页。`mainFlows` 数据保留，但不再作为默认 UI 调用总览展示。<br>
 >
-> **当前状态（2026-11-19）**：P0-P11 已完成，当前 bundle schema 为 6.4。类焦点页与类内方法图不在产品计划中；后续扩展以真实项目解析质量、User Surface 校准、增量扫描和 ArkTS surface 为主。
+> **当前状态（2026-11-19）**：P0-P12 已完成，当前 bundle schema 为 6.4。类焦点页与类内方法图不在产品计划中；后续扩展以真实项目解析质量、User Surface 校准、增量扫描和 ArkTS surface 为主。
 >
 > **P6 计划（2026-11-18）**：项目模型重构已批准，目标为取消主模块、项目级主流程、单一 executionFlows 投影和纵向能力模块。实施契约、阶段与验收以 [`p6-project-model-plan.md`](旧文档/11月9日/p6-project-model-plan.md) 为准。<br>
 > **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明；P11 当前契约以 schema 6.4 为准。
@@ -25,6 +25,8 @@
 >
 > **P10 已实施（2026-11-20）**：bundle schema 升级为 6.3；新增一级 `executionScopes` 投影。主流程调用节点仍原子化，但可携带 `drilldown.interfaceSummary`；scope 以独立 `#/flow/<flowId>/scope/<nodeId>` 视图展示目标函数控制骨架、直接外部能力接口和内部 helper 接口提示。scope 深度硬限制为 1，受 `maxScopesPerFlow` / `maxNodesPerScope` / `maxEdgesPerScope` 预算约束，不递归展开。详见 [`p10-interface-drilldown-plan.md`](p10-interface-drilldown-plan.md)。
 > **P11 已实施（2026-11-19）**：bundle schema 升级为 6.4；新增 `executionFlows[].dispatchGroups[]` 与 dispatch 节点 `drilldown.kind=dispatch`。dispatch 仍是主流程原子路由边界，完整候选以独立 `origin=dispatch_candidate` 的一级 scope 展示；候选 scope 不递归生成 dispatch group，不在主画布新增候选控制边。支持 `dispatchCandidates` 配置、双预算、候选来源/完整性展示和 `#/flow/<flowId>/dispatch/<nodeId>/candidate/<candidateScopeId>` 路由。详见 [`p11-dispatch-candidate-journeys-plan.md`](p11-dispatch-candidate-journeys-plan.md)。
+>
+> **P12 已实施（2026-11-19）**：前端导航与指示中文化，通用 UI 字号提升；右侧详情栏支持拖拽调宽并独立持久化；模块能力页顶部栏目改为响应式网格，模块画布改为矩形卡片网格；API 与 dispatch 候选签名下方展示人类注释；移除“关系”和“单模块”入口。后端不再生成项目级模块依赖边，`projectGraph.edges` 固定为空数组以兼容 schema。
 
 ## 1. 三层投影
 
@@ -35,14 +37,15 @@
 - 模块是项目页一等节点，包含名称、人工备注、Provider Role 和提供接口。
 - 所有模块都是普通能力模块；不存在主模块或 `moduleKind`。
 - 模块不再拥有输入/输出端口，`boundaryNodes` 与 module_input/module_output 边已移除。
-- 模块卡片同时展示 Provider Role 数量；模块间依赖证据仍不默认绘制。
+- 模块卡片同时展示 Provider Role 数量；模块间依赖边不再生成或绘制。
 - `providedApis` 来自 Provider + Capability 契约投影，包含公开方法、抽象契约方法和协议能力。
-- 项目页默认不绘制 `projectGraph.edges`；模块间调用/数据证据保留，供可选“关系”模式与后续查询使用。
+- `projectGraph.edges` 固定为空数组，仅保留 schema 兼容；项目页不展示模块间依赖或关系线。跨模块调用事实仍保留在 `callSites` 与 `functionDetails` 中。
 - 项目页包括 `projectGraph.flowCards` 与 `projectGraph.modules` 两类标准卡片；两者都进入 `projectGraph.layout.nodes`。
 - 自由函数默认采用保守能力边界：`defaultFreeFunctionSurface` 支持 `auto` / `internal` / `capability`，单函数用 `apiExposure` 例外；
 - `projectGraph.capabilityModuleIds` 给出能力非空、应由前端渲染的模块集合；`capabilitySurface.hasProviders=false` 的模块仍保留在后台模块与 layout 中，但前端不渲染模块卡；默认布局将空模块追加到可见卡片之后，并按可见数量计算网格列数，避免前端过滤后出现网格空洞。
 - 默认几何由 Python 以统一卡片网格生成（`layout.mode = "module-cards"` 当前兼容保留，实际同时布局 flow cards 与 module cards），前端只负责渲染与用户拖拽覆盖。
 - P6.2 起 `projectGraph.mainFlows` / `primaryFlowId` 已删除；项目级执行视图保留 `executionFlows`、`flowCards` / `primaryExecutionFlowId`。
+- 模块画布使用 `layout.mode = "module-grid"` 的矩形卡片网格，不再把所有 Provider 节点放进单列 rank。
 
 ### ExecutionFlow
 

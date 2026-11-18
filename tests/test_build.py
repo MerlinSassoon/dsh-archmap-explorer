@@ -78,15 +78,13 @@ def test_bundle_matches_current_v6_4_schema() -> None:
     jsonschema.validate(bundle, schema)
 
 
-def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
+def test_archmap_v3_self_config_has_no_module_dependency_edges() -> None:
     repo_root = Path(__file__).parent.parent
     config_path = repo_root / "examples" / "archmap_v3.archmap.json"
     bundle = build_architecture(repo_root, config_path)
     assert len(bundle["projectGraph"]["modules"]) == 5
-    internal_edges = [
-        edge for edge in bundle["projectGraph"]["edges"] if edge["role"] == "internal"
-    ]
-    assert internal_edges
+    assert bundle["projectGraph"]["edges"] == []
+    assert bundle["stats"]["macroEdges"] == 0
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
     assert {"pipeline", "python-frontend", "graph-projection", "validation", "rendering"} == module_ids
     roles = {module["id"]: module["role"] for module in bundle["projectGraph"]["modules"]}

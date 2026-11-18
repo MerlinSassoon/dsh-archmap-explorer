@@ -20,11 +20,17 @@
   const OVERRIDE_VERSION = 1;
   // Bump whenever default card geometry or layout namespaces change.  Old
   // saved coordinates are ignored instead of being applied to the new grid.
-  const GEOMETRY_VERSION = 3;
+  const GEOMETRY_VERSION = 4;
+  const DETAIL_PANEL_STORAGE_KEY = "archmap-detail-panel-width-v1";
+  const DETAIL_PANEL_DEFAULT_WIDTH = 420;
+  const DETAIL_PANEL_MIN_WIDTH = 360;
+  const DETAIL_PANEL_MAX_WIDTH = 720;
 
   const $ = id => document.getElementById(id);
   const viewport = $("viewport");
   const world = $("world");
+  const detailPanel = $("detailPanel");
+  const detailResizer = $("detailResizer");
   const detailScroll = $("detailScroll");
   const breadcrumb = $("breadcrumb");
   const backBtn = $("backBtn");
@@ -36,8 +42,6 @@
   const canvasSub = $("canvasSub");
   const zoomValue = $("zoomValue");
   const saveState = $("saveState");
-  const relationModeBtn = $("relationModeBtn");
-  const singleModeBtn = $("singleModeBtn");
   const moduleContracts = $("moduleContracts");
   const flowPicker = $("flowPicker");
   const projectNameEl = $("projectName");
@@ -52,8 +56,6 @@
     selectedUid: null,
     hoveredUid: null,
     search: "",
-    singleModule: false,
-    showProjectRelations: false,
     pendingSelectUid: null,
     suppressClickUntil: 0,
     pageKind: "project",
@@ -74,7 +76,7 @@
     return {
       version: OVERRIDE_VERSION,
       geometryVersion: GEOMETRY_VERSION,
-      project: { nodes: {}, singleModule: false },
+      project: { nodes: {} },
       modules: {},
       functions: {},
       executions: {},
@@ -87,7 +89,6 @@
     if (Number(value.version) !== OVERRIDE_VERSION) return base;
     if (Number(value.geometryVersion) !== GEOMETRY_VERSION) return base;
     base.project.nodes = value.project?.nodes && typeof value.project.nodes === "object" ? value.project.nodes : {};
-    base.project.singleModule = Boolean(value.project?.singleModule);
     base.modules = value.modules && typeof value.modules === "object" ? value.modules : {};
     base.functions = value.functions && typeof value.functions === "object" ? value.functions : {};
     base.executions = value.executions && typeof value.executions === "object" ? value.executions : {};
@@ -120,9 +121,115 @@
   function resetOverride() {
     localStorage.removeItem(STORAGE_KEY);
     override = defaultOverride();
-    state.singleModule = false;
     saveState.textContent = "布局已重置";
   }
+
+  function detailPanelWidthBounds() {
+    const viewportMax = Math.max(
+      DETAIL_PANEL_MIN_WIDTH,
+      Math.floor(window.innerWidth * 0.55)
+    );
+    return {
+      min: DETAIL_PANEL_MIN_WIDTH,
+      max: Math.max(DETAIL_PANEL_MIN_WIDTH, Math.min(DETAIL_PANEL_MAX_WIDTH, viewportMax)),
+    };
+  }
+
+  function clampDetailPanelWidth(value) {
+    const bounds = detailPanelWidthBounds();
+    const parsed = Number(value);
+    const fallback = DETAIL_PANEL_DEFAULT_WIDTH;
+    return Math.max(bounds.min, Math.min(bounds.max, Number.isFinite(parsed) ? parsed : fallback));
+  }
+
+  function loadDetailPanelWidth() {
+    try {
+      const stored = localStorage.getItem(DETAIL_PANEL_STORAGE_KEY);
+      return clampDetailPanelWidth(stored === null ? DETAIL_PANEL_DEFAULT_WIDTH : stored);
+    } catch (error) {
+      return clampDetailPanelWidth(DETAIL_PANEL_DEFAULT_WIDTH);
+    }
+  }
+
+  let detailPanelFitFrame = 0;
+  function scheduleDetailPanelRefit() {
+    if (detailPanelFitFrame) cancelAnimationFrame(detailPanelFitFrame);
+    detailPanelFitFrame = requestAnimationFrame(() => {
+      detailPanelFitFrame = 0;
+      fitView(false);
+    });
+  }
+
+  function applyDetailPanelWidth(value, options = {}) {
+    const width = clampDetailPanelWidth(value);
+    detailPanel.style.width = `${width}px`;
+    detailPanel.style.flexBasis = `${width}px`;
+    detailPanel.style.setProperty("--detail-panel-width", `${width}px`);
+    if (options.persist) {
+      try {
+        localStorage.setItem(DETAIL_PANEL_STORAGE_KEY, String(width));
+      } catch (error) {
+        // Browser storage may be unavailable; resizing still works for this session.
+      }
+    }
+    if (options.refit !== false) scheduleDetailPanelRefit();
+    return width;
+  }
+
+  applyDetailPanelWidth(loadDetailPanelWidth(), { refit: false });
+
+  let detailResizeDrag = null;
+  detailResizer.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || window.innerWidth <= 860) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const width = detailPanel.getBoundingClientRect().width;
+    detailResizeDrag = { pointerId: event.pointerId, startX: event.clientX, startWidth: width };
+    try {
+      detailResizer.setPointerCapture(event.pointerId);
+    } catch (error) {
+      // Synthetic pointer events may not own a native capture target.
+    }
+    document.body.classList.add("is-resizing-detail");
+  });
+  detailResizer.addEventListener("pointermove", event => {
+    if (!detailResizeDrag || event.pointerId !== detailResizeDrag.pointerId) return;
+    const next = detailResizeDrag.startWidth + (detailResizeDrag.startX - event.clientX);
+    applyDetailPanelWidth(next, { persist: false, refit: true });
+  });
+  const finishDetailResize = event => {
+    if (!detailResizeDrag) return;
+    if (event?.pointerId !== undefined && event.pointerId !== detailResizeDrag.pointerId) return;
+    const width = detailPanel.getBoundingClientRect().width;
+    detailResizeDrag = null;
+    document.body.classList.remove("is-resizing-detail");
+    applyDetailPanelWidth(width, { persist: true, refit: true });
+  };
+  detailResizer.addEventListener("pointerup", finishDetailResize);
+  detailResizer.addEventListener("pointercancel", finishDetailResize);
+  detailResizer.addEventListener("dblclick", event => {
+    event.preventDefault();
+    applyDetailPanelWidth(DETAIL_PANEL_DEFAULT_WIDTH, { persist: true, refit: true });
+  });
+  detailResizer.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home"].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === "Home") {
+      applyDetailPanelWidth(DETAIL_PANEL_DEFAULT_WIDTH, { persist: true, refit: true });
+      return;
+    }
+    const delta = event.key === "ArrowLeft" ? -16 : 16;
+    applyDetailPanelWidth(detailPanel.getBoundingClientRect().width + delta, {
+      persist: true,
+      refit: true,
+    });
+  });
+  window.addEventListener("resize", () => {
+    applyDetailPanelWidth(detailPanel.getBoundingClientRect().width, {
+      persist: false,
+      refit: true,
+    });
+  });
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, ch => ({
@@ -224,9 +331,8 @@
       edges.forEach(edge => edge.classList.remove("is-dim", "is-highlight"));
       return;
     }
-    // Capability cards are siblings, not a dependency neighbourhood.  Without
-    // the optional relation view, selecting one module must not dim the rest.
-    if (state.pageKind === "project" && !state.showProjectRelations) {
+    // Capability cards are siblings, not a dependency neighbourhood.
+    if (state.pageKind === "project") {
       nodes.forEach(node => node.classList.remove("is-dim", "is-highlight"));
       edges.forEach(edge => edge.classList.remove("is-dim", "is-highlight"));
       return;
@@ -322,7 +428,7 @@
     return { width, height, ...bounds };
   }
 
-  function executionTopPadding(fallback = 122) {
+  function overlayTopPadding(fallback = 122) {
     const panels = [moduleContracts, flowPicker].filter(panel => panel?.classList.contains("is-visible"));
     if (!panels.length) return fallback;
     const viewportRect = viewport.getBoundingClientRect();
@@ -334,9 +440,8 @@
     const bounds = contentBounds();
     const rect = viewport.getBoundingClientRect();
     const padX = 58;
-    const isExecutionPage = Boolean(world.querySelector(".execution-node"));
     const basePadTop = state.pageKind === "module" ? 122 : state.pageKind === "method" ? 26 : state.pageKind === "flow" ? 72 : 64;
-    const padTop = isExecutionPage ? executionTopPadding(basePadTop) : basePadTop;
+    const padTop = overlayTopPadding(basePadTop);
     const padBottom = 46;
     const availableW = rect.width - padX * 2;
     const availableH = rect.height - padTop - padBottom;
@@ -363,7 +468,7 @@
     const pos = entry ? state.positions.get(entry.id) : null;
     if (!pos) return;
     const rect = viewport.getBoundingClientRect();
-    const padTop = executionTopPadding(148);
+    const padTop = overlayTopPadding(148);
     state.scale = Math.max(.78, Math.min(1, state.scale));
     state.x = 72 - pos.x * state.scale;
     state.y = padTop - pos.y * state.scale;
@@ -409,12 +514,6 @@
     svg.setAttribute("height", String(height));
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     return svg;
-  }
-
-  function macroEdgeClass(edge) {
-    if (edge.primaryType === "data") return "macro-edge type-data";
-    if (edge.primaryType === "control") return "macro-edge type-control";
-    return "macro-edge";
   }
 
   function attachDrag(handle, element, options) {
@@ -475,25 +574,25 @@
 
   function moduleRoleLabel(role) {
     return ({
-      main: "MAIN",
-      service: "SERVICE",
-      adapter: "ADAPTER",
-      test: "TEST",
-      other: "MODULE",
-    }[role] || "MODULE");
+      main: "Main",
+      service: "Service",
+      adapter: "Adapter",
+      test: "Test",
+      other: "Module",
+    }[role] || "Module");
   }
 
   function providerRoleLabel(role) {
     return ({
-      config: "CONFIG",
-      model: "MODEL",
-      manager: "MANAGER",
-      entry: "ENTRY",
-      adapter: "ADAPTER",
-      component: "COMPONENT",
-      contract: "CONTRACT",
-      utility: "UTILITY",
-    }[role] || "PROVIDER");
+      config: "Config",
+      model: "Model",
+      manager: "Manager",
+      entry: "Entry",
+      adapter: "Adapter",
+      component: "Component",
+      contract: "Contract",
+      utility: "Utility",
+    }[role] || "Provider");
   }
 
   function providerRoleBadge(role) {
@@ -579,14 +678,48 @@
     return api.display || api.signature || api.name || "";
   }
 
+  function apiKindLabel(kind) {
+    return ({
+      method: "方法",
+      function: "函数",
+      context_manager: "上下文管理器",
+      async_context_manager: "异步上下文管理器",
+      callable: "可调用对象",
+      iterable: "可迭代对象",
+    }[kind] || kind || "接口");
+  }
+
+  function providerKindLabel(kind) {
+    return ({
+      class: "类",
+      function: "函数",
+      provider: "提供者",
+    }[kind] || kind || "提供者");
+  }
+
+  function functionNote(functionId) {
+    const detail = functionDetailById.get(functionId);
+    return String(detail?.note || "").trim();
+  }
+
+  function apiHumanNote(api) {
+    const direct = String(api?.note || "").trim();
+    if (direct) return direct;
+    return api?.functionId ? functionNote(api.functionId) : "";
+  }
+
+  function humanNoteLine(note) {
+    return `<span class="detail-api-note">${escapeHtml(truncate(note || "暂无人类注释", 180))}</span>`;
+  }
+
   function apiExposureBadge(api) {
     if (!api) return "";
-    if (api.inherited) return `inherited · ${api.declaredInProviderId ? String(api.declaredInProviderId).split(".").pop() : "base"}`;
-    if (api.overridesCapabilityId) return "override";
-    if (api.isEntry) return "entry";
-    if (api.exposureSource === "protocol") return "protocol";
-    if (api.exposureSource === "naming") return "inferred";
-    return api.exposure || "public";
+    if (api.inherited) return `继承 · ${api.declaredInProviderId ? String(api.declaredInProviderId).split(".").pop() : "基类"}`;
+    if (api.overridesCapabilityId) return "覆写";
+    if (api.isEntry) return "入口";
+    if (api.exposureSource === "protocol") return "协议";
+    if (api.exposureSource === "naming") return "推断";
+    return api.exposure === "internal" ? "内部" : "公开";
   }
 
   function typeRelationLabel(kind) {
@@ -643,9 +776,9 @@
     }
     const list = (ids, empty) => ids.length ? ids.map(id => `<code>${escapeHtml(String(id).split(".").pop())}</code>`).join("") : `<span class="class-hierarchy-empty">${empty}</span>`;
     return `<div class="class-hierarchy">
-      <div class="hierarchy-row"><span>BASES</span><div>${list(bases, "—")}</div></div>
-      <div class="hierarchy-row"><span>SUBCLASSES</span><div>${list(subclasses, "—")}</div></div>
-      ${unresolved.length ? `<div class="hierarchy-row is-unresolved"><span>UNRESOLVED</span><div>${unresolved.map(item => `<code>${escapeHtml(item)}</code>`).join("")}</div></div>` : ""}
+      <div class="hierarchy-row"><span>基类</span><div>${list(bases, "—")}</div></div>
+      <div class="hierarchy-row"><span>子类</span><div>${list(subclasses, "—")}</div></div>
+      ${unresolved.length ? `<div class="hierarchy-row is-unresolved"><span>未解析</span><div>${unresolved.map(item => `<code>${escapeHtml(item)}</code>`).join("")}</div></div>` : ""}
     </div>`;
   }
 
@@ -665,8 +798,8 @@
       const targetNames = candidates.map(id => String(id).split(".").slice(-2).join("."));
       return `<div class="method-call-item is-polymorphic">
         <span class="method-call-name">${escapeHtml(entry.calleeText || entry.qualifiedName || "polymorphic call")}</span>
-        <span class="method-call-meta">${escapeHtml(entry.file || "")}:${entry.line || "—"} · ${candidates.length} candidate${candidates.length === 1 ? "" : "s"}</span>
-        <span class="method-call-kind">polymorphic</span>
+        <span class="method-call-meta">${escapeHtml(entry.file || "")}:${entry.line || "—"} · ${candidates.length} 个候选</span>
+        <span class="method-call-kind">多态</span>
         ${targetNames.length ? `<span class="method-call-candidates">${targetNames.map(name => `<code>${escapeHtml(name)}</code>`).join("")}</span>` : ""}
       </div>`;
     }).join("");
@@ -688,9 +821,13 @@
         ? `data-open-dispatch-candidate="${escapeHtml(candidateScope.id)}" data-dispatch-node="${escapeHtml(node.id)}"`
         : `data-open-exec-candidate="${escapeHtml(candidateId)}"`;
       return `<button class="detail-api-row" type="button" ${actionAttr}>
-        <span class="detail-api-kind">${candidateScope ? "journey" : "candidate"}</span>
-        <span class="detail-api-name">${escapeHtml(name)}</span>
-        <span class="detail-api-kind">${escapeHtml(detail?.file || "")}:${escapeHtml(detail?.line || "—")}</span>
+        <span class="detail-api-kind">${candidateScope ? "旅程" : "候选"}</span>
+        <span class="detail-api-main">
+          <span class="detail-api-name">${escapeHtml(name)}</span>
+          ${humanNoteLine(detail?.note || "")}
+          <span class="detail-api-meta">${escapeHtml(detail?.file || "")}:${escapeHtml(detail?.line || "—")}</span>
+        </span>
+        <span class="detail-api-badge">${candidateScope ? "打开" : "源码"}</span>
       </button>`;
     }).join("")}</div>`;
   }
@@ -725,8 +862,11 @@
   function apiDetailList(apis) {
     if (!apis || !apis.length) return `<div class="class-method-empty">暂无公开接口</div>`;
     return apis.map(api => `<button class="detail-api-row" type="button" ${apiButtonAttrs(api)}>
-        <span class="detail-api-kind">${escapeHtml(api.kind)}</span>
-        <span class="detail-api-name">${escapeHtml(apiDisplayName(api))}</span>
+        <span class="detail-api-kind">${escapeHtml(apiKindLabel(api.kind))}</span>
+        <span class="detail-api-main">
+          <span class="detail-api-name">${escapeHtml(apiDisplayName(api))}</span>
+          ${humanNoteLine(apiHumanNote(api))}
+        </span>
         <span class="detail-api-badge${api.inherited ? " is-inherited" : api.overridesCapabilityId ? " is-override" : ""}">${escapeHtml(apiExposureBadge(api))}</span>
       </button>`).join("");
   }
@@ -747,12 +887,12 @@
       byRole.get(role).push(provider);
     });
     return groups.map(([role, items]) => `<div class="api-role-group">
-      <div class="api-role-heading">${providerRoleBadge(role)}<span>${items.length} provider${items.length === 1 ? "" : "s"}</span></div>
+      <div class="api-role-heading">${providerRoleBadge(role)}<span>${items.length} 个提供者</span></div>
       ${items.map(provider => `<div class="api-provider">
         <div class="api-provider-head">
-          <span class="api-provider-kind">${escapeHtml(provider.providerKind || "provider")}</span>
+          <span class="api-provider-kind">${escapeHtml(providerKindLabel(provider.providerKind))}</span>
           <b>${escapeHtml(provider.providerName || provider.providerId)}</b>
-          <em>${provider.apiCount || (provider.apis || []).length}${Number(provider.inheritedApiCount || 0) ? ` · ${Number(provider.inheritedApiCount)} inherited` : ""}</em>
+          <em>${provider.apiCount || (provider.apis || []).length} 个接口${Number(provider.inheritedApiCount || 0) ? ` · 继承 ${Number(provider.inheritedApiCount)}` : ""}</em>
         </div>
         ${apiDetailList(provider.apis || [])}
       </div>`).join("")}
@@ -809,7 +949,7 @@
     if (state.route.kind === "project") {
       const executionFlow = currentExecutionFlow();
       const flowCount = (projectGraph.executionFlows || []).length;
-      detailScroll.innerHTML = `<div class="eyebrow">Project composition map</div>
+      detailScroll.innerHTML = `<div class="eyebrow">项目组成图</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(DATA.project.name)}</h2>
         <div class="detail-note">项目页提供独立主流程入口与模块能力卡片。流程与模块能力分开浏览，互不混用同一页面。</div>
         <div class="port-detail"><span>模块 <b>${visibleProjectModules().length}</b></span><span>执行流 <b>${flowCount}</b></span><span>类型关系 <b>${(projectGraph.typeRelations || []).length}</b></span><span>执行流节点 <b>${executionFlow?.nodeCount || 0}</b></span></div>
@@ -820,13 +960,13 @@
     if (state.route.kind === "flow") {
       const flow = currentExecutionFlow();
       if (!flow) {
-        detailScroll.innerHTML = `<div class="eyebrow">Main execution flow</div><h2 class="detail-name">暂无可解析主流程</h2><div class="detail-note">请检查 entrypoints 或 executionEntrypoints 配置。</div>`;
+        detailScroll.innerHTML = `<div class="eyebrow">主执行流</div><h2 class="detail-name">暂无可解析主流程</h2><div class="detail-note">请检查 entrypoints 或 executionEntrypoints 配置。</div>`;
         return;
       }
       const scopeCount = (flow.scopes || []).length;
-      detailScroll.innerHTML = `<div class="eyebrow">Main execution flow</div>
+      detailScroll.innerHTML = `<div class="eyebrow">主执行流</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(flow.name || "主流程")}</h2>
-        <div class="detail-note">入口函数的静态控制骨架。带 L1 标记的节点可打开一级接口下钻视图；更深实现进入 Method Detail。</div>
+        <div class="detail-note">入口函数的静态控制骨架。带 L1 标记的节点可打开一级接口下钻视图；更深实现进入方法详情。</div>
         <div class="port-detail"><span>入口 <b>${escapeHtml(flow.entrypointId || "—")}</b></span><span>节点 <b>${(flow.nodes || []).length}</b></span><span>边 <b>${(flow.edges || []).length}</b></span><span>接口 scope <b>${scopeCount}</b></span></div>
         ${annotationBlock(flow.entrypointId || flow.id)}
         <div class="empty-hint">单节点点击查看接口摘要；L1 按钮进入一级接口流程。</div>`;
@@ -835,13 +975,13 @@
     if (state.route.kind === "scope") {
       const flow = currentExecutionFlow();
       const scope = currentExecutionScope();
-      detailScroll.innerHTML = `<div class="eyebrow">Interface drilldown · L1</div>
+      detailScroll.innerHTML = `<div class="eyebrow">一级接口下钻 · L1</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(scope?.name || "接口下钻")}</h2>
         <div class="detail-note">目标函数的一级接口骨架。只展示直接外部能力接口与必要控制结构，不递归展开内部实现。</div>
         <div class="port-detail"><span>来源主流程 <b>${escapeHtml(flow?.name || "—")}</b></span><span>L1 来源 <b>${escapeHtml(drilldownReasonLabel(scope?.reason))}</b></span><span>节点 <b>${Number(scope?.nodeCount || 0)}</b></span><span>边 <b>${Number(scope?.edgeCount || 0)}</b></span><span>外部接口 <b>${(scope?.interfaceSummary || []).length}</b></span></div>
-        ${(scope?.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">External interfaces</div><div class="exec-interface-list">${scope.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
+        ${(scope?.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">外部接口</div><div class="exec-interface-list">${scope.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
         ${scope?.truncated ? `<div class="llm-stale">该 scope 已触发节点预算收缩，详情以源码与方法详情为准。</div>` : ""}
-        <div class="empty-hint">点击节点查看语义；双击打开 Method Detail / 源码。</div>`;
+        <div class="empty-hint">点击节点查看语义；双击打开方法详情 / 源码。</div>`;
       return;
     }
     if (state.route.kind === "dispatch") {
@@ -849,18 +989,18 @@
       const group = currentExecutionDispatchGroup();
       const scope = currentExecutionScope();
       if (!group || !scope) {
-        detailScroll.innerHTML = `<div class="eyebrow">Dispatch candidate journey</div><h2 class="detail-name">暂无可解析候选旅程</h2><div class="detail-note">dispatch 节点存在，但没有可用于下钻的候选 scope。</div>`;
+        detailScroll.innerHTML = `<div class="eyebrow">分发候选旅程</div><h2 class="detail-name">暂无可解析候选旅程</h2><div class="detail-note">dispatch 节点存在，但没有可用于下钻的候选 scope。</div>`;
         return;
       }
       const truncated = group.truncated || scope.truncated;
-      detailScroll.innerHTML = `<div class="eyebrow">Dispatch candidate journey</div>
+      detailScroll.innerHTML = `<div class="eyebrow">分发候选旅程</div>
         <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(scope.name || "候选旅程")}</h2>
         <div class="detail-note">dispatch 节点保持原子边界；当前候选以一级 callable scope 独立展开，不在主流程画布生成候选控制边。</div>
         <div class="port-detail"><span>表达式 <b>${escapeHtml(group.expression || "—")}</b></span><span>来源 <b>${escapeHtml(dispatchSourceLabel(group.candidateSource))}</b></span><span>候选 <b>${Number(group.candidateCount || 0)}</b></span><span>已生成 <b>${(group.scopes || []).length}</b></span><span>节点 <b>${Number(scope.nodeCount || 0)}</b></span></div>
         ${group.candidateSetComplete ? "" : `<div class="llm-stale">候选集合未声明完整；当前旅程只覆盖已知候选，不代表全部运行时路径。</div>`}
         ${truncated ? `<div class="llm-stale">候选旅程触发预算截断，未生成或已收缩的内容不在此 scope 中展开。</div>` : ""}
-        ${(scope.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">External interfaces</div><div class="exec-interface-list">${scope.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
-        <div class="empty-hint">使用顶部候选列表切换旅程；双击节点打开 Method Detail / 源码。</div>`;
+        ${(scope.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">外部接口</div><div class="exec-interface-list">${scope.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
+        <div class="empty-hint">使用顶部候选列表切换旅程；双击节点打开方法详情 / 源码。</div>`;
       return;
     }
     if (state.route.kind === "module") {
@@ -869,13 +1009,13 @@
       const apis = module.providedApis || [];
       const providers = module.apiProviders || [];
       detailScroll.innerHTML = `<div class="detail-head" style="--mc:${module.color}"><div class="detail-color"></div><div>
-          <div class="eyebrow">Module capability</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
+          <div class="eyebrow">模块能力</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
           <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
         <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(module.role || "service"))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span></div>
-        <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(module)}</div>
-        <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
-        ${(module.userSurfaces || []).length ? `<div class="class-method-section"><div class="class-method-heading">User surfaces</div><div class="user-surface-track">${userSurfaceChips(module.userSurfaces || [])}</div></div>` : ""}
+        <div class="class-method-section"><div class="class-method-heading">模块组成</div>${roleCompositionBlock(module)}</div>
+        <div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiProviderList(providers)}</div>
+        ${(module.userSurfaces || []).length ? `<div class="class-method-section"><div class="class-method-heading">用户交互面</div><div class="user-surface-track">${userSurfaceChips(module.userSurfaces || [])}</div></div>` : ""}
         ${annotationBlock(module.moduleId)}
         <div class="empty-hint">双击自由函数进入方法详情；类节点右栏展示其提供接口。</div>`;
       bindApiNavigation(detailScroll);
@@ -885,7 +1025,7 @@
     if (!detail) return;
     const module = projectModuleById.get(detail.moduleId);
     detailScroll.innerHTML = `<div class="detail-head" style="--mc:${module?.color || "#60a5fa"}"><div class="detail-color"></div><div>
-        <div class="eyebrow">Method detail</div><h2 class="detail-name">${escapeHtml(detail.name)}</h2>
+        <div class="eyebrow">方法详情</div><h2 class="detail-name">${escapeHtml(detail.name)}</h2>
         <div class="detail-module">${escapeHtml(module?.name || detail.moduleId)} · ${escapeHtml(detail.module)}</div></div></div>
       <div class="detail-note">${escapeHtml(detail.note || "暂无函数备注")}</div>
       <div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>
@@ -898,7 +1038,7 @@
     if (macroNode) {
       if (macroNode.kind === "flow") {
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#f59e0b"}"><div class="detail-color"></div><div>
-            <div class="eyebrow">Project flow</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name || "主流程")}</h2>
+            <div class="eyebrow">项目主流程</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name || "主流程")}</h2>
             <div class="detail-module">${escapeHtml(macroNode.moduleName || macroNode.moduleId || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "项目级主流程入口")}</div>
           <div class="port-detail"><span>入口 <b>${escapeHtml(macroNode.entrypointId || "—")}</b></span><span>节点 <b>${Number(macroNode.nodeCount || 0)}</b></span><span>边 <b>${Number(macroNode.edgeCount || 0)}</b></span></div>
@@ -929,7 +1069,7 @@
           }
         }
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || module?.color || "#60a5fa"}"><div class="detail-color"></div><div>
-            <div class="eyebrow">Execution flow · ${escapeHtml(executionKindLabel(macroNode.kind))}</div>
+            <div class="eyebrow">执行流 · ${escapeHtml(executionKindLabel(macroNode.kind))}</div>
             <h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.label || macroNode.id)}</h2>
             <div class="detail-module">${escapeHtml(module?.name || macroNode.moduleName || macroNode.moduleId || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "主执行流节点")}</div>
@@ -937,7 +1077,7 @@
           ${macroNode.kind === "interface" ? `<div class="empty-hint">功能接口是模块暴露的能力边界，不在主流程中展开内部实现；请打开方法详情或模块能力页查看。</div>` : ""}
           ${meta.length ? `<div class="source-line">${meta.map(item => escapeHtml(item)).join("<br>")}</div>` : ""}
           ${executionArmSummaryDetailHtml(macroNode)}
-          ${macroNode.kind === "dispatch" ? `<div class="class-method-section"><div class="class-method-heading">Dispatch candidates · ${Number(macroNode.candidateCount || 0)}</div>${dispatchCandidateList(macroNode)}</div>` : ""}
+          ${macroNode.kind === "dispatch" ? `<div class="class-method-section"><div class="class-method-heading">分发候选 · ${Number(macroNode.candidateCount || 0)}</div>${dispatchCandidateList(macroNode)}</div>` : ""}
           ${macroNode.kind !== "interface" && (macroNode.drilldown?.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">L1 外部接口 · ${macroNode.drilldown.interfaceSummary.length}</div><div class="exec-interface-list">${macroNode.drilldown.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
           ${(macroNode.interfaceHints || []).length ? `<div class="class-method-section"><div class="class-method-heading">Helper 直接触达接口 · ${macroNode.interfaceHints.length}</div><div class="exec-interface-list">${macroNode.interfaceHints.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}</span>`).join("")}</div></div>` : ""}
           ${detail ? `<div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>` : ""}
@@ -978,12 +1118,12 @@
         const apis = graph?.providedApis || [];
         const providers = graph?.apiProviders || [];
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color}"><div class="detail-color"></div><div>
-            <div class="eyebrow">Module capability · ${escapeHtml(moduleRoleLabel(macroNode.role))}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
+            <div class="eyebrow">模块能力 · ${escapeHtml(moduleRoleLabel(macroNode.role))}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">module://${escapeHtml(uid)}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
           <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(macroNode.role || "service"))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
-          <div class="class-method-section"><div class="class-method-heading">Module composition</div>${roleCompositionBlock(graph)}</div>
-          <div class="class-method-section"><div class="class-method-heading">Providing API</div>${apiProviderList(providers)}</div>
+          <div class="class-method-section"><div class="class-method-heading">模块组成</div>${roleCompositionBlock(graph)}</div>
+          <div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiProviderList(providers)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>
           ${annotationBlock(uid)}
           <div class="detail-actions"><button class="detail-action" type="button" data-open-module-detail="${escapeHtml(uid)}">打开模块页面</button></div>`;
@@ -1000,7 +1140,7 @@
         const protocols = usage.protocols || [];
         const internalCount = Number(macroNode.internalMethodCount || 0);
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#60a5fa"}"><div class="detail-color"></div><div>
-            <div class="eyebrow">${isTypeCard ? "Type provider" : "Class provider"}${macroNode.isAbstract ? " · contract" : ""}</div>
+            <div class="eyebrow">${isTypeCard ? "类型 Provider" : "类 Provider"}${macroNode.isAbstract ? " · 契约" : ""}</div>
             <h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">${escapeHtml(macroNode.qualifiedName || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无类备注")}</div>
@@ -1010,9 +1150,9 @@
           <div class="source-line">${escapeHtml(macroNode.file || "")}:${macroNode.line || "—"}</div>
           <div class="port-detail"><span>声明接口 <b>${Number(macroNode.declaredApiCount || apis.filter(api => !api.inherited).length)}</b></span><span>继承接口 <b>${Number(macroNode.inheritedApiCount || apis.filter(api => api.inherited).length)}</b></span></div>
           ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不进入主流程执行节点。</div>` : ""}
-          <div class="class-method-section"><div class="class-method-heading">Type hierarchy</div>${classHierarchyBlock(macroNode)}</div>
-          <div class="class-method-section"><div class="class-method-heading">Structural relations</div>${structuralRelationsBlock(macroNode, moduleGraphById.get(state.moduleId))}</div>
-          ${isTypeCard ? `<div class="class-method-section"><div class="class-method-heading">Type fields · ${Number(typeSummary?.fieldCount || 0)}</div>${typeFieldList(typeSummary)}</div>` : `<div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>`}
+          <div class="class-method-section"><div class="class-method-heading">类型层级</div>${classHierarchyBlock(macroNode)}</div>
+          <div class="class-method-section"><div class="class-method-heading">结构关系</div>${structuralRelationsBlock(macroNode, moduleGraphById.get(state.moduleId))}</div>
+          ${isTypeCard ? `<div class="class-method-section"><div class="class-method-heading">类型字段 · ${Number(typeSummary?.fieldCount || 0)}</div>${typeFieldList(typeSummary)}</div>` : `<div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>`}
           <div class="class-method-section"><div class="class-method-heading">内部实现</div><div class="class-method-empty">${internalCount} 个内部方法，不在契约视图展示。</div></div>`;
         bindApiNavigation(detailScroll);
         return;
@@ -1020,7 +1160,7 @@
       if (macroNode.kind === "function") {
         const detail = functionDetailById.get(macroNode.functionDetailId);
         detailScroll.innerHTML = `<div class="detail-head" style="--mc:${macroNode.color || "#60a5fa"}"><div class="detail-color"></div><div>
-            <div class="eyebrow">Function provider</div><h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
+            <div class="eyebrow">函数 Provider</div><h2 class="detail-name">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">${escapeHtml(macroNode.qualifiedName || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无函数备注")}</div>
           <div class="port-detail"><span>角色 <b>${escapeHtml(providerRoleLabel(macroNode.providerRole))}</b></span><span>暴露 <b>${escapeHtml(detail?.apiExposure || macroNode.apiExposure || "public")}</b></span><span>来源 <b>${escapeHtml(detail?.apiExposureSource || macroNode.apiExposureSource || "naming")}</b></span></div>
@@ -1157,14 +1297,27 @@
       return;
     }
     moduleContracts.style.setProperty("--mc-rgb", rgbFromHex(graph.color || "#60a5fa"));
-    moduleContracts.innerHTML = `<div class="contracts-main">
-        <div class="contracts-label">PROVIDED API</div>
-        <div class="contracts-track">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
-        <div class="contracts-count">${apis.length} apis</div>
+    moduleContracts.innerHTML = `<div class="contracts-topline">
+        <div class="contracts-title-group">
+          <span class="contracts-label">模块能力</span>
+          <span class="contracts-subtitle">按 Provider 能力边界组织的模块概览</span>
+        </div>
+        <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>
       </div>
-      <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>
-      <div class="contracts-types"><div class="contracts-label">TYPE RELATIONS</div><div class="type-relation-track">${typeRelationChips(graph)}</div><div class="contracts-count">${(graph.typeRelations || []).length} relations</div></div>
-      <div class="contracts-types"><div class="contracts-label">USER SURFACES</div><div class="user-surface-track">${userSurfaceChips(graph.userSurfaces || [])}</div><div class="contracts-count">${(graph.userSurfaces || []).length} surfaces</div></div>`;
+      <div class="contracts-sections">
+        <section class="contracts-section contracts-section-api">
+          <div class="contracts-section-head"><span class="contracts-label">提供接口</span><span class="contracts-count">${apis.length} 个</span></div>
+          <div class="contracts-grid">${apis.length ? apiChips(apis, 8, { showMore: true }) : `<span class="contracts-empty">该模块暂无公开接口</span>`}</div>
+        </section>
+        <section class="contracts-section contracts-section-types">
+          <div class="contracts-section-head"><span class="contracts-label">类型关系</span><span class="contracts-count">${(graph.typeRelations || []).length} 条</span></div>
+          <div class="contracts-grid type-relation-track">${typeRelationChips(graph)}</div>
+        </section>
+        <section class="contracts-section contracts-section-surfaces">
+          <div class="contracts-section-head"><span class="contracts-label">用户交互面</span><span class="contracts-count">${(graph.userSurfaces || []).length} 个</span></div>
+          <div class="contracts-grid user-surface-track">${userSurfaceChips(graph.userSurfaces || [])}</div>
+        </section>
+      </div>`;
     moduleContracts.classList.add("is-visible");
     bindApiNavigation(moduleContracts);
   }
@@ -1177,7 +1330,7 @@
       flowPicker.innerHTML = "";
       return;
     }
-    flowPicker.innerHTML = `<span>EXECUTION FLOWS</span>${flows.map(flow =>
+    flowPicker.innerHTML = `<span>执行流</span>${flows.map(flow =>
       `<button type="button" data-flow-pick="${escapeHtml(flow.id)}" class="${flow.id === selectedFlow?.id ? "is-active" : ""}">${escapeHtml(flow.name || flow.entrypointId)}</button>`
     ).join("")}`;
     flowPicker.querySelectorAll("[data-flow-pick]").forEach(button => {
@@ -1192,7 +1345,7 @@
       flowPicker.innerHTML = "";
       return;
     }
-    flowPicker.innerHTML = `<span>DISPATCH CANDIDATES</span>${scopes.map(scope => {
+    flowPicker.innerHTML = `<span>分发候选</span>${scopes.map(scope => {
       const detail = functionDetailById.get(scope.rootFunctionId);
       const label = detail?.name || scope.rootFunctionId.split(".").pop();
       return `<button type="button" data-candidate-pick="${escapeHtml(scope.id)}" class="${scope.id === selectedScope?.id ? "is-active" : ""}" title="${escapeHtml(scope.name || label)}">${escapeHtml(label)}</button>`;
@@ -1211,20 +1364,15 @@
   function updateChrome(kind) {
     const module = state.route.moduleId ? projectModuleById.get(state.route.moduleId) : null;
     const detail = state.route.functionId ? functionDetailById.get(state.route.functionId) : null;
-    relationModeBtn.style.display = kind === "project" ? "" : "none";
-    relationModeBtn.setAttribute("aria-pressed", String(state.showProjectRelations));
-    relationModeBtn.textContent = state.showProjectRelations ? "隐藏关系" : "关系";
     if (kind === "project") {
-      canvasKicker.textContent = "Project composition map";
+      canvasKicker.textContent = "项目组成图";
       canvasTitle.textContent = DATA.project.name;
       canvasSub.textContent = "项目级执行流独立展示 · 模块卡片展示能力视图 · 双击进入对应页面";
       breadcrumb.innerHTML = `<b>${escapeHtml(DATA.project.name)}</b>`;
-      legend.innerHTML = state.showProjectRelations
-        ? legendItem("line", "模块调用/数据关系") + legendItem("card", "模块能力卡片") + legendItem("entry", "执行流卡片")
-        : legendItem("entry", "执行流卡片") + legendItem("card", "模块能力卡片");
+      legend.innerHTML = legendItem("entry", "执行流卡片") + legendItem("card", "模块能力卡片");
     } else if (kind === "flow") {
       const flow = currentExecutionFlow();
-      canvasKicker.textContent = "Main execution flow";
+      canvasKicker.textContent = "主执行流";
       canvasTitle.textContent = flow?.name || "主流程";
       canvasSub.textContent = "入口函数控制骨架 · 调用目标原子化 · 带 L1 标记的节点可下钻接口视图 · 双击进入源码";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>主流程</b>`;
@@ -1232,7 +1380,7 @@
     } else if (kind === "scope") {
       const flow = currentExecutionFlow();
       const scope = currentExecutionScope();
-      canvasKicker.textContent = "Interface drilldown · L1";
+      canvasKicker.textContent = "一级接口下钻 · L1";
       canvasTitle.textContent = scope?.name || "接口下钻";
       canvasSub.textContent = "一级接口展开 · 外部模块能力节点与目标函数控制骨架 · 不递归展开 · 双击进入源码";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><button type="button" data-nav="flow">${escapeHtml(flow?.name || "主流程")}</button><span class="slash">/</span><b>${escapeHtml(scope?.name || "接口下钻")}</b>`;
@@ -1241,13 +1389,13 @@
       const flow = currentExecutionFlow();
       const group = currentExecutionDispatchGroup();
       const scope = currentExecutionScope();
-      canvasKicker.textContent = "Dispatch candidate journey";
+      canvasKicker.textContent = "分发候选旅程";
       canvasTitle.textContent = group?.expression || "候选旅程";
       canvasSub.textContent = "dispatch 保持原子边界 · 候选以独立 callable scope 展开 · 不递归生成新候选旅程 · 双击进入源码";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><button type="button" data-nav="flow">${escapeHtml(flow?.name || "主流程")}</button><span class="slash">/</span><button type="button" data-nav="dispatch">${escapeHtml(group?.expression || "dispatch")}</button><span class="slash">/</span><b>${escapeHtml(scope?.name || "候选旅程")}</b>`;
       legend.innerHTML = legendItem("dispatch", "分发边界") + legendItem("function", "候选步骤") + legendItem("interface", "外部能力接口") + legendItem("line", "确定的控制/执行边");
     } else if (kind === "module") {
-      canvasKicker.textContent = "Module capability";
+      canvasKicker.textContent = "模块能力";
       canvasTitle.textContent = module?.name || state.route.moduleId;
       canvasSub.textContent = "Provider · API · 类型关系 · 双击进入详情";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>${escapeHtml(module?.name || state.route.moduleId)}</b>`;
@@ -1257,7 +1405,7 @@
         ? (moduleGraphById.get(detail.moduleId)?.nodes || []).find(node => node.id === detail.ownerClassId)
         : null;
       const owner = ownerClass ? `<button type="button" data-nav="module" data-module="${escapeHtml(state.route.moduleId)}">${escapeHtml(ownerClass.name)}</button><span class="slash">/</span>` : "";
-      canvasKicker.textContent = "Method detail";
+      canvasKicker.textContent = "方法详情";
       canvasTitle.textContent = detail?.name || state.route.functionId;
       canvasSub.textContent = "源码 + 人类备注 + LLM 语义 + 调用关系";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><button type="button" data-nav="module" data-module="${escapeHtml(state.route.moduleId)}">${escapeHtml(module?.name || state.route.moduleId)}</button><span class="slash">/</span>${owner}<b>${escapeHtml(detail?.name || state.route.functionId)}</b>`;
@@ -1309,19 +1457,6 @@
     return updateWorldExtent(900, 640);
   }
 
-  function refreshProjectEdges() {
-    world.querySelectorAll(".macro-edge").forEach(path => {
-      const from = state.positions.get(path.dataset.from);
-      const to = state.positions.get(path.dataset.to);
-      if (!from || !to) {
-        path.style.display = "none";
-        return;
-      }
-      path.style.display = "";
-      path.setAttribute("d", curvePath(from, to));
-    });
-  }
-
   function renderProjectPage() {
     state.pageKind = "project";
     state.moduleId = null;
@@ -1338,21 +1473,15 @@
     world.innerHTML = "";
     world.classList.remove("page-enter");
     const capabilityModules = visibleProjectModules();
-    const visibleModuleIds = state.singleModule && capabilityModules.length
-      ? [capabilityModules[0].id]
-      : capabilityModules.map(item => item.id);
     state.nodes = new Map();
     // The project page is one card grid: project-level flow cards and
-    // capability module cards are peers.  Dependency evidence stays in facts.
-    if (!state.singleModule) {
-      (projectGraph.flowCards || []).forEach(card => {
-        state.nodes.set(card.id, { ...card, kind: "flow" });
-      });
-    }
+    // capability module cards are peers.  Module dependency lines are not
+    // projected or rendered.
+    (projectGraph.flowCards || []).forEach(card => {
+      state.nodes.set(card.id, { ...card, kind: "flow" });
+    });
     capabilityModules.forEach(module => {
-      if (visibleModuleIds.includes(module.id)) {
-        state.nodes.set(module.id, { ...module, kind: "module" });
-      }
+      state.nodes.set(module.id, { ...module, kind: "module" });
     });
     state.sizes = new Map();
     state.positions = new Map();
@@ -1365,30 +1494,12 @@
     const width = 1200, height = 800;
     const svg = makeSvg(width, height, "world-edges");
     world.appendChild(svg);
-    state.pageEdges = state.showProjectRelations
-      ? projectGraph.edges.filter(edge => edge.role === "internal" && state.nodes.has(edge.from) && state.nodes.has(edge.to))
-      : [];
-    state.pageEdges.forEach(edge => {
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("class", macroEdgeClass(edge));
-      path.setAttribute("data-from", edge.from);
-      path.setAttribute("data-to", edge.to);
-      path.setAttribute("data-edge-id", edge.id);
-      path.setAttribute("data-edge-count", String((edge.evidence || []).length));
-      const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-      title.textContent = `${edge.primaryType} · ${(edge.evidence || []).length} evidence`;
-      path.appendChild(title);
-      const from = state.positions.get(edge.from);
-      const to = state.positions.get(edge.to);
-      path.setAttribute("d", curvePath(from, to));
-      svg.appendChild(path);
-    });
+    state.pageEdges = [];
     state.nodes.forEach((node, nodeId) => {
       if (node.kind === "flow") renderProjectFlowCard(nodeId, node);
       else renderProjectModule(nodeId, node);
     });
     updateProjectWorldSize();
-    refreshProjectEdges();
     world.classList.add("page-enter");
     requestAnimationFrame(() => {
       applyTransform();
@@ -1420,13 +1531,13 @@
         </div>
         <div class="module-note">${escapeHtml(card.note || "项目级主流程入口")}</div>
         <div class="module-api-section">
-          <div class="module-api-heading"><span>ENTRYPOINT</span><b>${escapeHtml(card.entrypointReason || "flow")}</b></div>
+          <div class="module-api-heading"><span>入口</span><b>${escapeHtml(card.entrypointReason || "flow")}</b></div>
           <div class="module-api-chips"><span class="module-api-chip is-entry">${escapeHtml(card.entrypointId || "")}</span></div>
         </div>
         <div class="module-metrics">
           <span>${escapeHtml(card.moduleName || card.moduleId || "")}</span>
-          <span>${Number(card.nodeCount || 0)} nodes</span>
-          <span>${Number(card.edgeCount || 0)} edges</span>
+          <span>${Number(card.nodeCount || 0)} 个节点</span>
+          <span>${Number(card.edgeCount || 0)} 条边</span>
         </div>
       </header>`;
     world.appendChild(element);
@@ -1451,7 +1562,7 @@
         pos.x = x; pos.y = y;
         setProjectPosition(nodeId, x, y);
       },
-      onMove: () => { updateProjectWorldSize(); refreshProjectEdges(); },
+      onMove: () => { updateProjectWorldSize(); },
       onEnd: () => { persistOverride(); updateProjectWorldSize(); },
     });
   }
@@ -1485,14 +1596,14 @@
         </div>
         <div class="module-note">${escapeHtml(module.note || "暂无模块备注")}</div>
         <div class="module-api-section">
-          <div class="module-api-heading"><span>PROVIDED API</span><b>${apiCount}</b></div>
+          <div class="module-api-heading"><span>提供接口</span><b>${apiCount}</b></div>
           <div class="module-api-chips">${apiChips(apis, 3)}</div>
         </div>
         <div class="module-role-counts">${roleCountChips(visibleRoleCounts(graph))}</div>
         <div class="module-metrics">
-          <span>${classCount} class${classCount === 1 ? "" : "es"}</span>
-          <span>${providerCount} provider${providerCount === 1 ? "" : "s"}</span>
-          <span class="${apiCount ? "has-apis" : ""}">${apiCount} api${apiCount === 1 ? "" : "s"}</span>
+          <span>${classCount} 个类</span>
+          <span>${providerCount} 个提供者</span>
+          <span class="${apiCount ? "has-apis" : ""}">${apiCount} 个接口</span>
         </div>
       </header>`;
     world.appendChild(element);
@@ -1518,7 +1629,7 @@
         pos.x = x; pos.y = y;
         setProjectPosition(nodeId, x, y);
       },
-      onMove: () => { updateProjectWorldSize(); refreshProjectEdges(); },
+      onMove: () => { updateProjectWorldSize(); },
       onEnd: () => { persistOverride(); updateProjectWorldSize(); },
     });
   }
@@ -1547,14 +1658,6 @@
 
   function updateModuleWorldSize(moduleId) {
     return updateWorldExtent(860, 640);
-  }
-
-  function refreshModuleEdges() {
-    world.querySelectorAll(".macro-edge").forEach(path => {
-      const from = state.positions.get(path.dataset.from);
-      const to = state.positions.get(path.dataset.to);
-      if (from && to) path.setAttribute("d", curvePath(from, to));
-    });
   }
 
   function drilldownReasonLabel(reason) {
@@ -1641,7 +1744,7 @@
     const outgoing = (state.pageEdges || [])
       .filter(edge => edge.from === node.id && Array.isArray(edge.statements) && edge.statements.length);
     if (!rows.length && !outgoing.length) return "";
-    return `<div class="class-method-section"><div class="class-method-heading">Control arm semantics</div>
+    return `<div class="class-method-section"><div class="class-method-heading">控制臂语义</div>
       <div class="exec-arm-detail">
         ${rows.map(row => `<div class="exec-arm-detail-row"><b>${escapeHtml(row.label)}</b><span>${escapeHtml(row.text)}</span></div>`).join("")}
         ${outgoing.map(edge => `<div class="exec-arm-detail-row"><b>${escapeHtml(edge.kind || "next")}</b><span>${escapeHtml((edge.statements || []).join("; "))}</span></div>`).join("")}
@@ -1750,12 +1853,12 @@
       } else if (node.drilldown?.kind === "dispatch" && node.drilldown?.status === "blocked") {
         foot.push(drilldownReasonLabel(node.drilldown.reason));
       } else {
-        foot.push(`完整性：${node.candidateSetComplete ? "complete" : "partial"}`);
+        foot.push(`完整性：${node.candidateSetComplete ? "完整" : "部分"}`);
       }
     }
     if (kind === "loop") {
-      foot.push(`loopKind: ${node.loopKind || "loop"}`);
-      foot.push(`mayExit: ${node.mayExit ? "true" : "false"}`);
+      foot.push(`循环类型：${node.loopKind || "loop"}`);
+      foot.push(`可能退出：${node.mayExit ? "是" : "否"}`);
     }
     const element = document.createElement("article");
     element.className = `node-card execution-node kind-${escapeHtml(kind)}${targetId ? " is-navigable" : ""}`;
@@ -1914,7 +2017,7 @@
     if (!flow || !executionView) {
       world.style.width = "760px";
       world.style.height = "420px";
-      world.innerHTML = `<div class="flow-empty"><div class="eyebrow">Execution flow</div><h2>暂无可解析主流程</h2><p>请检查 entrypoints 或 executionEntrypoints 配置。</p></div>`;
+      world.innerHTML = `<div class="flow-empty"><div class="eyebrow">执行流</div><h2>暂无可解析主流程</h2><p>请检查 entrypoints 或 executionEntrypoints 配置。</p></div>`;
       updateModuleWorldSize(moduleId);
       requestAnimationFrame(() => { applyTransform(); fitView(); renderDefaultDetail(); });
       return;
@@ -2022,7 +2125,6 @@
       else if (node.kind === "class") renderModuleClassNode(moduleId, nodeId, node);
     });
     updateModuleWorldSize(moduleId);
-    refreshModuleEdges();
     world.classList.add("page-enter");
     requestAnimationFrame(() => {
       applyTransform();
@@ -2061,7 +2163,7 @@
         item.x = x; item.y = y;
         setModulePagePosition(moduleId, nodeId, x, y);
       },
-      onMove: () => { updateModuleWorldSize(moduleId); refreshModuleEdges(); },
+      onMove: () => { updateModuleWorldSize(moduleId); },
       onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
@@ -2075,10 +2177,10 @@
     const typeSummary = node.typeSummary || usage.typeSummary || null;
     const isTypeCard = node.providerRole === "config" || node.providerRole === "model";
     const constructorSignature = usage.constructor?.signature || `${node.name}()`;
-    const inheritanceText = (node.baseClassIds || []).length ? ` · ${node.baseClassIds.length} base` : "";
-    const inheritedText = Number(node.inheritedApiCount || 0) ? ` · ${Number(node.inheritedApiCount)} inherited` : "";
+    const inheritanceText = (node.baseClassIds || []).length ? ` · ${node.baseClassIds.length} 个基类` : "";
+    const inheritedText = Number(node.inheritedApiCount || 0) ? ` · 继承 ${Number(node.inheritedApiCount)} 个接口` : "";
     const bodySummary = isTypeCard
-      ? `<div class="class-usage">${Number(typeSummary?.fieldCount || 0)} fields · type contract${inheritanceText}</div>`
+      ? `<div class="class-usage">${Number(typeSummary?.fieldCount || 0)} 个字段 · 类型契约${inheritanceText}</div>`
       : `<div class="class-usage">${escapeHtml(constructorSignature)}${escapeHtml(inheritanceText + inheritedText)}</div>`;
     const chips = isTypeCard
       ? `<div class="class-method-chips type-fields">${typeFieldChips(typeSummary, 2)}</div>`
@@ -2096,7 +2198,7 @@
         <span class="class-node-icon">C</span>
         <span class="class-node-kind">${escapeHtml(providerRoleLabel(node.providerRole))}</span>
         ${providerRoleBadge(node.providerRole)}
-        <span class="class-node-count">${isTypeCard ? `${Number(typeSummary?.fieldCount || 0)} fields` : `${apis.length} apis`}</span>
+        <span class="class-node-count">${isTypeCard ? `${Number(typeSummary?.fieldCount || 0)} 字段` : `${apis.length} 个接口`}</span>
       </div>
       <div class="class-node-name">${escapeHtml(node.name)}</div>
       ${bodySummary}
@@ -2113,7 +2215,7 @@
         item.x = x; item.y = y;
         setModulePagePosition(moduleId, nodeId, x, y);
       },
-      onMove: () => { updateModuleWorldSize(moduleId); refreshModuleEdges(); },
+      onMove: () => { updateModuleWorldSize(moduleId); },
       onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
     });
   }
@@ -2172,7 +2274,7 @@
       return `<div class="method-source-line${isCall ? " is-call-site" : ""}">
         <span class="method-source-ln">${lineNumber}</span>
         <span class="method-source-code">${escapeHtml(line || " ")}</span>
-        ${isCall ? `<span class="method-source-call">call</span>` : ""}
+        ${isCall ? `<span class="method-source-call">调用</span>` : ""}
       </div>`;
     }).join("");
 
@@ -2206,7 +2308,7 @@
 
     world.innerHTML = `<div class="method-page">
       <header class="method-page-head">
-        <div class="eyebrow">Method detail</div>
+        <div class="eyebrow">方法详情</div>
         <h1 class="method-page-title">${escapeHtml(detail.name)}<span>()</span></h1>
         <div class="method-signature">${escapeHtml(detail.signature || "")}</div>
         <div class="method-badges">${badges.map(item => `<span class="method-badge">${escapeHtml(item)}</span>`).join("")}</div>
@@ -2214,24 +2316,24 @@
       </header>
       <div class="method-page-grid">
         <section class="method-source-panel">
-          <div class="method-panel-heading"><span>Source</span><em>${escapeHtml(source.language || "python")} · ${source.startLine || detail.line}-${source.endLine || detail.endLine}${source.truncated ? " · truncated" : ""}</em></div>
+          <div class="method-panel-heading"><span>源码</span><em>${escapeHtml(source.language || "python")} · ${source.startLine || detail.line}-${source.endLine || detail.endLine}${source.truncated ? " · 已截断" : ""}</em></div>
           <div class="method-source">${sourceRows || `<div class="method-call-empty">源码不可用</div>`}</div>
         </section>
         <aside class="method-calls-panel">
           <section>
-            <div class="method-panel-heading"><span>Callers</span><em>${detail.callerCount || 0}</em></div>
+            <div class="method-panel-heading"><span>调用者</span><em>${detail.callerCount || 0}</em></div>
             ${methodCallList(detail.callers || [], "暂无调用者")}
           </section>
           <section>
-            <div class="method-panel-heading"><span>Callees</span><em>${detail.calleeCount || 0}</em></div>
+            <div class="method-panel-heading"><span>被调用者</span><em>${detail.calleeCount || 0}</em></div>
             ${methodCallList(detail.callees || [], "暂无被调用者")}
           </section>
           ${(detail.polymorphicCallers || []).length ? `<section>
-            <div class="method-panel-heading"><span>Polymorphic callers</span><em>${detail.polymorphicCallerCount || 0}</em></div>
+            <div class="method-panel-heading"><span>多态调用者</span><em>${detail.polymorphicCallerCount || 0}</em></div>
             ${polymorphicCallList(detail.polymorphicCallers, "暂无多态调用者")}
           </section>` : ""}
           ${(detail.polymorphicCallees || []).length ? `<section>
-            <div class="method-panel-heading"><span>Polymorphic callees</span><em>${detail.polymorphicCalleeCount || 0}</em></div>
+            <div class="method-panel-heading"><span>多态被调用者</span><em>${detail.polymorphicCalleeCount || 0}</em></div>
             ${polymorphicCallList(detail.polymorphicCallees, "暂无多态候选")}
           </section>` : ""}
         </aside>
@@ -2246,15 +2348,15 @@
     applyTransform();
 
     const ownerLine = ownerClass
-      ? `<div class="source-line">owner: ${escapeHtml(ownerClass.qualifiedName || ownerClass.name)}</div>`
+      ? `<div class="source-line">所属类：${escapeHtml(ownerClass.qualifiedName || ownerClass.name)}</div>`
       : "";
-    detailScroll.innerHTML = `<div class="eyebrow">Semantic contract</div>
+    detailScroll.innerHTML = `<div class="eyebrow">语义契约</div>
       <h2 class="detail-name" style="font-family:var(--mono);font-size:15px">${escapeHtml(detail.qualifiedName)}</h2>
       <div class="detail-note">${escapeHtml(detail.note || "暂无函数备注")}</div>
       <div class="port-detail"><span>API <b>${escapeHtml(detail.apiExposure || "public")}</b></span><span>来源 <b>${escapeHtml(detail.apiExposureSource || "naming")}</b></span><span>返回 <b>${escapeHtml(detail.returns || "—")}</b></span><span>异常 <b>${escapeHtml((detail.raises || []).join(" / ") || "—")}</b></span></div>
       ${ownerLine}
-      ${detail.overrideOfFunctionId ? `<div class="source-line">override of <code>${escapeHtml(detail.overrideOfFunctionId)}</code></div>` : ""}
-      ${(detail.overriddenByFunctionIds || []).length ? `<div class="source-line">overridden by ${detail.overriddenByFunctionIds.map(id => `<code>${escapeHtml(id)}</code>`).join(" ")}</div>` : ""}
+      ${detail.overrideOfFunctionId ? `<div class="source-line">覆写自 <code>${escapeHtml(detail.overrideOfFunctionId)}</code></div>` : ""}
+      ${(detail.overriddenByFunctionIds || []).length ? `<div class="source-line">被覆写：${detail.overriddenByFunctionIds.map(id => `<code>${escapeHtml(id)}</code>`).join(" ")}</div>` : ""}
       <div class="source-line">${escapeHtml(detail.file)}:${detail.line}</div>
       ${annotationBlock(detail.id, detail.sourceHash)}`;
 
@@ -2324,25 +2426,11 @@
   }
 
   // Global controls.
-  relationModeBtn.addEventListener("click", () => {
-    state.showProjectRelations = !state.showProjectRelations;
-    if (state.pageKind === "project") renderProjectPage();
-    else updateChrome(state.pageKind);
-  });
   $("saveBtn").addEventListener("click", () => { persistOverride(); showToast("布局已保存到浏览器"); });
   $("resetBtn").addEventListener("click", () => { resetOverride(); renderRoute(); showToast("已恢复默认布局"); });
   $("fitBtn").addEventListener("click", () => fitView());
   $("zoomIn").addEventListener("click", () => zoomAt(1.16));
   $("zoomOut").addEventListener("click", () => zoomAt(1 / 1.16));
-  singleModeBtn.addEventListener("click", () => {
-    if (!visibleProjectModules().length) return;
-    state.singleModule = !state.singleModule;
-    override.project.singleModule = state.singleModule;
-    singleModeBtn.setAttribute("aria-pressed", String(state.singleModule));
-    persistOverride();
-    if (state.pageKind === "project") renderProjectPage();
-    else navigate({ kind: "project" });
-  });
   $("exportBtn").addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(override, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -2361,7 +2449,6 @@
     reader.onload = () => {
       try {
         override = normalizeOverride(JSON.parse(String(reader.result)));
-        state.singleModule = Boolean(override.project.singleModule);
         persistOverride();
         renderRoute();
         showToast("布局覆盖已导入");
@@ -2440,8 +2527,6 @@
 
   projectNameEl.textContent = DATA.project.name;
   projectLanguageEl.textContent = DATA.project.language === "python" ? "Python" : DATA.project.language;
-  state.singleModule = Boolean(override.project.singleModule);
-  singleModeBtn.setAttribute("aria-pressed", String(state.singleModule));
   if (!location.hash) history.replaceState({ kind: "project" }, "", "#/project");
   applyTransform();
   renderRoute();

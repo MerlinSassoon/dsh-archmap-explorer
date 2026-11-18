@@ -122,7 +122,7 @@ def test_render_separates_main_flow_from_module_capabilities() -> None:
     assert "data-open-flow-card" in html
     assert 'id="flowPicker"' in html
     assert "renderFlowPage" in html
-    assert "Module capability" in html
+    assert "模块能力" in html
     assert "main-flow-node" not in html
     assert "renderMainFlowPage" not in html
     assert "data-main-view" not in html
@@ -145,8 +145,8 @@ def test_render_contains_provider_roles_and_type_cards() -> None:
     assert "typeFieldChips" in html
     assert "type-field-list" in html
     assert "CLASS / MODEL" not in html
-    assert "CONFIG" in html
-    assert "MODEL" in html
+    assert 'config: "Config"' in html
+    assert 'model: "Model"' in html
     assert "AppConfig" in html
     match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
     assert match is not None
@@ -205,7 +205,7 @@ def test_render_ignores_layout_overrides_from_old_geometry() -> None:
     """Saved drag coordinates must not survive a default-geometry change."""
 
     html = render_html(build_architecture(ROOT))
-    assert "const GEOMETRY_VERSION = 3;" in html
+    assert "const GEOMETRY_VERSION = 4;" in html
     assert "Number(value.geometryVersion) !== GEOMETRY_VERSION" in html
     assert "localStorage.removeItem(STORAGE_KEY)" in html
 
@@ -216,4 +216,22 @@ def test_render_exposes_dispatch_candidate_details() -> None:
     html = render_html(build_architecture(ROOT))
     assert "dispatchCandidateList" in html
     assert "data-open-exec-candidate" in html
-    assert "Dispatch candidates" in html
+    assert "分发候选" in html
+    assert "detail-api-note" in html
+    assert "apiHumanNote" in html
+
+
+def test_render_exposes_p12_ui_shell_without_legacy_toggles() -> None:
+    """P12 UI shell: resizable panel, localized navigation and no legacy toggles."""
+
+    html = render_html(build_architecture(ROOT))
+    assert 'id="detailResizer"' in html
+    assert "DETAIL_PANEL_DEFAULT_WIDTH = 420" in html
+    assert "DETAIL_PANEL_MIN_WIDTH = 360" in html
+    assert "archmap-detail-panel-width-v1" in html
+    assert "detail-api-note" in html
+    assert "项目组成图" in html
+    assert "模块能力" in html
+    assert "PROVIDED API" not in html
+    assert "relationModeBtn" not in html
+    assert "singleModeBtn" not in html

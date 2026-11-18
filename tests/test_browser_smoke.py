@@ -104,6 +104,30 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('[data-expand]').length") == 0
         assert execute("return document.querySelectorAll('.module-mini').length") == 0
         assert execute("return document.querySelectorAll('[data-open-module]').length") == 3
+        assert execute("return document.getElementById('relationModeBtn')") is None
+        assert execute("return document.getElementById('singleModeBtn')") is None
+        assert execute("return window.__ARCHMAP_DATA__.projectGraph.edges.length") == 0
+        assert execute("return document.querySelectorAll('.macro-edge').length") == 0
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
+        # The detail panel starts wider and can be dragged wider; the width is
+        # persisted independently from graph layout overrides.
+        sidebar_resize = execute("""return (() => {
+          const panel = document.getElementById('detailPanel');
+          const resizer = document.getElementById('detailResizer');
+          const before = panel.getBoundingClientRect().width;
+          const rect = resizer.getBoundingClientRect();
+          resizer.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, button: 0, pointerId: 51, clientX: rect.left + 4, clientY: rect.top + 24}));
+          resizer.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, pointerId: 51, clientX: rect.left - 84, clientY: rect.top + 24}));
+          resizer.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, pointerId: 51, clientX: rect.left - 84, clientY: rect.top + 24}));
+          return {
+            before,
+            after: panel.getBoundingClientRect().width,
+            stored: Number(localStorage.getItem('archmap-detail-panel-width-v1') || 0),
+          };
+        })()""")
+        assert sidebar_resize["before"] >= 360
+        assert sidebar_resize["after"] >= sidebar_resize["before"] + 40
+        assert sidebar_resize["stored"] >= sidebar_resize["after"] - 1
         assert execute("return window.__ARCHMAP_ERRORS__") == []
         # Coordinates saved against an older default geometry must be discarded
         # instead of being replayed onto the new card grid.
@@ -137,9 +161,6 @@ def test_browser_smoke() -> None:
           return true;
         })()""") is True
         assert execute("return window.__ARCHMAP_ERRORS__") == []
-        execute("document.getElementById('relationModeBtn').click(); return true")
-        assert execute("return document.getElementById('relationModeBtn').getAttribute('aria-pressed')") == "true"
-        execute("document.getElementById('relationModeBtn').click(); return true")
         assert execute("return document.querySelectorAll('.flow-card-node').length") == 1
         assert execute("return document.querySelectorAll('[data-open-flow-card]').length") == 1
         assert execute("return document.querySelector('.flow-card-node')?.parentElement?.id") == "world"
@@ -194,9 +215,30 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.function-node').length") == 1
         assert execute("return document.querySelectorAll('.execution-node').length") == 0
         assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
-        assert execute("return document.querySelectorAll('.contracts-track .module-api-chip').length") > 0
+        assert execute("return document.querySelectorAll('.contracts-grid .module-api-chip').length") > 0
         assert execute("return document.querySelectorAll('.macro-edge').length") == 0
         assert execute("return document.querySelectorAll('.flow-picker.is-visible, .flow-card-node').length") == 0
+        module_layout = execute("""return (() => {
+          const graph = window.__ARCHMAP_DATA__.moduleGraphs.find(item => item.moduleId === 'entry');
+          const panel = document.querySelector('.module-contracts');
+          const sections = document.querySelector('.contracts-sections');
+          const labels = [...document.querySelectorAll('.module-contracts .contracts-label')].map(item => item.textContent.trim());
+          const rect = panel.getBoundingClientRect();
+          return {
+            mode: graph?.layout?.mode,
+            display: getComputedStyle(sections).display,
+            labels,
+            noHorizontalOverflow: panel.scrollWidth <= panel.clientWidth + 1,
+            withinViewport: rect.right <= window.innerWidth + 1,
+            labelFont: parseFloat(getComputedStyle(document.querySelector('.module-contracts .contracts-label')).fontSize || '0'),
+          };
+        })()""")
+        assert module_layout["mode"] == "module-grid"
+        assert module_layout["display"] == "grid"
+        assert module_layout["noHorizontalOverflow"] is True
+        assert module_layout["withinViewport"] is True
+        assert module_layout["labelFont"] >= 10
+        assert {"模块能力", "提供接口", "类型关系", "用户交互面"}.issubset(set(module_layout["labels"]))
         assert execute("return document.querySelectorAll('[data-expand]').length") == 0
         assert execute("return document.querySelectorAll('.module-mini').length") == 0
         drag_result = execute("""return (() => {
@@ -434,6 +476,26 @@ def test_browser_smoke() -> None:
           .filter(body => body.scrollHeight > body.clientHeight + 1).length""")
         assert clipped_exec_bodies == 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
+        execute("location.hash='#/module/python-frontend'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.5)
+        dense_module_layout = execute("""return (() => {
+          const panel = document.querySelector('.module-contracts');
+          const sections = panel.querySelector('.contracts-sections');
+          const rect = panel.getBoundingClientRect();
+          const labels = [...panel.querySelectorAll('.contracts-label')].map(item => item.textContent.trim());
+          return {
+            noHorizontalOverflow: panel.scrollWidth <= panel.clientWidth + 1,
+            withinViewport: rect.right <= window.innerWidth + 1,
+            hasChineseSections: ['模块能力', '提供接口', '类型关系', '用户交互面'].every(label => labels.includes(label)),
+            sectionColumns: getComputedStyle(sections).gridTemplateColumns.split(' ').length,
+            gridColumns: [...panel.querySelectorAll('.contracts-grid')].map(grid => getComputedStyle(grid).gridTemplateColumns.split(' ').length),
+          };
+        })()""")
+        assert dense_module_layout["noHorizontalOverflow"] is True
+        assert dense_module_layout["withinViewport"] is True
+        assert dense_module_layout["hasChineseSections"] is True
+        assert max([dense_module_layout["sectionColumns"], *dense_module_layout["gridColumns"]]) >= 2
+        assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # Phase 1 class layer: classes are component nodes on the module page;
         # methods are listed in the class detail instead of being flattened.
@@ -473,6 +535,23 @@ def test_browser_smoke() -> None:
         execute("Array.from(document.querySelectorAll('.class-node')).find(el => el.dataset.uid.endsWith('AppConfig')).click(); return true")
         time.sleep(.2)
         assert execute("return document.querySelectorAll('.type-field-row').length") == 3
+        role_layout = execute("""return (() => {
+          const graph = window.__ARCHMAP_DATA__.moduleGraphs.find(item => item.moduleId === 'roles');
+          return {mode: graph?.layout?.mode, columns: graph?.layout?.columns};
+        })()""")
+        assert role_layout["mode"] == "module-grid"
+        assert role_layout["columns"] >= 2
+        execute("document.querySelector('.class-node[data-uid=\"cls:app.roles.OrderManager\"]').click(); return true")
+        time.sleep(.2)
+        api_notes = execute("""return (() => {
+          const rows = [...document.querySelectorAll('.detail-api-row')];
+          const notes = rows.map(row => row.querySelector('.detail-api-note')?.textContent || '').filter(Boolean);
+          const font = notes.length ? parseFloat(getComputedStyle(document.querySelector('.detail-api-note')).fontSize || '0') : 0;
+          return {count: notes.length, text: notes.join(' | '), font};
+        })()""")
+        assert api_notes["count"] >= 1
+        assert "Create an order" in api_notes["text"]
+        assert api_notes["font"] >= 11
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # Removed call-overview UI must not leak back into the flow page.
@@ -515,6 +594,13 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.execution-node.kind-dispatch').length") == 1
         assert execute("return document.querySelectorAll('[data-open-dispatch-group]').length") == 1
         assert execute("return document.querySelector('.execution-node.kind-dispatch .exec-node-interface-hint')?.textContent.includes('handler_a')") is True
+        dispatch_notes = execute("""return (() => {
+          document.querySelector('.execution-node.kind-dispatch').click();
+          const notes = [...document.querySelectorAll('.detail-api-note')].map(node => node.textContent).filter(Boolean);
+          return notes.join(' | ');
+        })()""")
+        assert "Handle mode A" in dispatch_notes
+        assert "Handle mode B" in dispatch_notes
         execute("document.querySelector('[data-open-dispatch-group]').click(); return true")
         time.sleep(.5)
         assert execute("return window.location.hash.includes('/dispatch/')") is True

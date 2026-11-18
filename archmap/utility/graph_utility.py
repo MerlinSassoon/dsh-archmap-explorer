@@ -391,6 +391,67 @@ def _layout_module_cards(
     }
 
 
+def _layout_node_grid(nodes: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Lay out module-page provider nodes as a deterministic rectangular grid.
+
+    Module capability pages are not call graphs.  Rendering their cards in a
+    dependency rank produces a single vertical column because module nodes
+    intentionally have no dependency edges.  A compact grid gives the page a
+    stable overview shape while preserving drag overrides on the frontend.
+    """
+
+    ordered = sorted(
+        nodes.values(),
+        key=lambda node: (
+            0 if node.get("kind") == "class" else 1,
+            str(node.get("qualifiedName") or node.get("id")),
+        ),
+    )
+    if not ordered:
+        return {
+            "mode": "module-grid",
+            "canvas": {"width": 400, "height": 300, "padding": MACRO_PAD},
+            "nodes": {},
+            "edges": {},
+            "columns": 1,
+            "visibleCount": 0,
+        }
+
+    columns = 3 if len(ordered) > 6 else 2 if len(ordered) > 1 else 1
+    cell_w = max(int(node.get("w", FUNCTION_W)) for node in ordered)
+    cell_h = max(int(node.get("h", FUNCTION_H)) for node in ordered)
+    gap_x = 64
+    gap_y = 56
+    positions: dict[str, dict[str, Any]] = {}
+    for index, node in enumerate(ordered):
+        row = index // columns
+        col = index % columns
+        w = int(node.get("w", FUNCTION_W))
+        h = int(node.get("h", FUNCTION_H))
+        x = MACRO_PAD + col * (cell_w + gap_x) + (cell_w - w) / 2
+        y = MACRO_PAD + row * (cell_h + gap_y) + (cell_h - h) / 2
+        positions[str(node["id"])] = {
+            "x": round(float(x), 2),
+            "y": round(float(y), 2),
+            "w": w,
+            "h": h,
+        }
+    max_x = max(pos["x"] + pos["w"] for pos in positions.values())
+    max_y = max(pos["y"] + pos["h"] for pos in positions.values())
+    return {
+        "mode": "module-grid",
+        "canvas": {
+            "width": round(max_x + MACRO_PAD, 2),
+            "height": round(max_y + MACRO_PAD, 2),
+            "padding": MACRO_PAD,
+        },
+        "nodes": positions,
+        "edges": {},
+        "columns": columns,
+        "visibleCount": len(ordered),
+    }
+
+
 def _module_color(index: int, module: ModuleConfig | None) -> str:
     if module and module.color:
         return module.color
@@ -995,7 +1056,7 @@ def build_bundle(
                 )
             )
 
-        module_layout = _layout_macro(module_nodes, [], scope=f"module:{module_id}")
+        module_layout = _layout_node_grid(module_nodes)
         module_graphs.append(
             {
                 "kind": "archmap.module-graph",
@@ -1037,37 +1098,8 @@ def build_bundle(
             }
         )
 
-    # Project-level aggregated cross-module calls.
-    project_edges: list[dict[str, Any]] = []
-    cross_by_pair: dict[tuple[str, str], list[CallRecord]] = defaultdict(list)
-    for record in calls:
-        if record.from_module != record.to_module:
-            cross_by_pair[(record.from_module, record.to_module)].append(record)
-    for edge_index, ((from_id, to_id), records) in enumerate(sorted(cross_by_pair.items()), start=1):
-        semantics = _aggregate_relations(records)
-        evidence = [
-            {
-                "fromFunctionId": record.from_function,
-                "toFunctionId": record.to_function,
-                "file": record.file,
-                "line": record.line,
-            }
-            for record in records
-        ]
-        project_edges.append(
-            _macro_edge(
-                _edge_id("project", edge_index),
-                from_id,
-                to_id,
-                primary_type=semantics["primaryType"],
-                relations=semantics["relations"],
-                role="internal",
-                evidence=evidence,
-                confidence="high" if len(records) == 1 else "medium",
-            )
-        )
-
-    project_edges.sort(key=lambda edge: (edge["from"], edge["to"], edge["id"]))
+    # Project pages are capability boards only.  Module-to-module dependency
+    # lines are intentionally not projected or rendered.
     execution_flows, primary_execution_flow_id, execution_diagnostics = build_execution_flows(
         analysis,
         call_site_list,
@@ -1158,8 +1190,8 @@ def build_bundle(
         kinds = sorted(set(surfaces_by_function.get(str(detail.get("id")), [])))
         detail["userSurfaceKinds"] = kinds
 
-    # The project page is a capability-card overview.  Dependency evidence is
-    # retained for relation/impact views; execution flows are project-level.
+    # The project page is a capability-card overview.  Module dependency lines
+    # are not part of the bundle presentation; execution flows are project-level.
     # Empty capability modules remain in the backend and layout contract, but
     # are appended after visible cards so they do not punch holes in the
     # frontend's default grid.
@@ -1194,7 +1226,7 @@ def build_bundle(
             for module in project_module_nodes
             if (module.get("capabilitySurface") or {}).get("hasProviders")
         ],
-        "edges": project_edges,
+        "edges": [],
         "typeRelations": [relation.as_dict() for relation in contract_model.class_relations],
         "userSurfaces": user_surfaces,
         "layout": project_layout,
@@ -1233,7 +1265,7 @@ def build_bundle(
         "methods": sum(1 for fn in analysis.functions if fn.class_name),
         "callSites": len(call_site_list),
         "resolvedCalls": sum(1 for site in call_site_list if site.resolved),
-        "macroEdges": len(project_edges),
+        "macroEdges": 0,
         "providedApis": sum(len(graph["providedApis"]) for graph in module_graphs),
         "apiProviders": sum(len(graph.get("apiProviders", [])) for graph in module_graphs),
         "executionFlows": len(execution_flows),

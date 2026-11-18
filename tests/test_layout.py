@@ -7,6 +7,7 @@ from archmap.managers.pipeline_manager import PipelineManager
 build_architecture = PipelineManager().build_architecture
 
 ROOT = Path(__file__).parent / "fixtures" / "student_demo"
+ROLE_ROOT = Path(__file__).parent / "fixtures" / "roles_demo"
 
 
 def _overlap(a: dict, b: dict) -> bool:
@@ -54,3 +55,16 @@ def test_execution_flow_layout_has_valid_geometry() -> None:
             if edge["from"] not in layout["nodes"] or edge["to"] not in layout["nodes"]:
                 continue
             assert layout["edges"][edge["id"]]["d"].startswith("M ")
+
+
+def test_module_capability_cards_use_rectangular_grid() -> None:
+    """Module capability pages must not collapse provider cards into one column."""
+
+    bundle = build_architecture(ROLE_ROOT)
+    graph = bundle["moduleGraphs"][0]
+    layout = graph["layout"]
+    assert layout["mode"] == "module-grid"
+    assert layout["columns"] >= 2
+    positions = layout["nodes"].values()
+    assert len({round(position["x"], 2) for position in positions}) >= 2
+    assert len({round(position["y"], 2) for position in positions}) >= 2
