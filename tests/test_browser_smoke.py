@@ -281,7 +281,9 @@ def test_browser_smoke() -> None:
           })
           .map(node => node.querySelector('.exec-node-label')?.textContent || node.dataset.uid)""")
         assert clipped_execution_bodies == []
-        assert execute("return document.querySelectorAll('.exec-drilldown-l1').length") >= 2
+        assert execute("return document.querySelectorAll('.exec-drilldown-l1').length") == 2
+        assert execute("""return Array.from(document.querySelectorAll('.execution-node.kind-interface'))
+          .filter(node => node.querySelector('.exec-drilldown-l1') || node.querySelector('.exec-node-interface-hint')).length""") == 0
         scope_opened = execute("""return (() => {
           const node = Array.from(document.querySelectorAll('.execution-node'))
             .find(item => item.querySelector('.exec-node-label')?.textContent === 'server(sockets)');

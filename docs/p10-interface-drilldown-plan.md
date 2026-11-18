@@ -44,9 +44,15 @@ scope 内节点均为 terminal，不提供二级下钻。
 
 允许成为 scope root：
 
-1. 配置 `flowScopes.roots` 显式指定的 callable；
-2. `executionOnlyCallables` 中的流程编排 callable；
-3. 可选的跨模块 public capability 自动识别。
+1. 配置 `flowScopes.roots` 显式指定的流程编排 callable；
+2. `executionOnlyCallables` 中的流程编排 callable。
+
+硬约束：
+
+- execution 节点 kind 必须是 `free_function`；
+- `interface` 节点是功能模块暴露的能力边界，永远不可作为 scope root；
+- `entry`、`dispatch` 和控制节点不可作为 scope root；
+- 显式 roots 命中 interface 时只产生 warning，不生成 scope。
 
 不允许生成 scope：
 
@@ -91,14 +97,13 @@ scope 内节点均为 terminal，不提供二级下钻。
     "student_system.app.main:client",
     "gomoku.cli:GameCli._play_one_game"
   ],
-  "autoDetect": true,
   "maxScopesPerFlow": 6,
   "maxNodesPerScope": 24,
   "maxEdgesPerScope": 32
 }
 ```
 
-非法值回退默认并产生 warning。未配置时功能仍可基于 `executionOnlyCallables` 和自动识别工作，但根数量受预算约束。
+非法值回退默认并产生 warning。P10.1 起不再自动把跨模块 capability/interface 节点转成 scope；自动发现仅保留 `executionOnlyCallables` 这一条可靠来源。`autoDetect` 字段为未来编排 callable 自动发现保留，当前版本设置 true 会产生 warning 且不改变结果。
 
 ## 6. 数据契约
 
@@ -110,7 +115,7 @@ schema 升级到 6.3。
 "drilldown": {
   "status": "available | blocked | none",
   "scopeId": "scope:...",
-  "reason": "configured_root | execution_only | cross_module_capability | ...",
+  "reason": "configured_root | execution_only",
   "interfaceSummary": []
 }
 ```
@@ -246,10 +251,24 @@ FLOW_SCOPE_DEPTH_BLOCKED
 P10 已按本计划完成：
 
 - schema 升级为 `6.3`，新增 `executionFlows[].scopes[]`、节点 `drilldown` 与 `interfaceHints`；
-- `flowScopes` 配置支持 `enabled` / `roots` / `autoDetect` / 三项预算；
-- 主流程节点可显示外部接口摘要，并通过 L1 入口打开独立 scope 视图；
+- `flowScopes` 配置支持 `enabled` / `roots` / 三项预算；
+- 主流程中的 `free_function` 编排节点可显示外部接口摘要，并通过 L1 入口打开独立 scope 视图；
+- `interface` 节点强制黑盒：不生成 `drilldown`，不渲染 L1 入口；
 - scope 路由为 `#/flow/<flowId>/scope/<nodeId>`，支持面包屑返回与布局独立持久化；
 - scope 深度硬限制为 1，validator 拒绝嵌套 scope、错误 parent link 和非法预算结构；
 - 内部 helper 保持原子节点，其直接触达的外部接口通过 `interfaceHints` 展示；
-- student_system 生成 3 个 scope（含 server / client），gomoku 生成 `_play_one_game` scope；
+- student_system 生成 2 个 scope（server / client），gomoku 生成 `_play_one_game` scope；
 - 全量测试、浏览器下钻冒烟、self/student/gomoku build/check 均通过。
+
+## 13. P10.1 语义收紧
+
+P10.1 修正了 P10 初版中 `autoDetect` 把跨模块 capability 节点转成 scope 的问题：
+
+- scope root 必须是 `free_function` 编排 callable；
+- `interface` 节点是功能模块暴露的能力边界，不允许生成 scope；
+- student_system 的 `NetworkAdapter.init_connection()` 不再显示 L1；
+- student_system 的 scope 数量从 3 降为 2，仅保留 `server` / `client`；
+- scope 内仍展示 `Database.actions()`、`MenuSystem.run()` 等 interface 子节点；
+- validator 新增 `EXEC_INTERFACE_SCOPE_FORBIDDEN`、`EXEC_SCOPE_PARENT_KIND` 与 `EXEC_SCOPE_ROOT_MISMATCH`；
+- 显式 roots 命中 interface 时报告 `FLOW_SCOPE_INTERFACE_ROOT_FORBIDDEN`，不生成 scope；
+- 前端对 interface 节点做防御性隐藏，即使旧 bundle 带错误 `drilldown` 也不显示 L1 按钮。

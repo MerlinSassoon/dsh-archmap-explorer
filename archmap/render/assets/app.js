@@ -888,13 +888,14 @@
             <div class="detail-module">${escapeHtml(module?.name || macroNode.moduleName || macroNode.moduleId || "")}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "主执行流节点")}</div>
           <div class="port-detail"><span>节点类型 <b>${escapeHtml(macroNode.kind)}</b></span><span>模块 <b>${escapeHtml(module?.name || macroNode.moduleId || "—")}</b></span>${macroNode.capabilityKind ? `<span>能力 <b>${escapeHtml(macroNode.capabilityKind)}</b></span>` : ""}${macroNode.usageKind ? `<span>用法 <b>${escapeHtml(macroNode.usageKind)}</b></span>` : ""}</div>
+          ${macroNode.kind === "interface" ? `<div class="empty-hint">功能接口是模块暴露的能力边界，不在主流程中展开内部实现；请打开方法详情或模块能力页查看。</div>` : ""}
           ${meta.length ? `<div class="source-line">${meta.map(item => escapeHtml(item)).join("<br>")}</div>` : ""}
           ${macroNode.kind === "dispatch" ? `<div class="class-method-section"><div class="class-method-heading">Dispatch candidates · ${Number(macroNode.candidateCount || 0)}</div>${dispatchCandidateList(macroNode)}</div>` : ""}
-          ${(macroNode.drilldown?.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">L1 外部接口 · ${macroNode.drilldown.interfaceSummary.length}</div><div class="exec-interface-list">${macroNode.drilldown.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
+          ${macroNode.kind !== "interface" && (macroNode.drilldown?.interfaceSummary || []).length ? `<div class="class-method-section"><div class="class-method-heading">L1 外部接口 · ${macroNode.drilldown.interfaceSummary.length}</div><div class="exec-interface-list">${macroNode.drilldown.interfaceSummary.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}${Number(item.callCount || 1) > 1 ? ` ×${Number(item.callCount)}` : ""}</span>`).join("")}</div></div>` : ""}
           ${(macroNode.interfaceHints || []).length ? `<div class="class-method-section"><div class="class-method-heading">Helper 直接触达接口 · ${macroNode.interfaceHints.length}</div><div class="exec-interface-list">${macroNode.interfaceHints.map(item => `<span class="exec-interface-chip"><b>${escapeHtml(item.moduleName || item.moduleId)}</b>${escapeHtml(item.label)}</span>`).join("")}</div></div>` : ""}
           ${detail ? `<div class="source-line">${escapeHtml(detail.file)}:${detail.line} · ${escapeHtml(detail.signature)}</div>` : ""}
           ${annotationBlock(targetId || uid, detail?.sourceHash)}
-          <div class="detail-actions">${macroNode.drilldown?.status === "available" ? `<button class="detail-action" type="button" data-open-flow-scope="${escapeHtml(macroNode.drilldown.scopeId)}">下钻接口视图 L1</button>` : ""}${targetId ? `<button class="detail-action" type="button" data-open-exec-method="${escapeHtml(targetId)}">打开源码 / 方法详情</button>` : ""}${module ? `<button class="detail-action" type="button" data-open-exec-module="${escapeHtml(module.id)}">打开模块页面</button>` : ""}</div>`;
+          <div class="detail-actions">${macroNode.kind !== "interface" && macroNode.drilldown?.status === "available" ? `<button class="detail-action" type="button" data-open-flow-scope="${escapeHtml(macroNode.drilldown.scopeId)}">下钻接口视图 L1</button>` : ""}${targetId ? `<button class="detail-action" type="button" data-open-exec-method="${escapeHtml(targetId)}">打开源码 / 方法详情</button>` : ""}${module ? `<button class="detail-action" type="button" data-open-exec-module="${escapeHtml(module.id)}">打开模块页面</button>` : ""}</div>`;
         detailScroll.querySelector("[data-open-flow-scope]")?.addEventListener("click", () => {
           const flow = currentExecutionFlow();
           if (flow) navigate({ kind: "scope", flowId: flow.id, nodeId: uid });
@@ -1570,12 +1571,12 @@
           <div class="exec-node-label" title="${escapeHtml(node.label || "")}">${escapeHtml(node.label || "")}</div>
           ${noteText ? `<div class="exec-node-note" title="${escapeHtml(noteText)}">${escapeHtml(noteText)}</div>` : ""}
           ${meta.length ? `<div class="exec-node-meta">${escapeHtml(meta.join(" · "))}</div>` : ""}
-          ${(node.drilldown?.interfaceSummary || []).length ? `<div class="exec-node-interface-hint">外部接口 ${node.drilldown.interfaceSummary.length} · ${node.drilldown.interfaceSummary.slice(0, 2).map(item => escapeHtml(item.label)).join(" / ")}</div>` : ""}
+          ${node.kind !== "interface" && (node.drilldown?.interfaceSummary || []).length ? `<div class="exec-node-interface-hint">外部接口 ${node.drilldown.interfaceSummary.length} · ${node.drilldown.interfaceSummary.slice(0, 2).map(item => escapeHtml(item.label)).join(" / ")}</div>` : ""}
           ${(node.interfaceHints || []).length ? `<div class="exec-node-interface-hint">触达 ${node.interfaceHints.length} 个接口 · ${node.interfaceHints.slice(0, 2).map(item => escapeHtml(item.label)).join(" / ")}</div>` : ""}
         </div>
         ${executionPortGrid(node, pos)}
         ${foot.length ? `<div class="exec-foot">${foot.map(item => `<span class="exec-pill">${escapeHtml(item)}</span>`).join("")}</div>` : ""}
-        ${node.drilldown?.status === "available" ? `<button class="exec-drilldown-l1" type="button" data-drilldown-node="${escapeHtml(nodeId)}">L1 · ${node.drilldown.interfaceSummary?.length || 0} 接口</button>` : ""}
+        ${node.kind !== "interface" && node.drilldown?.status === "available" ? `<button class="exec-drilldown-l1" type="button" data-drilldown-node="${escapeHtml(nodeId)}">L1 · ${node.drilldown.interfaceSummary?.length || 0} 接口</button>` : ""}
       </div>`;
     world.appendChild(element);
     bindNodeHover(element, nodeId);

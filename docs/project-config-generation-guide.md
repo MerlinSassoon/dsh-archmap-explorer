@@ -884,7 +884,6 @@ P10 起可在配置中声明一级接口 scope：
     "student_system.app.main:server",
     "student_system.app.main:client"
   ],
-  "autoDetect": true,
   "maxScopesPerFlow": 6,
   "maxNodesPerScope": 24,
   "maxEdgesPerScope": 32
@@ -895,7 +894,8 @@ P10 起可在配置中声明一级接口 scope：
 
 - `roots` 使用 `module:qualname` 或 canonical function id；
 - `executionOnlyCallables` 可自动成为 scope root；
-- `autoDetect=true` 时跨模块 public capability 节点也可生成 scope；
+- scope root 必须是 `free_function` 编排 callable；`interface` 是模块能力边界，不能生成 scope；
+- `autoDetect` 为未来编排 callable 自动发现保留，P10.1 当前版本不启用；
 - scope 深度固定为 1，scope 内节点不能再次下钻；
 - 预算触顶时优先保留控制骨架和外部接口，并在 `scope.diagnostics` 中显式标记；
 - scope 的路由为 `#/flow/<flowId>/scope/<nodeId>`；
@@ -916,7 +916,8 @@ P10 起可在配置中声明一级接口 scope：
 - bundle schema 升级为 6.3；
 - `projectGraph.executionFlows[].scopes[]` 新增一级接口 scope；
 - 主流程执行节点新增 `drilldown` 接口摘要和 `interfaceHints` helper 提示；
-- 新增 `flowScopes` 配置：enabled / roots / autoDetect / maxScopesPerFlow / maxNodesPerScope / maxEdgesPerScope；
+- 新增 `flowScopes` 配置：enabled / roots / maxScopesPerFlow / maxNodesPerScope / maxEdgesPerScope；
+- P10.1 收紧 scope root：只允许 `free_function` 编排节点，interface 节点禁止生成 scope；
 - scope 视图与主流程分离，路由为 `#/flow/<flowId>/scope/<nodeId>`；
 - scope 深度硬限制为 1，预算截断进入 scope diagnostics；
 - student_system 与 gomoku 样例配置已启用 scope roots。

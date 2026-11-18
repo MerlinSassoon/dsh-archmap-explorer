@@ -62,7 +62,9 @@ class FlowScopeConfig:
 
     enabled: bool = False
     roots: list[str] = field(default_factory=list)
-    auto_detect: bool = True
+    # Reserved for future orchestrator auto-discovery. P10.1 does not use
+    # interface nodes as scope roots.
+    auto_detect: bool = False
     max_scopes_per_flow: int = 6
     max_nodes_per_scope: int = 24
     max_edges_per_scope: int = 32

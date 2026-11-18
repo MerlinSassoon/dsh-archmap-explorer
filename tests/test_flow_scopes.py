@@ -43,7 +43,7 @@ def test_student_flow_scopes_drill_into_server_and_client() -> None:
 
     bundle = _student_bundle()
     assert bundle["schemaVersion"] == "6.3"
-    assert bundle["stats"]["flowScopes"] >= 2
+    assert bundle["stats"]["flowScopes"] == 2
     issues = validate_bundle(bundle)
     assert not [issue for issue in issues if issue["severity"] == "error"]
 
@@ -66,8 +66,12 @@ def test_student_flow_scopes_drill_into_server_and_client() -> None:
     parent_nodes = {node["id"]: node for node in flow["nodes"]}
     for scope in (server, client):
         parent = parent_nodes[scope["parentNodeId"]]
+        assert parent["kind"] == "free_function"
         assert parent["drilldown"]["status"] == "available"
         assert parent["drilldown"]["scopeId"] == scope["id"]
+    interface_nodes = [node for node in flow["nodes"] if node["kind"] == "interface"]
+    assert interface_nodes
+    assert all("drilldown" not in node for node in interface_nodes)
 
 
 def test_gomoku_play_one_game_scope_exposes_helper_interfaces() -> None:
@@ -113,10 +117,46 @@ def test_validator_rejects_nested_or_deep_flow_scope() -> None:
     scope = _scope_by_root(bundle, "fn:student_system.app.main.server")
     scope["depth"] = 2
     scope["scopes"] = [{"id": "scope:nested"}]
+    parent = next(
+        node
+        for node in bundle["projectGraph"]["executionFlows"][0]["nodes"]
+        if node["id"] == scope["parentNodeId"]
+    )
+    parent["kind"] = "interface"
     issues = validate_bundle(bundle)
     codes = {issue["code"] for issue in issues}
     assert "EXEC_SCOPE_DEPTH" in codes
     assert "EXEC_SCOPE_NESTED" in codes
+    assert "EXEC_SCOPE_PARENT_KIND" in codes
+    assert "EXEC_INTERFACE_SCOPE_FORBIDDEN" in codes
+
+
+def test_interface_scope_root_is_rejected_with_warning(tmp_path: Path) -> None:
+    """Capability interfaces are black-box boundaries and cannot become scopes."""
+
+    import json
+
+    config = json.loads(
+        (ROOT / "examples" / "student_system.archmap.json").read_text(encoding="utf-8")
+    )
+    config["flowScopes"]["roots"].append(
+        "student_system.network.network_manager:NetworkAdapter.init_connection"
+    )
+    config_path = tmp_path / "student-scope.config.json"
+    config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+    bundle = build_architecture(ROOT / "Projects" / "student_system", config_path)
+    assert bundle["stats"]["flowScopes"] == 2
+    assert any(
+        item["code"] == "FLOW_SCOPE_INTERFACE_ROOT_FORBIDDEN"
+        for item in bundle["diagnostics"]
+    )
+    flow = bundle["projectGraph"]["executionFlows"][0]
+    interface_node = next(
+        node
+        for node in flow["nodes"]
+        if node["kind"] == "interface" and "init_connection" in node["label"]
+    )
+    assert "drilldown" not in interface_node
 
 
 def test_flow_scope_config_clamps_invalid_limits(tmp_path: Path) -> None:

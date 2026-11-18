@@ -62,8 +62,9 @@ P10   一级接口 scope 下钻与 schema 6.3      已完成
 - 模块能力页只展示 Provider/Capability 与结构关系，不默认展示调用边。
 - 项目页 flow card 与 module card 同层、同网格；flow card 标注“主流程”；空能力模块不渲染。
 - 主流程页只展示有界执行流。
-- P10 起可为配置节点生成一级接口 scope；scope 只展示直接外部能力接口与控制骨架，深度硬限制为 1，不递归展开。
-- 主流程节点显示外部接口摘要；点击 L1 入口进入独立 scope 聚焦视图，不在主画布套图。
+- P10 起可为配置/executionOnly 编排 callable 生成一级接口 scope；scope 只展示直接外部能力接口与控制骨架，深度硬限制为 1，不递归展开。
+- 主流程编排节点显示外部接口摘要；点击 L1 入口进入独立 scope 聚焦视图，不在主画布套图。
+- 功能接口节点是模块能力边界，永远不生成 scope；只有 `free_function` 编排 callable 可作为 scope root。
 - Provider Role 为七角色；`entry` 不再是 Provider Role。
 - 每条 execution flow 生成一个标准 `entry` 节点，与 loop / branch / dispatch 同级。
 - `executionOnlyCallables` 不是 Provider Role；七 Provider Role 不变。
@@ -152,9 +153,10 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
 
 P10 在主流程之上增加一层受控的接口视图：
 
-- 主流程节点保持原子化，节点可显示 `drilldown.interfaceSummary`；
-- 配置 `flowScopes.roots` 指定需要展开的 callable；
-- `executionOnlyCallables` 和自动识别的跨模块 capability 也可成为 scope root；
+- 主流程节点保持原子化，`free_function` 编排节点可显示 `drilldown.interfaceSummary`；
+- 配置 `flowScopes.roots` 指定需要展开的流程编排 callable；
+- `executionOnlyCallables` 中的编排 callable 也可成为 scope root；
+- scope root 必须是 `free_function`；`interface` 节点不展开内部实现；
 - scope 路由为 `#/flow/<flowId>/scope/<nodeId>`，独立聚焦展示，不在主画布递归套图；
 - scope 内展示目标函数控制骨架、直接外部能力接口、以及内部 helper 直接触达的接口提示；
 - scope 深度硬限制为 `1`，内部节点不可再次下钻；
@@ -176,7 +178,6 @@ student_system 配置下钻 `server` / `client`，gomoku 配置下钻 `_play_one
   "flowScopes": {
     "enabled": true,
     "roots": ["app.main:App.run"],
-    "autoDetect": true,
     "maxScopesPerFlow": 6,
     "maxNodesPerScope": 24,
     "maxEdgesPerScope": 32
@@ -508,7 +509,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         126 passed, 1 skipped
+pytest:         127 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -535,6 +536,7 @@ browser smoke:  1 passed（显式开启）
 - P8 `executionOnlyCallables` 对能力面透明、类方法排除、空能力模块后端保留/前端隐藏、旧几何覆盖失效。
 - P9 保守自由函数推断、`defaultFreeFunctionSurface`、单函数 exposure 例外、自由函数表面计数与校验。
 - P10 一级 flow scope、外部接口摘要、scope 预算/诊断、独立下钻路由、schema 6.3 与浏览器下钻回归。
+- P10.1 interface 黑盒边界、scope root 仅限编排 callable、interface root 拒绝与 validator 不变量。
 
 浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
@@ -547,8 +549,8 @@ modules:              5
 classes:              34
 functions:            270
 methods:              75
-callSites:            4104
-resolvedCalls:        693
+callSites:            4112
+resolvedCalls:        695
 typeRelations:        66
 structuralRelations:  66
 userSurfaces:         0
@@ -583,9 +585,9 @@ executionFlows:       1
 executionNodes:       9
 executionEdges:       10
 flowCards:            1
-flowScopes:          3
-flowScopeNodes:      30
-flowScopeEdges:      29
+flowScopes:          2
+flowScopeNodes:      20
+flowScopeEdges:      19
 executionOnly:        3
 freeFunctionSurface:  0 capability / 7 internal / 3 execution
 capabilityModules:    4
@@ -714,3 +716,4 @@ P2–P9 过程交接、阶段计划、分支说明、迁移计划、旧验收记
 - executionOnly callable 与模块默认自由函数面均由维护者显式配置；自动推断只使用显式公开 API 和跨模块调用等强证据。
 - 空能力模块后端保留与默认 layout 位置，前端直接路由会回到项目页；网格可能保留空位。
 - P10 scope 只覆盖直接外部接口和内部 helper 接口提示；静态解析不到的接口不会伪造，预算截断会显式标记。
+- P10.1 起功能接口节点是黑盒边界，不生成 scope；scope root 只允许 `free_function` 编排 callable。

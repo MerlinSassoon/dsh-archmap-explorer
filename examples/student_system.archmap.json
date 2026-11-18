@@ -111,7 +111,6 @@
       "student_system.app.main:server",
       "student_system.app.main:client"
     ],
-    "autoDetect": true,
     "maxScopesPerFlow": 6,
     "maxNodesPerScope": 24,
     "maxEdgesPerScope": 32

@@ -403,20 +403,22 @@ def _trim_scope(
 
 def _scope_root_reason(
     *,
-    node: dict[str, Any],
     target_id: str,
     target_ref: str,
     configured_roots: set[str],
     execution_only_ids: set[str],
-    flow_module_id: str,
-    auto_detect: bool,
 ) -> str | None:
+    """Resolve a scope reason for an orchestration callable only.
+
+    Capability interface nodes are intentionally excluded by the caller.  A
+    cross-module interface is a black-box boundary from the consuming flow's
+    perspective; its implementation belongs to the module page / Method Detail.
+    """
+
     if target_id in configured_roots or target_ref in configured_roots:
         return "configured_root"
     if target_id in execution_only_ids:
         return "execution_only"
-    if auto_detect and node.get("kind") == "interface" and node.get("moduleId") != flow_module_id:
-        return "cross_module_capability"
     return None
 
 
@@ -428,7 +430,6 @@ def _build_flow_scopes(
     resolver,
     module_meta: dict[str, dict[str, Any]],
     configured_roots: set[str],
-    auto_detect: bool,
     max_scopes: int,
     max_nodes: int,
     max_edges: int,
@@ -440,12 +441,6 @@ def _build_flow_scopes(
     diagnostics: list[dict[str, Any]] = []
     if not config.enabled:
         return scopes, diagnostics
-    resolved_roots = {
-        resolve_function_ref(analysis, None, ref)
-        for ref in configured_roots
-        if str(ref or "").strip()
-    }
-    resolved_roots.discard(None)
     seen_targets: set[str] = set()
     for node in flow.get("nodes", []):
         if len(scopes) >= max_scopes:
@@ -457,23 +452,36 @@ def _build_flow_scopes(
                 }
             )
             break
-        if node.get("kind") not in {"free_function", "interface"}:
-            continue
         target_id = str(node.get("targetFunctionId") or node.get("functionId") or "")
         target = analysis.function_by_id.get(target_id)
         if target is None or target.synthetic:
             continue
+        target_ref = f"{target.module_name}:{target.qualname}"
+        configured_interface_root = (
+            node.get("kind") == "interface"
+            and (target_id in configured_roots or target_ref in configured_roots)
+        )
+        if configured_interface_root:
+            diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "FLOW_SCOPE_INTERFACE_ROOT_FORBIDDEN",
+                    "message": (
+                        f"flowScopes root {target_ref!r} resolves to a capability interface "
+                        "node; interfaces are black-box boundaries and cannot be scope roots"
+                    ),
+                    "functionId": target_id,
+                }
+            )
+        if node.get("kind") != "free_function":
+            continue
         if target_id == str(flow.get("entrypointId") or ""):
             continue
-        target_ref = f"{target.module_name}:{target.qualname}"
         reason = _scope_root_reason(
-            node=node,
             target_id=target_id,
             target_ref=target_ref,
             configured_roots=configured_roots,
             execution_only_ids=set(analysis.execution_only_function_ids),
-            flow_module_id=str(flow.get("moduleId") or ""),
-            auto_detect=auto_detect,
         )
         if reason is None:
             continue
@@ -634,7 +642,6 @@ def build_execution_flows(
             resolver=resolver,
             module_meta=module_meta,
             configured_roots=set(analysis.config.flow_scopes.roots),
-            auto_detect=analysis.config.flow_scopes.auto_detect,
             max_scopes=analysis.config.flow_scopes.max_scopes_per_flow,
             max_nodes=analysis.config.flow_scopes.max_nodes_per_scope,
             max_edges=analysis.config.flow_scopes.max_edges_per_scope,

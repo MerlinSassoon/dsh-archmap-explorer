@@ -168,6 +168,8 @@ def _validate_execution_flow(
             issues.append(_issue("error", "EXEC_NODE_KIND", f"execution flow {flow_id} node {node_id} has invalid kind: {kind}"))
         if node.get("expandable") is not False:
             issues.append(_issue("error", "EXEC_NODE_EXPANDABLE", f"execution flow {flow_id} node {node_id} must set expandable=false"))
+        if kind == "interface" and node.get("drilldown"):
+            issues.append(_issue("error", "EXEC_INTERFACE_SCOPE_FORBIDDEN", f"execution flow {flow_id} interface node {node_id} must not define drilldown/scope metadata"))
         module_id = node.get("moduleId")
         if module_id and module_id not in module_ids:
             issues.append(_issue("error", "EXEC_NODE_MODULE", f"execution flow {flow_id} node {node_id} references missing module {module_id}"))
@@ -281,6 +283,11 @@ def _validate_execution_flow(
             if parent_scope_ids and parent_node_id in parent_scope_ids:
                 issues.append(_issue("error", "EXEC_SCOPE_PARENT_DUPLICATE", f"execution flow {flow_id} has multiple scopes for node {parent_node_id}"))
             parent_scope_ids.add(parent_node_id)
+            if parent_node.get("kind") != "free_function":
+                issues.append(_issue("error", "EXEC_SCOPE_PARENT_KIND", f"execution scope {scope_id} parent node {parent_node_id} must be a free_function orchestration callable"))
+            parent_target_id = str(parent_node.get("targetFunctionId") or parent_node.get("functionId") or "")
+            if parent_target_id != str(scope.get("rootFunctionId") or ""):
+                issues.append(_issue("error", "EXEC_SCOPE_ROOT_MISMATCH", f"execution scope {scope_id} rootFunctionId does not match parent callable"))
             drilldown = parent_node.get("drilldown") or {}
             if drilldown.get("scopeId") != scope_id:
                 issues.append(_issue("error", "EXEC_SCOPE_PARENT_LINK", f"execution scope {scope_id} parent drilldown link mismatch"))

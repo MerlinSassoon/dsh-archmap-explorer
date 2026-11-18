@@ -55,7 +55,7 @@
 - 项目级分析不修改模块边界；
 - dispatch 节点保存候选数量、候选来源、是否完整和 unresolved 原因；
 - **执行流边界**：主流程只展开 entrypoint 自身控制骨架；调用目标均作为原子节点，不继续穿透实现；
-- P10 一级接口 scope 是显式投影：只展示目标函数直接外部接口和必要控制结构，`depth` 恒为 `1`，scope 内不得再嵌套 scope；
+- P10 一级接口 scope 是显式投影：只展示目标函数直接外部接口和必要控制结构，`depth` 恒为 `1`，scope 内不得再嵌套 scope；scope root 必须是 `free_function` 编排 callable，`interface` 节点是功能模块能力边界，不得生成 scope；
 - 主流程节点通过 `drilldown` 摘要给出 scope 链接和外部接口；完整 scope 存放在 `executionFlows[].scopes`；
 - 内部实现路径保留在 Method Detail、callSites 和 trace/impact 中。
 
