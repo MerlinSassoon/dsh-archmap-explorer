@@ -4,7 +4,7 @@
 >
 > **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 4.1；P5.2 增加可选 `executionEntrypoints`，用于将主执行流起点与分析入口解耦；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
 >
-> **P5.1 补充（2026-11-18）**：移除执行流 `merge` 合成节点，改为多边直接 fan-in；卡片改为内嵌端口行样式。详见 [`p5.1-execution-card-style.md`](p5.1-execution-card-style.md) 与 [`p5.1-execution-flow-fan-in-plan.md`](p5.1-execution-flow-fan-in-plan.md)。<br>
+> **P5.1 补充（2026-11-18）**：移除执行流 `merge` 合成节点，改为多边直接 fan-in；卡片改为内嵌端口行样式。详见 [`p5.1-execution-card-style.md`](旧文档/11月9日/p5.1-execution-card-style.md) 与 [`p5.1-execution-flow-fan-in-plan.md`](旧文档/11月9日/p5.1-execution-flow-fan-in-plan.md)。<br>
 >
 > **P5.3 补充（2026-11-18）**：`return` 成为无出边的终止节点，`exit` 按真实隐式结束路径按需生成；执行边实线只表示确定直接关系、虚线只表示推断/不完整/间接关系；`free_function` 统一表示主模块本地 callable，通过 `callableKind` 区分函数与方法。<br>
 >
@@ -14,7 +14,7 @@
 >
 > **当前状态（2026-11-19）**：P0-P9 已完成，当前 bundle schema 为 6.2。类焦点页与类内方法图不在产品计划中；后续扩展以 User Surface 校准、增量扫描、ArkTS surface 和更精细类型推断为主。
 >
-> **P6 计划（2026-11-18）**：项目模型重构已批准，目标为取消主模块、项目级主流程、单一 executionFlows 投影和纵向能力模块。实施契约、阶段与验收以 [`p6-project-model-plan.md`](p6-project-model-plan.md) 为准。<br>
+> **P6 计划（2026-11-18）**：项目模型重构已批准，目标为取消主模块、项目级主流程、单一 executionFlows 投影和纵向能力模块。实施契约、阶段与验收以 [`p6-project-model-plan.md`](旧文档/11月9日/p6-project-model-plan.md) 为准。<br>
 > **P6.2 已实施（2026-11-18）**：bundle schema 升级为 5.0；移除 `mainModuleId`、`moduleKind`、`mainFlows`、`primaryFlowId`；所有模块统一为普通能力模块；execution flow 移除语义 `entry` 节点；`moduleGraphs[].edges` 调用视图数据移除。本文以下 P5/P2.4 段落中涉及主模块与 mainFlows 的内容为历史契约说明；P9 当前契约以 schema 6.2 为准。
 >
 > **P7 已实施（2026-11-18）**：bundle schema 升级为 6.0；Provider Role 删除 `entry`，模块 role 删除 `entry`；execution flow 恢复标准 `entry` 节点；项目页新增 `flowCards` 并与 module card 同布局；入口语义完全由项目级 entrypoints / execution flow 承担。

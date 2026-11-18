@@ -1,7 +1,7 @@
 # ArchMap 旧文档归档
 
-> 封存日期：2026-11-18<br>
-> 当前版本：ArchMap 1.9.0 / bundle schema 4.0
+> 最近归档日期：2026-11-19<br>
+> 当前版本：ArchMap 2.3.0 / bundle schema 6.2
 
 本目录用于封存 ArchMap 各阶段的**过程文档、历史设计、旧交接、迁移记录、旧验收和旧原型**。
 这些材料用于追溯需求演进、设计取舍和验证历史，不代表当前产品契约。
@@ -9,14 +9,35 @@
 当前权威文档请从根文档入口开始：
 
 - [项目 README](../../README.md)
-- [v3.8 基础数据契约](../archmap-v3-design.md)
+- [当前数据契约](../archmap-v3-design.md)
 - [P5 主流程执行流契约](../p5-main-execution-flow.md)
 - [架构与编码规范](../archmap-architecture-spec.md)
 - [API 契约模型](../archmap-api-contract-model.md)
-- [主模块与主流程契约](../p2.4-main-module-flow.md)
-- [当前 bundle schema](../schema/archmap-v4-bundle.schema.json)
+- [规范化项目配置生成指南](../project-config-generation-guide.md)
+- [被分析项目代码生成 Skill](../约定编程skill.md)
+- [当前 bundle schema](../schema/archmap-v6.2-bundle.schema.json)
 
-## 归档文档
+## 11月9日归档批次
+
+本批次归档 P5.1–P9 阶段的过程计划、讨论记录和阶段交接文档：
+
+| 文档 | 内容 |
+|---|---|
+| [`HANDOFF-P5.5.md`](11月9日/HANDOFF-P5.5.md) | P5.5 阶段交接：主流程页与模块能力页分离 |
+| [`p5.1-execution-card-style.md`](11月9日/p5.1-execution-card-style.md) | P5.1 执行流项目节点卡片样式设计 |
+| [`p5.1-execution-flow-fan-in-plan.md`](11月9日/p5.1-execution-flow-fan-in-plan.md) | P5.1 汇入与边束分层设计 |
+| [`p2.4-main-module-flow.md`](11月9日/p2.4-main-module-flow.md) | P2.4 主模块/主流程历史契约；已由后续 schema 取代 |
+| [`p6-project-model-discussion.md`](11月9日/p6-project-model-discussion.md) | P6 项目模型重构讨论背景 |
+| [`p6-project-model-plan.md`](11月9日/p6-project-model-plan.md) | P6 实施计划与阶段验收 |
+| [`HANDOFF-P6.md`](11月9日/HANDOFF-P6.md) | P6 阶段交接：schema 5.0、项目级流程与能力模块 |
+| [`p7-entry-model-plan.md`](11月9日/p7-entry-model-plan.md) | P7 入口语义与项目页布局修复计划 |
+| [`HANDOFF-P7.md`](11月9日/HANDOFF-P7.md) | P7 阶段交接：七角色、标准 flow entry 与 flow card 布局 |
+| [`p8-execution-only-plan.md`](11月9日/p8-execution-only-plan.md) | P8 executionOnlyCallables 与空能力模块计划 |
+| [`HANDOFF-P8.md`](11月9日/HANDOFF-P8.md) | P8 阶段交接：schema 6.1 与能力面透明化 |
+| [`p9-free-function-surface-plan.md`](11月9日/p9-free-function-surface-plan.md) | P9 自由函数能力边界与模块默认面计划 |
+| [`HANDOFF-P9.md`](11月9日/HANDOFF-P9.md) | P9 阶段交接：schema 6.2 与现行验收基线 |
+
+## 其他归档文档
 
 | 文档 | 内容 |
 |---|---|

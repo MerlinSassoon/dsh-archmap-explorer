@@ -621,33 +621,20 @@ ArkTS 接入时需要：
 | [`docs/archmap-v3-design.md`](docs/archmap-v3-design.md) | 当前数据契约与 P5/P6/P7/P8/P9 增量：三层投影、P3/P4 关系、schema 6.2、自由函数表面与项目级流程 |
 | [`docs/archmap-architecture-spec.md`](docs/archmap-architecture-spec.md) | 物理代码单元、七角色语义、依赖方向、普通能力模块与项目级主流程边界 |
 | [`docs/archmap-api-contract-model.md`](docs/archmap-api-contract-model.md) | Provider + Capability API 契约模型、Exposure、协议能力、继承 API 与延期项 |
-| [`docs/p2.4-main-module-flow.md`](docs/p2.4-main-module-flow.md) | P2.4 历史主模块/主流程契约；已被后续 schema 取代 |
 | [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md) | P5 有界主流程执行流历史与现行边界；P9 当前 schema 6.2 |
-| [`docs/p5.1-execution-card-style.md`](docs/p5.1-execution-card-style.md) | P5.1 执行流项目节点样式：卡片结构、内嵌端口、端口语义与实现位置 |
-| [`docs/p5.1-execution-flow-fan-in-plan.md`](docs/p5.1-execution-flow-fan-in-plan.md) | 汇入与边束的分层设计：直接 fan-in 已实现，视觉边束与模块级边束为未来方向 |
-| [`docs/约定编程skill.md`](docs/约定编程skill.md) | 项目无关的约定编程 Skill：分层架构、契约、功能备注、测试与提交检查清单 |
+| [`docs/约定编程skill.md`](docs/约定编程skill.md) | 被分析项目代码生成 Skill：模块边界、Provider Role、能力面、入口执行流、配置生成与验证清单 |
 | [`docs/schema/archmap-v6.2-bundle.schema.json`](docs/schema/archmap-v6.2-bundle.schema.json) | 当前 bundle JSON Schema 6.2：七角色、flowCards、executionOnly、自由函数表面与 capabilitySurface |
 | [`docs/schema/archmap-v6.1-bundle.schema.json`](docs/schema/archmap-v6.1-bundle.schema.json) | 历史 bundle JSON Schema 6.1，供 P8 产物追溯 |
 | [`docs/schema/archmap-v6-bundle.schema.json`](docs/schema/archmap-v6-bundle.schema.json) | 历史 bundle JSON Schema 6.0，供 P7 产物追溯 |
 | [`docs/schema/archmap-v5-bundle.schema.json`](docs/schema/archmap-v5-bundle.schema.json) | 历史 bundle JSON Schema 5.0，供 P6 产物追溯 |
 | [`docs/schema/archmap-v4-bundle.schema.json`](docs/schema/archmap-v4-bundle.schema.json) | 历史 bundle JSON Schema 4.1，供 P5 产物追溯 |
 | [`docs/schema/archmap-v4.0-bundle.schema.json`](docs/schema/archmap-v4.0-bundle.schema.json) | 历史 bundle JSON Schema 4.0，供旧产物追溯 |
-| [`docs/HANDOFF-P5.5.md`](docs/HANDOFF-P5.5.md) | P5.5 历史交接；后续步骤已由 P6 计划接管 |
-| [`docs/p6-project-model-plan.md`](docs/p6-project-model-plan.md) | P6 实施计划与进度：取消主模块、项目级主流程、schema 5.0、纵向能力模块、标准流程卡片与分阶段验收 |
-| [`docs/p6-project-model-discussion.md`](docs/p6-project-model-discussion.md) | P6 讨论背景：问题分析、目标模型、Provider 归属与调用视图清理 |
-| [`docs/HANDOFF-P6.md`](docs/HANDOFF-P6.md) | P6 历史交接：schema 5.0、项目级流程与能力模块规范 |
-| [`docs/HANDOFF-P7.md`](docs/HANDOFF-P7.md) | P7 历史交接：七角色、标准 flow entry、flow card 同层布局与验收基线 |
-| [`docs/p7-entry-model-plan.md`](docs/p7-entry-model-plan.md) | P7 历史修复计划：七角色、标准 flow entry 节点、项目页 flow card 同层布局 |
-| [`docs/HANDOFF-P8.md`](docs/HANDOFF-P8.md) | P8 历史交接：executionOnlyCallables、空能力模块、schema 6.1 与验收基线 |
-| [`docs/p8-execution-only-plan.md`](docs/p8-execution-only-plan.md) | P8 历史计划：执行流专属 callable 能力面透明与空能力模块前端隐藏 |
-| [`docs/HANDOFF-P9.md`](docs/HANDOFF-P9.md) | P9 完成交接：保守自由函数推断、defaultFreeFunctionSurface、schema 6.2 与验收基线 |
-| [`docs/p9-free-function-surface-plan.md`](docs/p9-free-function-surface-plan.md) | P9 计划：自由函数能力边界、模块默认面与显式例外 |
 | [`docs/project-config-generation-guide.md`](docs/project-config-generation-guide.md) | schema 6.2 规范化配置指南：模块划分、七角色、entrypoints / flow card 区分、自由函数默认面、executionOnlyCallables、空能力模块与旧配置迁移 |
 | [`docs/schema/archmap-v3-bundle.schema.json`](docs/schema/archmap-v3-bundle.schema.json) | 历史 bundle JSON Schema 3.8 |
 
 ### 历史归档
 
-P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设计、旧原型和旧 schema 已封存到：
+P2–P9 过程交接、阶段计划、分支说明、迁移计划、旧验收记录、旧设计、旧原型和旧 schema 已封存到：
 
 - [`docs/旧文档/README.md`](docs/旧文档/README.md)
 
@@ -656,7 +643,7 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 ## 文档维护规则
 
 1. 当前产品状态只写入根 `README.md` 和 `docs/` 下的当前权威文档；历史材料只进入 `docs/旧文档/`，不反向修改为“当前设计”。
-2. 数据契约以 `docs/archmap-v3-design.md`、`docs/p5-main-execution-flow.md`、`docs/p9-free-function-surface-plan.md` 和 `docs/schema/archmap-v6.2-bundle.schema.json` 为准。
+2. 当前数据契约以 `docs/archmap-v3-design.md`、`docs/p5-main-execution-flow.md` 和 `docs/schema/archmap-v6.2-bundle.schema.json` 为准；过程计划与历史交接仅作追溯。
 3. P1.5 之后的实现页统一称 **Method Detail**；不要再把 FunctionFlow 写回主产品路径。
 4. 新增 P5 及以后能力时，先更新数据契约和当前文档，再更新根 README 的使用说明与验收数据。
 5. 文档中的示例命令若引用自举配置，应同时核对 `examples/archmap_v3.archmap.json` 是否仍与源码模块一致。

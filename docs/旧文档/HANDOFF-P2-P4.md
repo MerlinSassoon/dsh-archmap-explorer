@@ -1043,7 +1043,7 @@ main flow:              15 nodes / 16 edges
 dispatch:               args.func / 5 declared candidates / complete
 ```
 
-详细文档见 [`p2.4-main-module-flow.md`](p2.4-main-module-flow.md)。
+详细文档见 [`p2.4-main-module-flow.md`](11月9日/p2.4-main-module-flow.md)。
 
 ## 10. P3：继承、接口、多态与继承 API
 
