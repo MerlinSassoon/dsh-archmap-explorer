@@ -686,6 +686,12 @@
             "null"
           ]
         },
+        "executionEntrypoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entrypoint"
+          }
+        },
         "executionFlows": {
           "type": "array",
           "items": {
@@ -1790,6 +1796,24 @@
         },
         "signature": {
           "type": "string"
+        },
+        "callableKind": {
+          "enum": [
+            "function",
+            "method"
+          ]
+        },
+        "ownerClassId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerClassName": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "note": {
           "type": "string"

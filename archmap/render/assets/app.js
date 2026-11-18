@@ -1078,13 +1078,13 @@
       canvasKicker.textContent = isExecution ? "Main execution flow" : isMain ? "Call overview" : "Module capability";
       canvasTitle.textContent = module?.name || state.route.moduleId;
       canvasSub.textContent = isExecution
-        ? "入口函数控制骨架 · 自由函数/接口原子化 · 拖拽节点调整布局 · 双击进入源码"
+        ? "入口函数控制骨架 · 本地调用/接口原子化 · 拖拽节点调整布局 · 双击进入源码"
         : isMain
           ? "入口 → 主模块编排 → 功能模块接口 · 实线 call · 虚线 composition"
           : "提供接口 · 类/自由函数 · 内部调用 · 双击进入详情";
       breadcrumb.innerHTML = `<button type="button" data-nav="project">${escapeHtml(DATA.project.name)}</button><span class="slash">/</span><b>${escapeHtml(module?.name || state.route.moduleId)}</b>`;
       legend.innerHTML = isExecution
-        ? legendItem("entry", "入口") + legendItem("function", "自由函数") + legendItem("interface", "功能接口") + legendItem("line", "控制/执行边")
+        ? legendItem("entry", "入口") + legendItem("function", "本地调用") + legendItem("interface", "功能接口") + legendItem("line", "确定的控制/执行边")
         : isMain
           ? legendItem("entry", "入口") + legendItem("function", "主模块编排") + legendItem("interface", "功能接口") + legendItem("dashed", "composition / low")
           : legendItem("line", "模块内部调用关系");
@@ -1336,7 +1336,7 @@
     return ({
       entry: "入口",
       exit: "结束",
-      free_function: "自由函数",
+      free_function: "本地调用",
       interface: "功能接口",
       branch: "双分支",
       multi_branch: "多分支",
@@ -1425,6 +1425,9 @@
       meta.push(`条件：${truncate(node.condition, 46)}`);
     }
     if (kind === "loop" && node.condition) meta.push(`条件：${truncate(node.condition, 46)}`);
+    if (kind === "free_function" && node.callableKind) {
+      meta.push(node.callableKind === "method" ? `方法 · ${node.ownerClassName || ""}`.trim() : "函数");
+    }
     if (kind === "dispatch") meta.push(`${Number(node.candidateCount || 0)} candidates · ${node.candidateSetComplete ? "complete" : "partial"}`);
     if (kind === "loop" && node.mayExit === false) meta.push("可能不退出");
     if (node.usageKind) meta.push(node.usageKind);

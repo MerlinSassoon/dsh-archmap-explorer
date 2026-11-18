@@ -440,21 +440,35 @@ def _provider_groups(
         )
     )
     return providers
-def find_entrypoints(analysis: AnalysisResult, call_sites: Iterable[CallSite]) -> list[dict[str, Any]]:
+
+
+def _configured_entrypoints(
+    analysis: AnalysisResult, specs: Iterable[str], *, reason: str
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Resolve configured entrypoint specs to canonical project functions.
+
+    A spec may name a free function or a class method (for example
+    ``gomoku.cli:GameCli.run``).  Unresolved specs are returned separately so
+    callers can keep the configured analysis roots and emit a diagnostic
+    instead of silently dropping the requested flow.
+    """
+
     functions = _function_lookup(analysis)
     module_by_name = {module.name: module for module in analysis.modules}
     found: list[dict[str, Any]] = []
+    unresolved: list[str] = []
     seen: set[str] = set()
 
-    def add(fn_id: str, reason: str) -> None:
+    def add(fn_id: str) -> None:
         if fn_id in functions and fn_id not in seen:
             seen.add(fn_id)
             found.append({"functionId": fn_id, "reason": reason})
 
-    for spec in analysis.config.entrypoints:
-        spec = spec.strip()
+    for raw_spec in specs:
+        spec = str(raw_spec).strip()
         if not spec:
             continue
+        matched: FunctionInfo | None = None
         if ":" in spec:
             left, right = spec.rsplit(":", 1)
             module_name = left.removesuffix(".py").split("/")[-1]
@@ -463,28 +477,84 @@ def find_entrypoints(analysis: AnalysisResult, call_sites: Iterable[CallSite]) -
                 None,
             )
             if module:
-                fn = module.functions.get(right)
-                if fn:
-                    add(fn.id, "configured")
-                    continue
-                matches = [item for item in module.functions.values() if item.name == right]
+                matched = module.functions.get(right)
+                if matched is None:
+                    matches = [
+                        item for item in module.functions.values() if item.name == right
+                    ]
+                    if matches:
+                        matched = sorted(matches, key=lambda item: item.id)[0]
+        else:
+            # Bare module name, bare function name, or module.py path.
+            module_name = spec.removesuffix(".py").split("/")[-1]
+            module = module_by_name.get(module_name) or next(
+                (item for item in analysis.modules if item.name.split(".")[-1] == module_name),
+                None,
+            )
+            if module:
+                matched = module.functions.get("__main__") or module.functions.get("main")
+            if matched is None:
+                matches = [
+                    fn for fn in analysis.functions if fn.name == spec or fn.qualname == spec
+                ]
                 if matches:
-                    add(sorted(matches, key=lambda item: item.id)[0].id, "configured")
-                    continue
-        # Bare module name, bare function name, or module.py path.
-        module_name = spec.removesuffix(".py").split("/")[-1]
-        module = module_by_name.get(module_name) or next(
-            (item for item in analysis.modules if item.name.split(".")[-1] == module_name),
-            None,
-        )
-        if module:
-            main_fn = module.functions.get("__main__") or module.functions.get("main")
-            if main_fn:
-                add(main_fn.id, "configured")
-                continue
-        matches = [fn for fn in analysis.functions if fn.name == spec or fn.qualname == spec]
-        for fn in sorted(matches, key=lambda item: item.id):
-            add(fn.id, "configured")
+                    matched = sorted(matches, key=lambda item: item.id)[0]
+        if matched is None:
+            unresolved.append(spec)
+            continue
+        add(matched.id)
+    return found, unresolved
+
+
+def find_execution_entrypoints(
+    analysis: AnalysisResult, fallback: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return the entrypoints that seed P5 execution flows.
+
+    ``entrypoints`` remains the analysis root used for user surfaces and
+    cross-references.  Optional ``executionEntrypoints`` narrows or replaces
+    that root only for the main execution narrative, which is useful when the
+    configured entry is a thin launcher and the real user journey starts in a
+    method.
+    """
+
+    specs = analysis.config.execution_entrypoints
+    if not specs:
+        return list(fallback), []
+    resolved, unresolved = _configured_entrypoints(
+        analysis, specs, reason="execution-configured"
+    )
+    diagnostics = [
+        {
+            "severity": "warning",
+            "code": "EXECUTION_ENTRYPOINT_UNRESOLVED",
+            "message": f"execution entrypoint {spec!r} did not match a project function",
+        }
+        for spec in unresolved
+    ]
+    if resolved:
+        return resolved, diagnostics
+    diagnostics.append(
+        {
+            "severity": "warning",
+            "code": "EXECUTION_ENTRYPOINT_FALLBACK",
+            "message": "no execution entrypoint resolved; falling back to analysis entrypoints",
+        }
+    )
+    return list(fallback), diagnostics
+
+
+def find_entrypoints(analysis: AnalysisResult, call_sites: Iterable[CallSite]) -> list[dict[str, Any]]:
+    functions = _function_lookup(analysis)
+    found, _ = _configured_entrypoints(
+        analysis, analysis.config.entrypoints, reason="configured"
+    )
+    seen = {str(item["functionId"]) for item in found}
+
+    def add(fn_id: str, reason: str) -> None:
+        if fn_id in functions and fn_id not in seen:
+            seen.add(fn_id)
+            found.append({"functionId": fn_id, "reason": reason})
 
     if analysis.config.entrypoints and found:
         return found
@@ -547,6 +617,9 @@ def build_bundle(
     call_site_list = list(call_sites)
     module_configs = {module.id: module for module in config.modules}
     entrypoints = find_entrypoints(analysis, call_site_list)
+    execution_entrypoints, execution_entrypoint_diagnostics = find_execution_entrypoints(
+        analysis, entrypoints
+    )
     entry_ids = [item["functionId"] for item in entrypoints]
     entry_id_set = set(entry_ids)
     entry_reasons = {item["functionId"]: item["reason"] for item in entrypoints}
@@ -992,7 +1065,7 @@ def build_bundle(
     execution_flows, primary_execution_flow_id, execution_diagnostics = build_execution_flows(
         analysis,
         call_site_list,
-        entrypoints,
+        execution_entrypoints,
         module_graphs,
         contract_model,
     )
@@ -1037,6 +1110,7 @@ def build_bundle(
         "primaryFlowId": primary_flow_id,
         "mainFlows": main_flows,
         "primaryExecutionFlowId": primary_execution_flow_id,
+        "executionEntrypoints": execution_entrypoints,
         "executionFlows": execution_flows,
         "modules": project_module_nodes,
         "edges": project_edges,
@@ -1045,7 +1119,12 @@ def build_bundle(
         "layout": project_layout,
     }
 
-    diagnostics = [*analysis.diagnostics, *flow_diagnostics, *execution_diagnostics]
+    diagnostics = [
+        *analysis.diagnostics,
+        *flow_diagnostics,
+        *execution_entrypoint_diagnostics,
+        *execution_diagnostics,
+    ]
     stats = {
         "modules": len(project_module_nodes),
         "classes": len(analysis.classes),

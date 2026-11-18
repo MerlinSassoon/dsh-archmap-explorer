@@ -167,3 +167,13 @@ def test_render_includes_context_manager_provider_semantics() -> None:
     assert "with Spinner(message: str='加载中')" in html
     assert "context_manager" in html
     assert "usageKind" in html
+
+
+def test_execution_edges_use_dashes_only_for_inferred_relations() -> None:
+    html = render_html(build_architecture(ROOT))
+
+    assert ".execution-edge.kind-default { stroke: #94a3b8; }" in html
+    assert ".execution-edge.kind-break { stroke: #f472b6; }" in html
+    assert ".execution-edge.kind-back,\n.execution-edge.kind-continue { stroke: #38bdf8; }" in html
+    assert ".graph-edge.kind-composition { stroke: #f59e0b; stroke-dasharray: 7 6;" in html
+    assert ".graph-edge.kind-call_path { stroke: #7dd3fc; stroke-dasharray: 2 4;" in html

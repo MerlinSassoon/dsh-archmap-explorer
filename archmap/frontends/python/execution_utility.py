@@ -65,6 +65,7 @@ class ExecutionSkeletonBuilder:
         self._node_seq = 0
         self._edge_seq = 0
         self._loop_stack: list[dict[str, Any]] = []
+        self._exit_created = False
         self._try_diagnostic_emitted = False
         self._calls_by_position: dict[tuple[int, int], CallSite] = {}
         for site in call_sites:
@@ -195,11 +196,12 @@ class ExecutionSkeletonBuilder:
     # ------------------------------------------------------------------
     # Entrypoint traversal
     # ------------------------------------------------------------------
-    def build(self) -> dict[str, Any]:
-        entry_node = self.nodes[0]
-        endpoints = self._visit_stmts(list(self.entry.node.body), [self._endpoint(self._entry_id)])
-        # The exit node is created last so its order is stable and UI renders it
-        # after the control body, even though edges may reference it earlier.
+    def _ensure_exit(self) -> str:
+        """Create the shared terminal anchor only when a path needs it."""
+
+        if self._exit_created:
+            return self._exit_id
+        self._exit_created = True
         self._add_node(
             node_id=self._exit_id,
             kind="exit",
@@ -217,8 +219,16 @@ class ExecutionSkeletonBuilder:
                 "flowId": self.flow_id,
             },
         )
-        self._connect(endpoints, self._exit_id)
-        entry_node["exitNodeId"] = self._exit_id
+        return self._exit_id
+
+    def build(self) -> dict[str, Any]:
+        entry_node = self.nodes[0]
+        endpoints = self._visit_stmts(list(self.entry.node.body), [self._endpoint(self._entry_id)])
+        # A return is already a terminal sink.  The shared exit anchor exists
+        # only for implicit fall-through or other real paths that reach it.
+        if endpoints:
+            self._connect(endpoints, self._ensure_exit())
+            entry_node["exitNodeId"] = self._exit_id
         return {
             "kind": "archmap.execution-flow",
             "id": self.flow_id,
@@ -281,10 +291,9 @@ class ExecutionSkeletonBuilder:
                 },
             )
             self._connect(current, return_id)
-            self._add_edge(return_id, self._exit_id, "return", label="返回")
             return []
         if isinstance(stmt, ast.Raise):
-            self._connect(incoming, self._exit_id, force_kind="next", label="raise")
+            self._connect(incoming, self._ensure_exit(), force_kind="next", label="raise")
             return []
         if isinstance(stmt, ast.Break):
             return self._visit_break(stmt, incoming)
@@ -552,15 +561,15 @@ class ExecutionSkeletonBuilder:
                     "line": stmt.lineno,
                 }
             )
-        may_exit = bool(loop_context["break_nodes"])
+        has_break = bool(loop_context["break_nodes"])
         if isinstance(stmt, ast.While):
             try:
-                may_exit = may_exit or _unparse(stmt.test).strip() not in {"True", "1"}
+                may_complete = _unparse(stmt.test).strip() not in {"True", "1"}
             except Exception:
-                may_exit = True
+                may_complete = True
         else:
-            may_exit = True
-        has_break = bool(loop_context["break_nodes"])
+            may_complete = True
+        may_exit = may_complete or has_break
         for node in self.nodes:
             if node.get("id") == loop_id:
                 node["mayExit"] = may_exit
@@ -570,8 +579,11 @@ class ExecutionSkeletonBuilder:
 
         # The loop completion and break exits are all ordinary incoming paths
         # to the next real statement.  They fan in directly and no synthetic
-        # "循环完成" merge node is created.
-        endpoints = [self._endpoint(loop_id, "loop_complete", "循环完成")]
+        # "循环完成" merge node is created.  A statically non-exiting loop has
+        # no loop-complete path; only explicit break paths may continue.
+        endpoints: list[_Endpoint] = []
+        if may_complete:
+            endpoints.append(self._endpoint(loop_id, "loop_complete", "循环完成"))
         endpoints.extend(
             self._endpoint(break_id, "break", "跳出")
             for break_id in loop_context["break_nodes"]

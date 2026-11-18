@@ -2,11 +2,13 @@
 
 > 本文档冻结 v3.8 数据契约，并作为实现和后续 ArkTS 扩展的依据。历史文档已归档到 [`docs/旧文档/`](旧文档/README.md)；发生冲突时，以本文档、[根 README](../README.md) 和当前 bundle schema 为准。
 >
-> **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 升级到 4.0；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
+> **P5 补充（2026-11-18）**：P5 主流程执行流首版已实现，新增 `projectGraph.executionFlows` / `primaryExecutionFlowId`，bundle schema 升级到 4.0；P5.2 增加可选 `executionEntrypoints`，用于将主执行流起点与分析入口解耦；执行流边界见 [`p5-main-execution-flow.md`](p5-main-execution-flow.md)。<br>
 >
 > **P5.1 补充（2026-11-18）**：移除执行流 `merge` 合成节点，改为多边直接 fan-in；卡片改为内嵌端口行样式。详见 [`p5.1-execution-card-style.md`](p5.1-execution-card-style.md) 与 [`p5.1-execution-flow-fan-in-plan.md`](p5.1-execution-flow-fan-in-plan.md)。<br>
 >
-> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4/P5/P5.1 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
+> **P5.3 补充（2026-11-18）**：`return` 成为无出边的终止节点，`exit` 按真实隐式结束路径按需生成；执行边实线只表示确定直接关系、虚线只表示推断/不完整/间接关系；`free_function` 统一表示主模块本地 callable，通过 `callableKind` 区分函数与方法。<br>
+>
+> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4/P5/P5.1/P5.2/P5.3 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
 
 ## 1. 三层投影
 

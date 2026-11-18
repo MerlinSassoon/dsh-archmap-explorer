@@ -72,6 +72,7 @@ class ProjectConfig:
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDES))
     modules: list[ModuleConfig] = field(default_factory=list)
     entrypoints: list[str] = field(default_factory=list)
+    execution_entrypoints: list[str] = field(default_factory=list)
     main_module_id: str = ""
     dispatch_hints: list[DispatchHint] = field(default_factory=list)
     max_functions: int = 2000

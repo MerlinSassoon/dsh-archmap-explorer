@@ -30,6 +30,8 @@ P3    继承、接口、多态与继承 API              已完成
 P4    结构关系、User Surface、Impact/Trace/DSM 已完成
 P5    主流程执行流（首版）                 已完成
 P5.1  执行流直接 fan-in 与项目节点卡片样式  已完成
+P5.2  主流程执行入口归一化                  已完成
+P5.3  终止节点与本地调用语义统一            已完成
 ```
 
 当前产品边界：
@@ -91,7 +93,7 @@ yield/student_system/
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
 - 项目页、模块页和执行流节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存用户覆盖；可用“适应画布”或“重置布局”找回节点。
-- P5 执行流只展开 entrypoint 的控制骨架；自由函数和功能模块接口均为原子节点，双击进入源码。
+- P5 执行流只展开 entrypoint 的控制骨架；主模块本地调用（自由函数/类方法）和功能模块接口均为原子节点，双击进入源码。
 - 不生成或渲染函数内部完整 CFG、逐语句执行流图；函数实现以源码为最终事实来源。
 
 ## P5 主流程执行流（首版已实现）
@@ -99,9 +101,11 @@ yield/student_system/
 P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**有界执行流图**：
 
 - 只展示 selected entrypoint 函数内部的控制骨架；
-- 主模块自由函数、功能模块公开接口都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
-- 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；
+- 主模块本地调用（自由函数与类方法统一为同一原子语义）、功能模块公开接口都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
+- 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch`；其中 `free_function` 表示主模块本地调用步骤，通过 `callableKind` 区分函数与方法；
+- `return` 是终止节点，不生成出边；`exit` 只用于隐式落空等真正到达结束锚点的路径；
 - 汇合不再生成 `merge` 节点，多条路径直接 fan-in 到同一个真实后继节点或 `exit`；
+- 执行流实线只表示静态确定的直接控制/执行关系；虚线只表示推断、不完整或间接关系；
 - 横向主脊布局，分支上下展开，循环节点通过 `循环体` 端口连接循环体，不再绘制回边 lane；
 - 节点使用项目执行流卡片：彩色标题栏、深色主体、内嵌端口行、贝塞尔曲线；端口行无方框和独立背景，卡片外不再挂边标签胶囊；
 - 节点位置可在浏览器中拖拽覆盖，关联曲线实时重算并持久化；
@@ -121,6 +125,7 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
   "exclude": ["**/__pycache__/**"],
   "mainModule": "orders",
   "entrypoints": ["app.main:main"],
+  "executionEntrypoints": ["app.main:App.run"],
   "modules": [
     {
       "id": "orders",
@@ -145,6 +150,8 @@ P5 的防误解与防滑坡边界、student_system 目标快照、数据契约�
 ```
 
 模块识别优先级：显式配置 → 包/命名空间 → 单模块兜底。文件仅作为源码证据，不直接作为页面模块。
+
+`entrypoints` 是项目分析根，用于入口角色、User Surface 传播、调用关系和主流程事实。`executionEntrypoints` 可选，只用于选择 P5 主执行流的叙事起点；省略时回退到 `entrypoints`。它支持类方法（例如 `gomoku.cli:GameCli.run`），适合配置入口只是薄启动包装、真正用户旅程从类方法开始的项目。执行流节点仍只展开该有效入口自身的控制骨架，不递归展开 callee。
 
 主模块解析顺序：
 
@@ -426,7 +433,7 @@ ARCHMAP_RUN_BROWSER=1 python -m pytest -q tests/test_browser_smoke.py
 当前基线：
 
 ```text
-pytest:         93 passed, 1 skipped
+pytest:         98 passed, 1 skipped
 browser smoke:  1 passed（显式开启）
 ```
 
@@ -434,7 +441,7 @@ browser smoke:  1 passed（显式开启）
 
 - 三层 bundle 契约和交叉引用。
 - 唯一主模块、0..N 功能模块与无 I/O 端口不变量。
-- P5 有界执行流：entrypoint 控制骨架、原子自由函数/接口、分支/多分支/循环/break/continue/return。
+- P5 有界执行流：entrypoint 控制骨架、原子本地调用/接口、分支/多分支/循环/break/continue/return、终止 return 与按需 exit。
 - 调用总览 DAG、分支、dispatch 候选和 composition 虚线语义。
 - 继承/实现结构边、C3 MRO、有效抽象性、继承 API、override 和多态 candidates。
 - 类型关系 validator 不变量与 polymorphic dispatch 低置信度 composition。
@@ -459,16 +466,16 @@ ArchMap 自举：
 ```text
 modules:              6
 classes:              31
-functions:            269
-methods:              70
-callSites:            3850
-resolvedCalls:        648
+functions:            272
+methods:              71
+callSites:            3860
+resolvedCalls:        655
 typeRelations:        57
 structuralRelations:  57
 userSurfaces:         0
 executionFlows:       1
-executionNodes:       5
-executionEdges:       4
+executionNodes:       4
+executionEdges:       3
 diagnostics:          0
 self build/check:     OK
 ```
@@ -487,7 +494,7 @@ structuralRelations:  4
 userSurfaces:         14
 executionFlows:       1
 executionNodes:       9
-executionEdges:       11
+executionEdges:       10
 diagnostics:          0
 build/check:          OK
 ```
@@ -573,6 +580,6 @@ P2/P3/P4 过程交接、分支说明、迁移计划、旧验收记录、旧设�
 - 多态 candidates 只覆盖项目内已解析后代，`candidateSetComplete=false`。
 - 模块层次/子模块（`parentId`）尚未建模，当前模块配置是扁平的。
 - ArkTS 前端尚未实现。
-- P5 执行流只提取 entrypoint 控制骨架，不展开主模块自由函数或功能模块接口；更多内部逻辑通过 Method Detail / 源码查看。
+- P5 执行流只提取 entrypoint 控制骨架，不展开主模块本地调用或功能模块接口；更多内部逻辑通过 Method Detail / 源码查看。
 - P5 明确不实现逐语句节点、列表操作节点、`try/except` 异常控制、数据流边和图内下钻；这些是产品边界，不是待补延期项。
 - 旧 `docs/旧文档/archmap-2.0-design.md` 和 `docs/旧文档/HANDOFF.md` 中的 FunctionFlow 内容是历史设计，不是当前契约。

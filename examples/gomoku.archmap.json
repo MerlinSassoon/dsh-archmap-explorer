@@ -17,6 +17,9 @@
   "entrypoints": [
     "gomoku.cli:main"
   ],
+  "executionEntrypoints": [
+    "gomoku.cli:GameCli.run"
+  ],
   "modules": [
     {
       "id": "main",

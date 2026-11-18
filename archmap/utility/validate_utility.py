@@ -143,8 +143,9 @@ def _validate_execution_flow(
         issues.append(_issue("error", "EXEC_ENTRY_COUNT", f"execution flow {flow_id} must contain exactly one entry"))
     elif entry_nodes[0].get("functionId") != flow.get("entrypointId"):
         issues.append(_issue("error", "EXEC_ENTRY_MISMATCH", f"execution flow {flow_id} entry does not match entrypointId"))
-    if not any(node.get("kind") == "exit" for node in nodes):
-        issues.append(_issue("error", "EXEC_EXIT_MISSING", f"execution flow {flow_id} must contain an exit"))
+    exit_nodes = [node for node in nodes if node.get("kind") == "exit"]
+    if len(exit_nodes) > 1:
+        issues.append(_issue("error", "EXEC_EXIT_DUPLICATE", f"execution flow {flow_id} must contain at most one exit"))
     outgoing: dict[str, list[dict[str, Any]]] = {}
     incoming: dict[str, list[dict[str, Any]]] = {}
     for edge in edges:
@@ -216,14 +217,10 @@ def _validate_execution_flow(
             # draw a synthetic join or a back lane for it.
             if kinds.count("loop_body") > 1 or kinds.count("loop_complete") > 1:
                 issues.append(_issue("error", "EXEC_LOOP_PORTS", f"execution flow {flow_id} loop {node_id} has duplicate body/complete edges"))
-        if kind == "return":
-            target_kinds = {
-                next((item.get("kind") for item in nodes if item.get("id") == edge.get("to")), None)
-                for edge in outgoing.get(str(node_id), [])
-                if edge.get("kind") == "return"
-            }
-            if "exit" not in target_kinds:
-                issues.append(_issue("error", "EXEC_RETURN_TARGET", f"execution flow {flow_id} return {node_id} must target exit"))
+        if kind == "return" and outgoing.get(str(node_id)):
+            issues.append(_issue("error", "EXEC_RETURN_TERMINAL", f"execution flow {flow_id} return {node_id} must not have outgoing edges"))
+        if kind == "exit" and outgoing.get(str(node_id)):
+            issues.append(_issue("error", "EXEC_EXIT_TERMINAL", f"execution flow {flow_id} exit {node_id} must not have outgoing edges"))
     for edge in edges:
         if edge.get("kind") == "back":
             target = next((node for node in nodes if node.get("id") == edge.get("to")), None)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from archmap.managers.pipeline_manager import PipelineManager
@@ -28,8 +29,15 @@ def test_execution_flow_contract_uses_bounded_node_set() -> None:
         "multi_branch", "loop", "break", "continue", "return",
         "dispatch",
     }
-    assert {"entry", "exit", "interface", "loop", "branch", "return"} <= kinds
+    assert {"entry", "interface", "loop", "branch", "return"} <= kinds
+    assert "exit" not in kinds
     assert "merge" not in kinds
+    return_nodes = [node for node in flow["nodes"] if node["kind"] == "return"]
+    assert return_nodes
+    assert all(
+        not [edge for edge in flow["edges"] if edge["from"] == node["id"]]
+        for node in return_nodes
+    )
     assert all(node["expandable"] is False for node in flow["nodes"])
     assert all(edge["kind"] not in {"call", "call_path", "composition"} for edge in flow["edges"])
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
@@ -62,6 +70,7 @@ def test_student_system_execution_flow_keeps_free_functions_opaque() -> None:
     assert "with Database(password: str)" not in labels
     assert "Database.actions(client_input: bytes)" not in labels
     assert "MenuSystem.run()" not in labels
+    assert not any(edge["kind"] == "loop_complete" for edge in flow["edges"])
     server = next(node for node in flow["nodes"] if node["label"] == "server()")
     client = next(node for node in flow["nodes"] if node["label"] == "client()")
     assert server["kind"] == "free_function"
@@ -159,4 +168,181 @@ def main():
     incoming = [edge for edge in flow["edges"] if edge["to"] == fan_in["id"]]
     assert len(incoming) == 2
     assert {nodes[edge["from"]]["label"] for edge in incoming} == {"step_a()", "step_b()"}
+    assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
+
+
+def test_execution_entrypoint_can_target_a_main_module_method(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    app = project / "app"
+    app.mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "main.py").write_text(
+        """def step() -> bool:
+    return True
+
+
+def helper() -> None:
+    pass
+
+
+class Runner:
+    def run(self) -> int:
+        while True:
+            mode = self._choose_mode()
+            if mode is None:
+                return 0
+            self._play_one_game(mode)
+
+    def _choose_mode(self):
+        return "human-vs-ai"
+
+    def _play_one_game(self, mode: str) -> None:
+        helper()
+
+
+def main() -> int:
+    return Runner().run()
+""",
+        encoding="utf-8",
+    )
+    config = {
+        "projectName": "execution_entrypoint_demo",
+        "include": ["app/*.py"],
+        "entrypoints": ["app.main:main"],
+        "executionEntrypoints": ["app.main:Runner.run"],
+        "mainModule": "main",
+        "modules": [
+            {
+                "id": "main",
+                "name": "主模块",
+                "include": ["app/*.py"],
+                "role": "main",
+                "kind": "main",
+            }
+        ],
+    }
+    config_path = project / "archmap.config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    bundle = build_architecture(project, config_path)
+
+    assert bundle["entrypoints"] == [
+        {"functionId": "fn:app.main.main", "reason": "configured"}
+    ]
+    assert bundle["projectGraph"]["executionEntrypoints"] == [
+        {"functionId": "fn:app.main.Runner.run", "reason": "execution-configured"}
+    ]
+    flow = _execution_flow(bundle, "fn:app.main.Runner.run")
+    assert flow["name"] == "run()"
+    assert flow["entrypointReason"] == "execution-configured"
+    kinds = {node["kind"] for node in flow["nodes"]}
+    assert {"loop", "branch", "return"} <= kinds
+    assert "exit" not in kinds
+    assert next(node for node in flow["nodes"] if node["kind"] == "entry")[
+        "functionId"
+    ] == "fn:app.main.Runner.run"
+    labels = {node["label"] for node in flow["nodes"]}
+    assert {"_choose_mode()", "_play_one_game()"} <= labels
+    assert "helper()" not in labels
+    method_nodes = [
+        node
+        for node in flow["nodes"]
+        if node["kind"] == "free_function" and node.get("callableKind") == "method"
+    ]
+    assert {node["label"] for node in method_nodes} == {
+        "_choose_mode()",
+        "_play_one_game()",
+    }
+    assert all(node["ownerClassName"] == "Runner" for node in method_nodes)
+    assert all(node["expandable"] is False for node in method_nodes)
+    return_nodes = [node for node in flow["nodes"] if node["kind"] == "return"]
+    assert return_nodes
+    assert all(
+        not [edge for edge in flow["edges"] if edge["from"] == node["id"]]
+        for node in return_nodes
+    )
+    assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
+
+
+def test_implicit_fallthrough_still_uses_exit(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    app = project / "app"
+    app.mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "main.py").write_text(
+        """def step() -> None:
+    pass
+
+
+def main() -> None:
+    step()
+""",
+        encoding="utf-8",
+    )
+    config = {
+        "projectName": "fallthrough_demo",
+        "include": ["app/*.py"],
+        "entrypoints": ["app.main:main"],
+        "mainModule": "main",
+        "modules": [
+            {
+                "id": "main",
+                "name": "主模块",
+                "include": ["app/*.py"],
+                "role": "main",
+                "kind": "main",
+            }
+        ],
+    }
+    config_path = project / "archmap.config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    flow = _execution_flow(build_architecture(project, config_path))
+    exit_node = next(node for node in flow["nodes"] if node["kind"] == "exit")
+    step_node = next(node for node in flow["nodes"] if node["label"] == "step()")
+    assert any(
+        edge["from"] == step_node["id"] and edge["to"] == exit_node["id"]
+        for edge in flow["edges"]
+    )
+
+
+def test_unresolved_execution_entrypoint_falls_back_with_diagnostic(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    app = project / "app"
+    app.mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "main.py").write_text(
+        """def main() -> int:
+    return 0
+""",
+        encoding="utf-8",
+    )
+    config = {
+        "projectName": "execution_entrypoint_fallback",
+        "include": ["app/*.py"],
+        "entrypoints": ["app.main:main"],
+        "executionEntrypoints": ["app.main:Missing.run"],
+        "mainModule": "main",
+        "modules": [
+            {
+                "id": "main",
+                "name": "主模块",
+                "include": ["app/*.py"],
+                "role": "main",
+                "kind": "main",
+            }
+        ],
+    }
+    config_path = project / "archmap.config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    bundle = build_architecture(project, config_path)
+
+    flow = _execution_flow(bundle, "fn:app.main.main")
+    assert flow["name"] == "main()"
+    codes = {item["code"] for item in bundle["diagnostics"]}
+    assert "EXECUTION_ENTRYPOINT_UNRESOLVED" in codes
+    assert "EXECUTION_ENTRYPOINT_FALLBACK" in codes
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]

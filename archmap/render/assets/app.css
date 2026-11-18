@@ -1000,12 +1000,12 @@
 .execution-edge.kind-true { stroke: #8bdc64; }
 .execution-edge.kind-false { stroke: #ff707b; }
 .execution-edge.kind-case { stroke: #60a5fa; }
-.execution-edge.kind-default { stroke: #94a3b8; stroke-dasharray: 4 4; }
+.execution-edge.kind-default { stroke: #94a3b8; }
 .execution-edge.kind-loop_body { stroke: #38bdf8; }
 .execution-edge.kind-loop_complete { stroke: #94a3b8; }
 .execution-edge.kind-back,
-.execution-edge.kind-continue { stroke: #38bdf8; stroke-dasharray: 5 4; }
-.execution-edge.kind-break { stroke: #f472b6; stroke-dasharray: 4 4; }
+.execution-edge.kind-continue { stroke: #38bdf8; }
+.execution-edge.kind-break { stroke: #f472b6; }
 .execution-edge.kind-return { stroke: #f472b6; }
 .execution-edge.is-back { opacity: .58; }
 .execution-edge.is-highlight { stroke: #c8e2ff; stroke-width: 2.2; opacity: 1; filter: drop-shadow(0 0 4px rgba(110,168,255,.36)); }

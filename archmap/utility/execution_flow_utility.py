@@ -127,25 +127,37 @@ def _build_target_resolver(
             if capability is not None:
                 return _interface_payload(capability, module_meta)
         if target is not None:
-            if target.module_id == main_module_id and target.class_name is None:
-                meta = module_meta.get(target.module_id, {})
-                return {
-                    "kind": "free_function",
-                    "label": f"{target.name}()",
-                    "functionId": target.id,
-                    "targetFunctionId": target.id,
-                    "capabilityId": None,
-                    "moduleId": target.module_id,
-                    "moduleName": meta.get("name", target.module_id),
-                    "color": meta.get("color", "#f59e0b"),
-                    "note": target.note,
-                    "signature": target.signature,
-                    "targetFile": target.file,
-                    "targetLine": target.line,
-                    "targetEndLine": target.end_line,
-                }
+            if target.module_id == main_module_id:
+                is_method = bool(target.class_name)
+                is_dunder = target.name.startswith("__") and target.name.endswith("__")
+                if not target.synthetic and (not is_method or not is_dunder):
+                    meta = module_meta.get(target.module_id, {})
+                    owner_class_id = (
+                        f"cls:{target.module_name}.{target.class_name}"
+                        if is_method
+                        else None
+                    )
+                    return {
+                        "kind": "free_function",
+                        "callableKind": "method" if is_method else "function",
+                        "ownerClassId": owner_class_id,
+                        "ownerClassName": target.class_name,
+                        "label": f"{target.name}()",
+                        "functionId": target.id,
+                        "targetFunctionId": target.id,
+                        "capabilityId": None,
+                        "moduleId": target.module_id,
+                        "moduleName": meta.get("name", target.module_id),
+                        "color": meta.get("color", "#f59e0b"),
+                        "note": target.note,
+                        "signature": target.signature,
+                        "targetFile": target.file,
+                        "targetLine": target.line,
+                        "targetEndLine": target.end_line,
+                    }
+                return None
             capability = capability_by_function.get(target.id)
-            if capability is not None and target.module_id != main_module_id:
+            if capability is not None:
                 return _interface_payload(capability, module_meta)
             return None
         if not _is_execution_dispatch_site(site):

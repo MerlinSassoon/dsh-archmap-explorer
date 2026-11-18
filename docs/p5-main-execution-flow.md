@@ -1,13 +1,13 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：P5 首版已实现；P5.1 已移除 merge 并改为内嵌端口卡片<br>
+> 状态：P5 首版已实现；P5.1 已移除 merge 并改为内嵌端口卡片；P5.2 已支持显式 executionEntrypoints；P5.3 已统一终止节点、边型和本地调用语义<br>
 > 版本：ArchMap 1.9.0 / bundle schema 4.0<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
 
 ## 0. 一句话定义
 
-P5 从项目入口函数出发，以**入口函数内部的控制流**为主干，将主模块自由函数和功能模块公开接口视为**不可展开的执行步骤**，生成一张**静态、控制流优先、可直接跳转源码**的主执行流图。
+P5 从项目入口函数出发，以**入口函数内部的控制流**为主干，将主模块本地调用（自由函数或类方法）和功能模块公开接口视为**不可展开的执行步骤**，生成一张**静态、控制流优先、可直接跳转源码**的主执行流图。
 
 它不是运行时轨迹，也不是完整函数 CFG，更不是旧语句级 FunctionFlow 的恢复。
 
@@ -22,7 +22,7 @@ P5 需要把主流程的主叙事重新拉回执行顺序，同时必须避免�
 
 因此 P5 的结论是：
 
-> **只画入口函数的执行骨架；主模块自由函数和功能模块接口都原子化；流程控制显式表达；细节通过源码页面查看。**
+> **只画入口函数的执行骨架；主模块本地调用和功能模块接口都原子化；流程控制显式表达；细节通过源码页面查看。**
 
 ## 2. 防止误解：P5 不是什么
 
@@ -32,7 +32,7 @@ P5 需要把主流程的主叙事重新拉回执行顺序，同时必须避免�
 | 完整函数 CFG | 只提取 entrypoint 函数的控制骨架，不生成函数内部任意图 |
 | 旧 FunctionFlow 恢复 | 不恢复语句级 FunctionFlow；不生成逐语句节点 |
 | 新的调用图 | 调用目标是节点属性；执行边只表达顺序和控制关系 |
-| 可以无限下钻的图浏览器 | 所有自由函数和接口节点均不可展开；双击进入源码/Method Detail |
+| 可以无限下钻的图浏览器 | 所有本地调用和接口节点均不可展开；双击进入源码/Method Detail |
 | Provider 组合图 | 主执行流不生成类 Provider 卡片 |
 | 逐语句数据流图 | P5 不生成数据流边，也不生成列表操作节点 |
 | 异常控制图 | P5 不建模 `try/except/finally` 分支 |
@@ -71,21 +71,24 @@ dispatch
 
 新增节点类型必须作为新的产品决策单独立项，不能以“先临时加一个节点”的方式进入实现。
 
-### 3.2 自由函数和接口都不展开
+### 3.2 本地调用和接口都不展开
 
-- 主模块自由函数是原子执行步骤；
+- 主模块自由函数与类方法是同一类原子执行步骤；任意私有/公开方法都按本地 callable 处理，不按可见性制造两套执行语义；
 - 功能模块公开接口是原子执行步骤；
 - 两者双击打开 Method Detail / 源码页面；
 - 不在图内展示其 callees；
 - 不生成子流程、子画布或可展开容器。
 
-“自由函数节点显示 `loop` / `branch` 徽章”可以作为摘要展示，但不能演变为展开入口。
+“本地调用节点显示 `loop` / `branch` 徽章”可以作为摘要展示，但不能演变为展开入口。
 
 ### 3.3 只提取入口函数
 
 P5 v1 只提取 selected entrypoint 函数本身的执行骨架。
 
-- 不递归提取被调自由函数；
+- selected entrypoint 默认来自配置 `entrypoints`；
+- 可选配置 `executionEntrypoints` 单独指定主执行流起点，支持类方法；
+- `executionEntrypoints` 省略或全部无法解析时回退到 `entrypoints`；
+- 不递归提取被调本地 callable；
 - 不穿透功能模块接口；
 - 不提取功能模块内部 utility；
 - 不把函数调用图重新塞回执行流。
@@ -130,7 +133,7 @@ P5 不把外部 IO 细节重新变成主流程节点。
 
 ### 3.7 细节查看的唯一去向是源码页面
 
-当用户需要理解某个自由函数或接口内部逻辑时，入口是 Method Detail / 源码页面，而不是图内继续下钻。
+当用户需要理解某个本地 callable 或接口内部逻辑时，入口是 Method Detail / 源码页面，而不是图内继续下钻。
 
 这条规则用于防止 P5 重新长成完整 CFG 浏览器。
 
@@ -158,23 +161,25 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 | 节点 | 含义 | 输出端口 |
 |---|---|---|
 | `entry` | 入口函数 | `out` |
-| `exit` | 主流程结束 | `in` |
-| `free_function` | 主模块自由函数调用步骤 | `in / out` |
+| `exit` | 按需生成的主流程结束锚点；仅用于隐式落空等真实到达路径 | `in` |
+| `free_function` | 主模块本地调用步骤；`callableKind` 区分自由函数与方法 | `in / out` |
 | `interface` | 功能模块公开能力调用步骤 | `in / out` |
 | `branch` | 双分支 | `in / true / false` |
 | `multi_branch` | 多分支 | `in / case... / default` |
 | `loop` | 循环 | `in / loop_body / loop_complete` |
 | `break` | 跳出当前循环 | `in` |
 | `continue` | 进入下一轮 | `in` |
-| `return` | 函数返回 | `in`，边指向 `exit` |
+| `return` | 函数返回，终止节点 | `in`，无出边 |
 | `dispatch` | 动态调用或候选集合 | `in / out` |
 
 ### 5.2 关键节点语义
 
 #### `free_function`
 
-- 目标必须是主模块自由函数；
-- 必须携带 `functionId`、`callSiteId`、文件、行号、签名和备注；
+- 表示主模块本地可调用步骤，统一覆盖自由函数与类方法；
+- `callableKind` 为 `function` 或 `method`，类方法额外携带 `ownerClassId` / `ownerClassName`；
+- 私有/公开不改变执行步骤语义；可见性只影响 API/契约视图；
+- 必须携带 `targetFunctionId`、`callSiteId`、文件、行号、签名和备注；
 - 不展示内部执行流；
 - 双击进入 Method Detail / 源码页面。
 
@@ -206,8 +211,10 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 - 携带 `loopKind`、条件/迭代表达式、循环变量、`mayExit`、`hasBreak`；
 - 卡片端口为 `进入循环 / 循环体 / 循环完成`；
 - 最多一条 `loop_body` 边和一条 `loop_complete` 边；
+- `loop_complete` 仅在该循环静态上可能正常完成时生成；`while True` 且没有 break 时不生成；
+- break 是独立出口路径，不等同于正常循环完成；
 - 不绘制 back 回边；循环体完成后隐式回到循环节点；
-- `loop_complete` 与 `break` 路径直接 fan-in 到循环后的真实节点；没有后继时直接进入 `exit`。
+- `loop_complete` 与 `break` 路径直接 fan-in 到循环后的真实节点；没有后继且路径真实到达时进入 `exit`。
 
 #### `dispatch`
 
@@ -234,11 +241,20 @@ true / false
 case / default
 loop_body / loop_complete
 break
-return
 dispatch
 ```
 
 P5 v1 不生成 `back` / `continue` 执行边。循环体通过 `loop_body` 从循环节点进入，循环何时回到条件由循环节点本身表达，不绘制回边 lane；`continue` 只作为循环体内的终止标记。
+
+`return` 是终止节点，不生成到 `exit` 的边。`exit` 不是每个 flow 的必备节点；只有隐式落空、raise 简化路径等真实到达结束锚点的路径才生成它。
+
+边型语义统一为：
+
+- 实线：静态确定的直接控制/执行关系；
+- 虚线：推断、不完整或间接关系；
+- 无出边：终止节点或未展开去向。
+
+因此 `default`、`break`、`continue` 等控制类型不再使用虚线；控制差异由颜色、端口和标签表达。
 
 边不表达“调用谁”。调用目标属于节点属性：
 
@@ -254,21 +270,29 @@ moduleId
 
 ### 7.1 入口提取
 
-只遍历 selected entrypoint 的 AST：
+只遍历 selected entrypoint 的 AST。主执行流入口按以下顺序确定：
+
+1. 配置 `executionEntrypoints` 中可解析的函数或类方法；
+2. 若未配置或全部无法解析，回退到分析入口 `entrypoints`；
+3. 无法解析的执行入口产生 `EXECUTION_ENTRYPOINT_UNRESOLVED` 诊断，并保留显式回退诊断 `EXECUTION_ENTRYPOINT_FALLBACK`；
+4. `entrypoints` 仍用于入口角色、User Surface 传播、调用关系和主流程事实，不因执行入口覆盖而丢失。
+
+遍历规则：
 
 - 顺序语句中只保留项目调用和控制结构；
 - `if / elif / else` → branch/multi_branch；
 - `match / case` → multi_branch；
 - `for / while / async for` → loop；
 - `break / continue` → 控制节点，解析到最内层循环；
-- `return` → return 节点并连接 exit；
-- 分支汇合、循环结束直接连接下一个真实节点或 exit，不生成 merge 节点。
+- `return` → return 终止节点，不生成出边；
+- 分支汇合、循环结束直接连接下一个真实节点；只有真实到达隐式结束时才连接 exit；
+- 不生成 merge 节点。
 
 ### 7.2 调用节点提取
 
 入口函数中的一次可执行调用，最多生成一个执行节点：
 
-1. 目标是主模块自由函数 → `free_function`；
+1. 目标是主模块本地 callable（自由函数或类方法）→ `free_function`，`callableKind` 区分 `function` / `method`；
 2. 目标是功能模块公开 capability → `interface`；
 3. 动态或多态且无法唯一确定 → `dispatch`；
 4. 外部库、stdlib、内部 utility → 不生成节点；
@@ -303,11 +327,10 @@ ENTRY main()
               └─ default → BRANCH status.upper() == "Q"
                             ├─ 是 → BREAK
                             └─ 否 → 循环体结束（隐式迭代）
-  ├─ loop_complete ───────────────→ EXIT
   └─ break ───────────────────────→ EXIT
 ```
 
-该图采用横向主脊：顺序节点从左向右，branch / multi_branch 的路径在上下 lane 展开，循环节点不绘制回边。`loop_complete` 与 `break` 路径直接 fan-in 到 `exit`，不存在 `LOOP_COMPLETE` 或 `merge` 合成节点。
+该图采用横向主脊：顺序节点从左向右，branch / multi_branch 的路径在上下 lane 展开，循环节点不绘制回边。`while True` 没有正常完成出口，因此只显示 break 到 `exit` 的路径；不存在 `LOOP_COMPLETE` 或 `merge` 合成节点。
 
 明确要求：
 
@@ -344,6 +367,7 @@ projectGraph.primaryFlowId
   "id": "exec-flow:1:...",
   "moduleId": "main",
   "entrypointId": "fn:student_system.main.main",
+  "entrypointReason": "configured",
   "name": "main()",
   "nodes": [],
   "edges": [],
@@ -450,17 +474,19 @@ executionEdges
 `archmap check` 必须新增执行流校验：
 
 - 恰好一个 `entry`；
-- 至少一个 `exit`；
+- 最多一个 `exit`；仅当存在隐式落空等真实路径时才需要；
 - 所有节点可达；
-- 非终止路径最终可达 `exit`；
+- 非终止路径若存在，最终可达 `exit`；
 - `branch` 最多一条 `true` 和一条 `false`，不得重复；
 - `multi_branch` 至少一个 case，default 最多一个；
 - `loop` 最多一条 `body` 和一条 `complete`；
 - `back` 边若存在则目标必须是所属 loop；P5 v1 不生成该边；
 - `break` / `continue` 必须解析到当前最内层 loop；
-- `return` 必须指向 `exit`；
+- `return` 是 terminal sink，不得有出边；
+- `exit` 不得有出边；
 - 不允许出现 `merge` 节点；汇合由同一目标节点的多条入边表达；
 - `free_function` / `interface` 必须有 target 和 callSiteId；
+- `free_function.callableKind` 只能是 `function` 或 `method`；
 - 节点类型必须属于封闭集合；
 - 不允许 `expandable=true`；
 - 不允许 Provider、action、statement、list 或 try/except 节点混入；
@@ -540,7 +566,7 @@ tests/test_execution_flow.py
 - 现有 `mainFlows` 与调用总览保持兼容；
 - student_system 执行流满足第 8 节快照；
 - 节点和边满足第 11 节不变量；
-- 自由函数/接口双击可进入源码；
+- 本地调用/接口双击可进入源码；
 - 执行流中不出现 Provider、列表操作、try/except 或外部 IO 节点；
 - 现有 93 个测试继续通过；
 - 自举 build/check 通过；

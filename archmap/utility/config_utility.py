@@ -41,6 +41,9 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
     include = _as_list(raw.get("include"), ["**/*.py"])
     exclude = _as_list(raw.get("exclude"), list(DEFAULT_EXCLUDES))
     entrypoints = _as_list(raw.get("entrypoints") or project_meta.get("entrypoints"))
+    execution_entrypoints = _as_list(
+        raw.get("executionEntrypoints") or project_meta.get("executionEntrypoints")
+    )
     main_module_id = str(
         raw.get("mainModule") or project_meta.get("mainModule") or ""
     ).strip()
@@ -147,6 +150,7 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         exclude=exclude,
         modules=modules,
         entrypoints=entrypoints,
+        execution_entrypoints=execution_entrypoints,
         main_module_id=main_module_id,
         dispatch_hints=dispatch_hints,
         max_functions=int(limits.get("maxFunctions", 2000)),
