@@ -74,7 +74,7 @@ def test_student_system_execution_flow_keeps_free_functions_opaque() -> None:
     nodes = {node["id"]: node for node in flow["nodes"]}
     labels = {node["label"] for node in flow["nodes"]}
     kinds = {node["kind"] for node in flow["nodes"]}
-    assert {"NetworkAdapter.init_connection()", "server()", "client()"} <= labels
+    assert {"NetworkAdapter.init_connection()", "server(sockets)", "client(sockets)"} <= labels
     assert {"multi_branch", "loop", "branch", "break"} <= kinds
     assert "with Spinner(message: str='加载中')" not in labels
     assert "with Database(password: str)" not in labels
@@ -91,10 +91,10 @@ def test_student_system_execution_flow_keeps_free_functions_opaque() -> None:
     assert next(
         node for node in flow["nodes"] if node["id"] == loop_exit_edges[0]["to"]
     )["kind"] == "exit"
-    server = next(node for node in flow["nodes"] if node["label"] == "server()")
-    client = next(node for node in flow["nodes"] if node["label"] == "client()")
-    assert server["kind"] == "free_function"
-    assert client["kind"] == "free_function"
+    server = next(node for node in flow["nodes"] if node["label"] == "server(sockets)")
+    client = next(node for node in flow["nodes"] if node["label"] == "client(sockets)")
+    assert server["kind"] in {"free_function", "interface"}
+    assert client["kind"] in {"free_function", "interface"}
     assert server["expandable"] is False
     assert client["expandable"] is False
     assert all(node["kind"] not in {"action", "statement", "provider", "merge"} for node in flow["nodes"])
@@ -184,7 +184,7 @@ def main():
         if len([edge for edge in flow["edges"] if edge["to"] == node["id"]]) > 1
     ]
     assert fan_in_nodes
-    fan_in = next(node for node in fan_in_nodes if node["kind"] == "free_function")
+    fan_in = next(node for node in fan_in_nodes if node["kind"] in {"free_function", "interface"})
     incoming = [edge for edge in flow["edges"] if edge["to"] == fan_in["id"]]
     assert len(incoming) == 2
     assert {nodes[edge["from"]]["label"] for edge in incoming} == {"step_a()", "step_b()"}

@@ -23,7 +23,7 @@ def test_student_system_uses_vertical_capability_modules() -> None:
     modules = {module["id"]: module for module in bundle["projectGraph"]["modules"]}
     assert set(modules) == {"app", "network", "database", "menu", "async-feedback", "test"}
     assert "contracts" not in modules
-    assert modules["app"]["role"] == "entry"
+    assert modules["app"]["role"] == "service"
     assert all(module["role"] != "main" for module in modules.values())
     assert not bundle["diagnostics"]
 
@@ -63,7 +63,7 @@ def test_gomoku_has_no_main_module_and_no_module_call_view() -> None:
     modules = {module["id"]: module for module in bundle["projectGraph"]["modules"]}
     assert set(modules) == {"entry", "terminal-ui", "application", "domain", "ai-adapter"}
     assert "main" not in modules
-    assert modules["entry"]["role"] == "entry"
+    assert modules["entry"]["role"] == "service"
     assert modules["terminal-ui"]["role"] == "component"
     assert not bundle["diagnostics"]
     assert all("edges" not in graph for graph in bundle["moduleGraphs"])

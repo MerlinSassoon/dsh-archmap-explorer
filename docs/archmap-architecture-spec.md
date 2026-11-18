@@ -11,7 +11,7 @@ ArchMap 使用两层分类，禁止把两者混为一谈：
 
 ```text
 物理代码单元：config / model / manager / utility
-逻辑 Provider Role：config / model / manager / entry / adapter / component / contract / utility
+逻辑 Provider Role：config / model / manager / adapter / component / contract / utility
 ```
 
 物理文件决定代码放在哪里；逻辑角色决定它在架构图中代表什么。P6.2 起模块按业务能力纵向组织，禁止用顶层 `config/`、`model/`、`utility/` 目录作为模块边界。
@@ -43,13 +43,15 @@ Visibility 是“是否进入默认架构视图”
 
 例外文件不得改变逻辑角色。
 
-## 2. 八角色的精确语义
+## 2. 七角色的精确语义
 
 判定优先级：
 
 ```text
-entry > contract > adapter > component > manager > config > model > utility
+contract > adapter > component > manager > config > model > utility
 ```
+
+> P7.1 起 Provider Role `entry` 已删除。入口状态属于 execution flow，不属于模块/Provider Role。
 
 ### 2.1 config
 

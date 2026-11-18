@@ -49,16 +49,9 @@ def _function_role_from_unit(
     configured_entries: set[str],
     project_names: set[str],
 ) -> tuple[str, str, str] | None:
-    is_entry = fn.synthetic or fn.id in configured_entries or fn.name == "__main__"
     if unit_role == "utility":
         return "utility", "structure", "high"
     if unit_role == "manager":
-        if is_entry:
-            return "entry", "entrypoint" if fn.id in configured_entries else "structure", "high"
-        return "utility", "structure", "high"
-    if unit_role == "entry":
-        if is_entry:
-            return "entry", "entrypoint" if fn.id in configured_entries else "structure", "high"
         return "utility", "structure", "high"
     return None
 
@@ -141,7 +134,7 @@ def build_provider_roles(
         # private helpers behind their facade manager but never erases a public
         # API surface.  Schema 5.0 has no special main-module compression rule.
         should_compress = (
-            role not in {"entry", "adapter", "component", "contract"}
+            role not in {"adapter", "component", "contract"}
             and fn.api_exposure != "public"
         )
         if owner_provider_id and should_compress:
@@ -150,8 +143,6 @@ def build_provider_roles(
             owner_provider_id = None
         if role == "utility":
             visibility = "internal"
-        elif role == "entry":
-            visibility = "public"
         else:
             visibility = _provider_visibility(role, fn.name, fn.api_exposure)
         roles[provider_id] = ProviderRoleInfo(

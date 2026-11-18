@@ -17,7 +17,7 @@
       "include": [
         "app/main.py"
       ],
-      "role": "entry",
+      "role": "service",
       "color": "#f59e0b"
     },
     {

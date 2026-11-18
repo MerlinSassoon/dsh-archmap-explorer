@@ -15,7 +15,7 @@ from ..model.call_model import CallSite
 
 ROLE_TAG_RE = re.compile(
     r"(?:provider\s*role|providerrole|role|提供者角色|角色)\s*[:：]\s*"
-    r"(config|model|manager|entry|adapter|component|contract|utility)\b",
+    r"(config|model|manager|adapter|component|contract|utility)\b",
     re.IGNORECASE,
 )
 CONFIG_NAME_SUFFIXES = {
@@ -333,11 +333,7 @@ def _infer_function_role(
     project_names: set[str],
 ) -> tuple[str, str, str]:
     if fn.synthetic or fn.name == "__main__":
-        return "entry", "structure", "high"
-    if fn.id in configured_entries:
-        return "entry", "entrypoint", "high"
-    if fn.name in {"main", "cli", "serve"}:
-        return "entry", "naming", "low"
+        return "utility", "structure", "high"
     if _uses_external_io(fn.node, module):
         return "adapter", "structure", "medium"
 
@@ -365,11 +361,9 @@ def _infer_function_role(
 
 
 def _provider_visibility(role: str, name: str, api_exposure: str) -> str:
-    if role == "entry":
-        return "public"
     if role == "utility" or (name.startswith("_") and name != "__main__"):
         return "internal"
-    if role in {"manager", "entry", "adapter", "component"} and api_exposure != "public":
+    if role in {"manager", "adapter", "component"} and api_exposure != "public":
         return "internal"
     return "public"
 
@@ -476,8 +470,8 @@ def _code_unit_role_for_file(file: str) -> str | None:
         return "model"
     if name.endswith("_manager.py"):
         return "manager"
-    if name in {"__main__.py", "main.py", "cli.py"} or "entry" in path.parts:
-        return "entry"
+    if "entry" in path.parts:
+        return None
     return None
 
 

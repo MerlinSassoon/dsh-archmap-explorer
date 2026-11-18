@@ -341,13 +341,13 @@ P2.3 起，ArchMap 自身源码遵循“物理代码单元 + 逻辑 Provider Rol
 逻辑角色仍然是：
 
 ```text
-config / model / manager / entry / adapter / component / contract / utility
+config / model / manager / adapter / component / contract / utility
 ```
 
 关键规则：
 
 - `contract` 默认物理归入 model 文件，逻辑角色保持独立；
-- `entry`、`adapter`、`component` 默认物理归入 manager 文件，逻辑角色由入口/外部 IO/协议生命周期派生；
+- `adapter`、`component` 默认物理归入 manager 文件，逻辑角色由外部 IO/协议生命周期派生；
 - `utility` 是无状态内部实现，默认 `providerVisibility = "internal"`，不进入项目页/模块页；
 - utility 仍保留在 `functionDetails`、`callSites` 和 impact/trace 事实层中；
 - 项目页角色计数只使用 `publicProviderRoleCounts`；

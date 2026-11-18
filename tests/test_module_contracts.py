@@ -21,7 +21,7 @@ def _module_graph(bundle: dict, module_id: str) -> dict:
 def test_project_modules_have_roles_and_provided_api_counts() -> None:
     bundle = build_architecture(ROOT)
     modules = {module["id"]: module for module in bundle["projectGraph"]["modules"]}
-    assert modules["entry"]["role"] == "entry"
+    assert modules["entry"]["role"] == "service"
     assert modules["service"]["role"] == "service"
     assert modules["repo"]["role"] == "service"
     assert modules["entry"]["providedApiCount"] == 1

@@ -72,10 +72,17 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
                 }
             )
         role = str(item.get("role") or "").strip().lower()
-        if role == "main":
-            role = "entry"
+        if role in {"main", "entry"}:
+            config_diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "MODULE_ENTRY_ROLE_DEPRECATED",
+                    "message": f"module {module_id} role={role!r} is deprecated; modules no longer carry entry semantics.",
+                }
+            )
+            role = "service"
         if not role and (legacy_main or module_id == legacy_main_module):
-            role = "entry"
+            role = "service"
         modules.append(
             ModuleConfig(
                 id=module_id,
@@ -102,6 +109,15 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
     if isinstance(raw_provider_roles, dict):
         for key, value in raw_provider_roles.items():
             normalized = str(value or "").strip().lower()
+            if normalized == "entry":
+                config_diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "code": "PROVIDER_ENTRY_ROLE_DEPRECATED",
+                        "message": f"provider {key} uses deprecated role 'entry'; flow entry status is now project-level.",
+                    }
+                )
+                continue
             if normalized in PROVIDER_ROLES:
                 provider_roles[str(key)] = normalized
     module_exports: dict[str, list[str]] = {}

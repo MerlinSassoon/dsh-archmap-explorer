@@ -57,7 +57,7 @@ def test_exposure_tags_underscore_entries_and_config_override() -> None:
     by_display = {api["display"]: api for api in graph["providedApis"]}
     assert by_display["Resource.run()"]["exposureSource"] == "docstring"
     assert by_display["Resource.comment_public()"]["exposureSource"] == "comment"
-    assert by_display["main()"]["exposureSource"] == "entrypoint"
+    assert by_display["main()"]["exposureSource"] == "docstring"
     assert by_display["main()"]["isEntry"] is True
     assert by_display["_config_public()"]["exposureSource"] == "config"
     assert "_local_helper()" not in by_display

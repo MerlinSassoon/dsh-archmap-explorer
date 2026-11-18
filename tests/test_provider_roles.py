@@ -33,7 +33,7 @@ def test_provider_roles_and_module_composition() -> None:
         "cls:app.roles.DecoratedWidget": ("component", "decorator"),
         "cls:app.roles.ConfigOverrideThing": ("model", "config"),
         "fn:app.roles.helper": ("manager", "structure"),
-        "fn:app.roles.main": ("entry", "entrypoint"),
+        "fn:app.roles.main": ("manager", "structure"),
     }
     for provider_id, (role, source) in expected.items():
         assert nodes[provider_id]["providerRole"] == role
@@ -47,7 +47,8 @@ def test_provider_roles_and_module_composition() -> None:
     ]
     assert composition["adapter"] == ["cls:app.roles.OrderRepository"]
     assert composition["contract"] == ["cls:app.roles.Worker"]
-    assert "fn:app.roles.main" in composition["entry"]
+    assert "entry" not in composition
+    assert set(composition) == {"config", "model", "manager", "adapter", "component", "contract", "utility"}
     assert graph["providerRoleCounts"]["component"] == 2
     assert graph["publicProviderRoleCounts"]["utility"] == 0
     assert graph["providerRoleCounts"]["utility"] == 1
@@ -89,7 +90,7 @@ def test_config_and_model_are_type_cards_not_module_apis() -> None:
     assert provider_roles["cls:app.roles.OrderRepository"] == "adapter"
     assert provider_roles["cls:app.roles.Spinner"] == "component"
     assert provider_roles["cls:app.roles.Worker"] == "contract"
-    assert provider_roles["fn:app.roles.main"] == "entry"
+    assert provider_roles["fn:app.roles.main"] == "manager"
     assert provider_roles["fn:app.roles.helper"] == "manager"
     assert nodes["fn:app.roles.helper"]["providerRole"] == "manager"
     assert nodes["fn:app.roles.helper"]["providerVisibility"] == "public"
@@ -109,10 +110,11 @@ def test_protocol_capability_carries_provider_role_and_entry_detail_role() -> No
     assert spinner_api["roleSource"] == "structure"
 
     main_detail = next(detail for detail in bundle["functionDetails"] if detail["id"] == "fn:app.roles.main")
-    assert main_detail["providerRole"] == "entry"
-    assert main_detail["roleSource"] == "entrypoint"
-    assert main_detail["isEntry"] is True
-    assert bundle["stats"]["providerRoles"]["entry"] == 1
+    assert main_detail["providerRole"] == "manager"
+    assert main_detail["roleSource"] == "structure"
+    assert main_detail["isFlowEntry"] is True
+    assert "entry" not in bundle["stats"]["providerRoles"]
+    assert bundle["stats"]["providerRoles"]["manager"] >= 1
 
 
 def test_validator_rejects_config_model_api_leak_and_composition_drift() -> None:
@@ -169,7 +171,7 @@ def test_archmap_self_roles_remove_config_model_api_noise() -> None:
 def test_roles_bundle_matches_current_schema() -> None:
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.loads(
-        (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v5-bundle.schema.json").read_text(encoding="utf-8")
+        (Path(__file__).parent.parent / "docs" / "schema" / "archmap-v6-bundle.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.validate(_roles_bundle(), schema)
 

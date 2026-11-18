@@ -19,7 +19,7 @@
       ],
       "note": "程序入口模块",
       "color": "#f59e0b",
-      "role": "entry"
+      "role": "service"
     },
     {
       "id": "service",

@@ -159,19 +159,13 @@ def _class_entry_methods(
     return named or public
 
 
-def _module_role(module: ModuleConfig | None, module_id: str, entry_module_ids: set[str]) -> str:
-    """Resolve an explicit module role, falling back to a light heuristic.
+def _module_role(module: ModuleConfig | None) -> str:
+    """Resolve explicit module presentation role, defaulting to service."""
 
-    The role is presentation metadata, not a structural fact.  Explicit config
-    always wins; otherwise the module that owns a configured/derived entrypoint
-    is treated as an entry module.  Everything else is a service module.
-    """
     if module is not None and module.role:
         role = module.role.strip().lower()
         if role in MODULE_ROLES:
             return role
-    if module_id in entry_module_ids:
-        return "entry"
     return "service"
 
 
@@ -605,53 +599,17 @@ def build_bundle(
     entry_ids = [item["functionId"] for item in entrypoints]
     entry_id_set = set(entry_ids)
     entry_reasons = {item["functionId"]: item["reason"] for item in entrypoints}
-    entry_module_ids = {
-        fn_by_id[item["functionId"]].module_id
-        for item in entrypoints
-        if item["functionId"] in fn_by_id
+    execution_entry_ids = {
+        str(item.get("functionId") or "") for item in execution_entrypoints
     }
     contract_model = contract_model or ContractModel()
     role_infos = contract_model.provider_roles
-    for fn_id in sorted(entry_id_set):
-        fn = fn_by_id.get(fn_id)
-        if fn is None or fn.class_name:
-            continue
-        info = role_infos.get(fn_id)
-        if info is None:
-            info = ProviderRoleInfo(
-                provider_id=fn_id,
-                provider_kind="function",
-                provider_name=fn.name,
-                module_id=fn.module_id,
-                role="entry",
-                role_source="entrypoint",
-                role_confidence="high",
-            )
-            role_infos[fn_id] = info
-        else:
-            info.role = "entry"
-            info.role_source = "entrypoint"
-            info.role_confidence = "high"
-            info.provider_visibility = "internal" if fn.name.startswith("_") else "public"
-            info.type_summary = None
-        for capability in contract_model.capabilities:
-            if capability.provider_id == fn_id:
-                capability.provider_role = "entry"
-                capability.role_source = "entrypoint"
-                capability.role_confidence = "high"
-                capability.provider_visibility = info.provider_visibility
     for capability in contract_model.capabilities:
-        if capability.function_id and capability.function_id in entry_id_set:
-            capability.exposure = "public"
-            capability.exposure_source = "entrypoint"
-            capability.exposure_confidence = "high"
+        if capability.function_id and capability.function_id in execution_entry_ids:
             capability.is_entry = True
     for detail in function_details:
-        if detail.get("id") in entry_id_set:
-            detail["apiExposure"] = "public"
-            detail["apiExposureSource"] = "entrypoint"
-            detail["apiExposureConfidence"] = "high"
-            detail["isEntry"] = True
+        detail["isEntry"] = detail.get("id") in entry_id_set
+        detail["isFlowEntry"] = detail.get("id") in execution_entry_ids
     for detail in function_details:
         fn = fn_by_id.get(detail.get("id"))
         if fn is None or fn.class_name:
@@ -713,7 +671,7 @@ def build_bundle(
                 if capability.provider_id in set(export_ids)
             ]
         module_capability_ids = {capability.id for capability in module_capabilities}
-        role = _module_role(configured, module_id, entry_module_ids)
+        role = _module_role(configured)
         module_composition, provider_role_counts = _module_composition(
             module_id, class_ids, free_function_ids, role_infos
         )
@@ -1066,7 +1024,7 @@ def build_bundle(
         except ValueError:
             pass
     bundle = {
-        "schemaVersion": "5.0",
+        "schemaVersion": "6.0",
         "kind": "archmap.bundle",
         "project": {
             "name": config.name,

@@ -9,7 +9,7 @@ from typing import Any
 from .contract_config import PROVIDER_ROLES
 
 
-MODULE_ROLES = {"service", "adapter", "component", "entry", "test", "other"}
+MODULE_ROLES = {"service", "adapter", "component", "test", "other"}
 
 DEFAULT_PUBLIC_API_TAGS = [
     "公开API",

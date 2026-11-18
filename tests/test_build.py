@@ -16,7 +16,7 @@ ROOT = Path(__file__).parent / "fixtures" / "student_demo"
 def test_build_bundle_contract() -> None:
     bundle = build_architecture(ROOT)
     assert bundle["kind"] == "archmap.bundle"
-    assert bundle["schemaVersion"] == "5.0"
+    assert bundle["schemaVersion"] == "6.0"
     assert bundle["project"]["name"] == "student_demo"
     assert len(bundle["projectGraph"]["modules"]) == 3
     assert len(bundle["functionDetails"]) == 5
@@ -66,15 +66,15 @@ def test_fingerprint_is_stable_and_layout_independent() -> None:
     assert semantic_fingerprint(first) == semantic_fingerprint(second)
 
 
-def test_bundle_matches_current_v5_schema() -> None:
+def test_bundle_matches_current_v6_schema() -> None:
     import json
     import pytest
 
     jsonschema = pytest.importorskip("jsonschema")
     bundle = build_architecture(ROOT)
-    schema_path = Path(__file__).parent.parent / "docs" / "schema" / "archmap-v5-bundle.schema.json"
+    schema_path = Path(__file__).parent.parent / "docs" / "schema" / "archmap-v6-bundle.schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    assert schema["properties"]["schemaVersion"]["const"] == "5.0"
+    assert schema["properties"]["schemaVersion"]["const"] == "6.0"
     jsonschema.validate(bundle, schema)
 
 
@@ -90,7 +90,7 @@ def test_archmap_v3_self_config_builds_cross_module_edges() -> None:
     module_ids = {module["id"] for module in bundle["projectGraph"]["modules"]}
     assert {"pipeline-entry", "python-frontend", "graph-projection", "validation", "rendering"} == module_ids
     roles = {module["id"]: module["role"] for module in bundle["projectGraph"]["modules"]}
-    assert roles["pipeline-entry"] == "entry"
+    assert roles["pipeline-entry"] == "service"
     assert roles["python-frontend"] == "service"
     assert "core-contracts" not in module_ids
     assert "mainModuleId" not in bundle["projectGraph"]

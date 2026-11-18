@@ -247,8 +247,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     if bundle.get("kind") != "archmap.bundle":
         issues.append(_issue("error", "BUNDLE_KIND", "top-level kind must be archmap.bundle"))
-    if str(bundle.get("schemaVersion")) != "5.0":
-        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 5.0"))
+    if str(bundle.get("schemaVersion")) != "6.0":
+        issues.append(_issue("error", "SCHEMA_VERSION", "schemaVersion must be 6.0"))
 
     project_graph = bundle.get("projectGraph") or {}
     module_graphs = bundle.get("moduleGraphs") or []

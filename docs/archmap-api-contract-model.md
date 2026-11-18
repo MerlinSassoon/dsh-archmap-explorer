@@ -67,7 +67,6 @@ Evidence     证据：函数 ID、文件、行号、注释或装饰器
 config    类型定义、字段、默认值、常量表、枚举
 model     运行期数据记录、DTO、分析结果
 manager   管理 model/config 实例，组织行为，对外暴露 API
-entry     主模块、CLI、用户入口
 adapter   外部系统适配
 component UI / 协议组件
 contract  抽象类、Protocol、接口
@@ -92,7 +91,6 @@ Provider 节点与能力字段：
     "config": ["cls:..."],
     "model": ["cls:..."],
     "manager": ["cls:..."],
-    "entry": ["fn:..."],
     "adapter": ["cls:..."],
     "component": ["cls:..."],
     "contract": ["cls:..."],
@@ -102,7 +100,6 @@ Provider 节点与能力字段：
     "config": 0,
     "model": 0,
     "manager": 1,
-    "entry": 1,
     "adapter": 0,
     "component": 0,
     "contract": 0,
@@ -267,7 +264,6 @@ ArkTS 的 length / index signature
     "config": ["cls:..."],
     "model": ["cls:..."],
     "manager": ["cls:..."],
-    "entry": ["fn:..."],
     "adapter": ["cls:..."],
     "component": ["cls:..."],
     "contract": ["cls:..."],

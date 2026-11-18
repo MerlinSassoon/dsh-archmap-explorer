@@ -31,7 +31,7 @@
       ],
       "note": "脚本入口、python -m 入口与终端主菜单/对局交互入口。",
       "color": "#f59e0b",
-      "role": "entry"
+      "role": "service"
     },
     {
       "id": "terminal-ui",
@@ -79,7 +79,6 @@
   ],
   "contract": {
     "providerRoles": {
-      "gomoku.cli.GameCli": "entry",
       "gomoku.game.GomokuGame": "manager",
       "gomoku.game.MoveSelector": "contract",
       "gomoku.game.TurnOutcome": "model",

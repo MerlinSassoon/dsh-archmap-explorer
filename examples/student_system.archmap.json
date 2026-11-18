@@ -23,7 +23,7 @@
       ],
       "note": "程序入口、角色选择与客户端/服务端顶层编排。",
       "color": "#f59e0b",
-      "role": "entry"
+      "role": "service"
     },
     {
       "id": "network",

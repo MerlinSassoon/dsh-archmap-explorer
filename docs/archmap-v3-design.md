@@ -95,7 +95,7 @@ P2.1 引入语言中立的 Provider + Capability 模型：
 Capability 之上增加 Provider 级角色：
 
 ```text
-config / model / manager / entry / adapter / component / contract / utility
+config / model / manager / adapter / component / contract / utility
 ```
 
 职责与展示：

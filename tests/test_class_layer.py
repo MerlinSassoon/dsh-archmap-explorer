@@ -91,7 +91,7 @@ def test_single_module_project_has_no_main_module_special_case() -> None:
     bundle = build_architecture(ROOT)
     modules = bundle["projectGraph"]["modules"]
     assert len(modules) == 1
-    assert modules[0]["role"] == "entry"
+    assert modules[0]["role"] == "service"
     assert "moduleKind" not in modules[0]
     assert "mainModuleId" not in bundle["projectGraph"]
     assert bundle["projectGraph"]["executionFlows"]
