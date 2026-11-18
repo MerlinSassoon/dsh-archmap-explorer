@@ -115,19 +115,19 @@ def test_render_contains_api_contract_capabilities() -> None:
     assert not any("__enter__" in display or "__exit__" in display or "__init__" in display for display in displays)
 
 
-def test_render_contains_main_flow_and_no_boundary_nodes() -> None:
+def test_render_separates_main_flow_from_module_capabilities() -> None:
     bundle = build_architecture(ROOT)
     html = render_html(bundle)
-    assert "main-flow-node" in html
-    assert "renderMainFlowPage" in html
-    assert "kind-composition" in html
-    assert "flow-switcher" in html
+    assert 'id="projectFlowEntry"' in html
+    assert "data-open-flow" in html
+    assert 'id="flowPicker"' in html
+    assert "renderFlowPage" in html
+    assert "Module capability" in html
+    assert "main-flow-node" not in html
+    assert "renderMainFlowPage" not in html
+    assert "data-main-view" not in html
     assert "boundary-node" not in html
     assert "module-ports" not in html
-    assert "flex-direction: column; overflow: hidden;" in html
-    assert "margin-top: auto; padding-top: 7px; overflow: hidden;" in html
-    assert "h: Number(node.h || 140)" in html
-    assert 'class="flow-node-label" title=' in html
     match = re.search(r"window\.__ARCHMAP_DATA__ = (.*?);\n</script>", html, re.S)
     assert match is not None
     embedded = json.loads(match.group(1))

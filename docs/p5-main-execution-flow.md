@@ -1,6 +1,6 @@
 # P5 主流程执行流（Main Execution Flow）
 
-> 状态：P5 首版已实现；P5.1 已移除 merge 并改为内嵌端口卡片；P5.2 已支持显式 executionEntrypoints；P5.3 已统一终止节点、边型和本地调用语义；P5.4 已升级 bundle schema 4.1 并回归执行卡注释<br>
+> 状态：P5 首版已实现；P5.1 已移除 merge 并改为内嵌端口卡片；P5.2 已支持显式 executionEntrypoints；P5.3 已统一终止节点、边型和本地调用语义；P5.4 已升级 bundle schema 4.1 并回归执行卡注释；P5.5 已将主流程页与模块能力页分离<br>
 > 版本：ArchMap 1.9.0 / bundle schema 4.1<br>
 > 日期：2026-11-18<br>
 > 适用范围：P5 主流程执行流的设计、实现、测试、验收与后续变更控制。
@@ -139,20 +139,20 @@ P5 不把外部 IO 细节重新变成主流程节点。
 
 ## 4. 产品视图定位
 
-P5 实现后，主模块页提供两个视图：
+P5.5 后页面职责拆分为：
 
-| 视图 | 主用途 | 数据来源 |
+| 页面 | 主用途 | 数据来源 |
 |---|---|---|
-| 执行流（默认） | 理解入口执行顺序、分支、循环和出口 | `projectGraph.executionFlows` |
-| 调用总览（辅助） | 理解主流程中的调用/模块组合关系 | 现有 `projectGraph.mainFlows` |
+| 项目页主流程入口 | 打开独立主流程页 | `projectGraph.executionFlows` |
+| 主流程页 | 理解入口执行顺序、分支、循环和出口 | `projectGraph.executionFlows` |
+| 模块能力页 | 查看主模块或功能模块的 Provider / API / 类型关系 | `moduleGraphs[]` |
+| Method Detail | 查看源码与调用事实 | `functionDetails` / `callSites` |
 
-两者不是替代关系：
+`mainFlows` 仍作为调用投影数据保留，但不再作为默认 UI 视图展示：
 
 - `executionFlows` 是执行叙事；
-- `mainFlows` 是调用与组合叙事；
+- `mainFlows` 是数据层调用与组合投影；
 - Method Detail 是源码事实。
-
-P5 实现后，主模块默认进入执行流视图，调用/组合视图保留为“调用总览”。
 
 ## 5. 节点契约
 
@@ -340,7 +340,7 @@ BREAK 是循环体内终止标记，无出边。
 - 执行流中不得出现 `Spinner`、`Database.actions()`、`MenuSystem.run()`；
 - 执行流中不得出现 Provider 类卡片；
 - 双击 `server()` / `client()` / 接口节点进入源码页面；
-- 调用总览仍保留原有 student_system 主流程内容。
+- 调用投影数据继续保留，但不再在主流程页展示调用总览。
 
 ## 9. 数据契约
 
@@ -353,7 +353,7 @@ projectGraph.executionFlows[]
 projectGraph.primaryExecutionFlowId
 ```
 
-保留：
+保留但默认不展示：
 
 ```text
 projectGraph.mainFlows[]
@@ -457,7 +457,8 @@ executionEdges
 
 ### 10.2 UI
 
-- 主模块页默认显示执行流，调用总览作为辅助切换；
+- 项目页提供独立主流程入口；主流程页只展示执行流；
+- 模块能力页统一展示模块 Provider/API/类型关系，不混入执行流；
 - 节点使用项目执行流卡片风格：彩色标题栏、深色主体、内嵌端口行；
 - 端口行无方框、无独立背景色，流程文字和端口标签位于卡片内部；
 - 不再生成卡片外的边标签胶囊；
@@ -563,7 +564,8 @@ tests/test_execution_flow.py
 - 端口锚点与贝塞尔曲线；
 - 节点拖拽与布局覆盖持久化；
 - 执行流渲染；
-- 执行流/调用总览切换；
+- 独立主流程路由与主流程入口卡片；
+- 主模块与功能模块统一能力页；
 - 双击源码跳转；
 - 浏览器冒烟。
 
@@ -578,7 +580,8 @@ tests/test_execution_flow.py
 ## 13. 验收标准
 
 - schema 4.1 通过校验；
-- 现有 `mainFlows` 与调用总览保持兼容；
+- `mainFlows` 数据保持构建与契约兼容，但 UI 不展示调用总览；
+- 项目页主流程入口、独立主流程页与统一模块能力页通过浏览器冒烟；
 - student_system 执行流满足第 8 节快照；
 - 节点和边满足第 11 节不变量；
 - 本地调用/接口双击可进入源码；
@@ -596,7 +599,8 @@ tests/test_execution_flow.py
 | 隐藏外部 IO | 在 Method Detail 和 User Surface 中保留证据 |
 | 只提取入口函数 | 通过双击源码查看被调函数内部实现 |
 | 布局复杂 | 结构化布局 + 正交性校验 + 浏览器冒烟 |
-| 两个视图可能漂移 | `executionFlows` 与 `mainFlows` 分开构建、分开校验 |
+| 数据层存在两个投影 | `executionFlows` 与 `mainFlows` 分开构建、分开校验；UI 只展示执行流 |
+| 流程页与模块页职责回流 | 路由与 DOM 测试禁止主流程页出现模块契约、能力节点或调用总览 |
 | 未来需求诱导下钻 | 以第 3 节硬边界为变更门槛 |
 
 ## 15. 变更控制

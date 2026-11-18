@@ -6,10 +6,10 @@
 把 Python 项目转换为**模块优先、可逐层下钻、源码可读**的架构图：
 
 ```text
-项目页（主模块 + 功能模块能力卡片）
-  └─ 主模块页（入口 → 编排函数 → 功能模块接口的主流程 DAG）
-       └─ 功能模块页（提供接口 + 类节点 + 模块级自由函数）
-            └─ 方法详情页（源码 + 人类备注 + LLM 语义 + callers/callees）
+项目页（主流程入口 + 模块能力卡片）
+  ├─ 主流程页（入口函数控制骨架；本地调用/功能接口原子化）
+  └─ 模块能力页（提供接口 + 类节点 + 模块级自由函数）
+       └─ 方法详情页（源码 + 人类备注 + LLM 语义 + callers/callees）
 ```
 
 ArchMap 负责“结构和关系”，源码负责“实现细节”，LLM 负责“高层语义”。
@@ -33,15 +33,18 @@ P5.1  执行流直接 fan-in 与项目节点卡片样式  已完成
 P5.2  主流程执行入口归一化                  已完成
 P5.3  终止节点与本地调用语义统一            已完成
 P5.4  bundle schema 4.1 与执行卡注释回归     已完成
+P5.5  主流程页与模块能力页分离               已完成
 ```
 
 当前产品边界：
 
 - 每个项目恰好一个主模块，功能模块数量为 0..N。
-- 主模块展示函数级主流程 DAG；功能模块只暴露 Provider/Capability，不再拥有输入输出端口。
-- 主流程只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止。
-- 主流程是函数级调用/模块组合视图，不是语句级执行顺序图。
-- 主模块默认展示 P5 有界执行流；调用总览保留为辅助视图。
+- 主流程是独立项目级视图，不是主模块能力页的一部分。
+- 主流程只展开入口函数控制骨架；进入功能模块 canonical interface/provider 后停止。
+- 主模块与功能模块统一作为模块能力页，只展示 Provider/Capability 与结构关系。
+- 项目页提供独立主流程入口；主流程页只展示 P5 有界执行流。
+- 主模块与功能模块统一进入模块能力页；主流程页不再嵌入模块契约或调用总览。
+- `mainFlows` 调用投影数据继续保留，但不再作为默认 UI 视图展示。
 - P5 执行流不会恢复旧语句级 FunctionFlow；边界见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
 - 类焦点页和类内方法图不在当前产品计划中。
 - 旧语句级 FunctionFlow 已从默认 bundle、UI 和流水线中移除。
@@ -85,14 +88,14 @@ yield/student_system/
 └── layout-overrides.json   # 前端可导出
 ```
 
-## 三层视图
+## 页面视图
 
-- **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。P4 User Surface 也在项目页/模块契约区展示。
-- **主模块页**：默认展示 P5 横向有界执行流；可切换到“调用总览”查看 entry → orchestrator/provider/interface 的调用 DAG，或切换到能力视图查看类与自由函数。执行流节点可拖拽调整布局，双击进入源码。上下文管理器等协议用法会在 Provider 边界节点上携带 `capabilityKind`、`protocols` 与 `usageKind`，例如显示 `with Spinner(...)`。
-- **功能模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示类节点、模块级自由函数节点；不再有模块输入/输出端口。config/model Provider 以类型卡片展示字段摘要。
+- **项目页**：展示独立主流程入口卡片与全部模块能力卡片；模块卡片包含职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。双击模块卡片进入能力页，主流程入口进入 `#/flow`。
+- **主流程页**：只展示 P5 横向有界执行流；支持多 flow 选择、拖拽布局、节点详情和源码下钻。不再显示调用总览或模块能力契约。
+- **模块能力页**：主模块与功能模块统一展示提供接口、Provider Role、类/自由函数、类型关系与内部调用关系；不再承载执行流。config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
-- 所有页面使用 Hash 路由和平级切换，不使用弹窗。
+- 所有页面使用 Hash 路由和平级切换，不使用弹窗：`#/project`、`#/flow[/<id>]`、`#/module/<moduleId>`、`#/module/<moduleId>/function/<functionId>`。
 - 项目页、模块页和执行流节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存用户覆盖；可用“适应画布”或“重置布局”找回节点。
 - P5 执行流只展开 entrypoint 的控制骨架；主模块本地调用（自由函数/类方法）和功能模块接口均为原子节点，双击进入源码。
 - 不生成或渲染函数内部完整 CFG、逐语句执行流图；函数实现以源码为最终事实来源。
@@ -114,7 +117,7 @@ P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**�
 - 节点使用项目执行流卡片：彩色标题栏、深色主体、内嵌端口行、贝塞尔曲线；端口行无方框和独立背景，卡片外不再挂边标签胶囊；
 - 节点位置可在浏览器中拖拽覆盖，关联曲线实时重算并持久化；
 - 不生成逐语句节点、列表操作节点、`try/except` 异常控制、数据流边或图内下钻；
-- 新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 保留为辅助的“调用总览”；
+- 新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 保留为数据层调用投影，默认不展示；
 - P5 首版 bundle schema 为 4.0；P5.4 收紧执行边契约并升级到 4.1。
 
 P5 的防误解与防滑坡边界、student_system 目标快照、数据契约和验收标准见 [`docs/p5-main-execution-flow.md`](docs/p5-main-execution-flow.md)。
@@ -401,8 +404,8 @@ archmap.entry.*
 - `primaryType`：`call` / `data` / `control`。
 - `relations`：同一对节点可同时具有调用和数据证据。
 - `role`：普通内部关系；不再生成模块输入输出边界边。
-- 主流程边使用 `call` / `call_path` / `composition`，其中 composition 只能是低置信度虚线。
-- 主流程只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止，不穿透其内部 utility。
+- `mainFlows` 数据层调用边使用 `call` / `call_path` / `composition`，其中 composition 只能是低置信度虚线；该投影当前不进入默认 UI。
+- P5 主执行流只在主模块内部继续遍历；进入功能模块 canonical interface/provider 后停止，不穿透其内部 utility。
 - `evidence`：具体函数、文件和行号。
 - `confidence`：解析置信度。
 
@@ -446,7 +449,7 @@ browser smoke:  1 passed（显式开启）
 - 三层 bundle 契约和交叉引用。
 - 唯一主模块、0..N 功能模块与无 I/O 端口不变量。
 - P5 有界执行流：entrypoint 控制骨架、原子本地调用/接口、分支/多分支/循环/break/continue/return、终止 return 与按需 exit。
-- 调用总览 DAG、分支、dispatch 候选和 composition 虚线语义。
+- `mainFlows` 调用 DAG、分支、dispatch 候选和 composition 虚线数据语义。
 - 继承/实现结构边、C3 MRO、有效抽象性、继承 API、override 和多态 candidates。
 - 类型关系 validator 不变量与 polymorphic dispatch 低置信度 composition。
 - `instantiates/uses/aggregates/composes` 结构关系与角色元数据。
@@ -461,7 +464,7 @@ browser smoke:  1 passed（显式开启）
 - 自包含 HTML、方法详情页和 LLM 注解嵌入。
 - CLI build/check/method 闭环。
 
-浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页、执行流/调用总览切换、模块页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
+浏览器交互已使用 Firefox Headless + geckodriver 验证：项目页主流程入口、独立主流程页、模块能力页、方法详情页、类方法详情、Hash 刷新恢复、P3 继承 API、P4 surface/结构关系和无运行时错误。
 
 ### 当前验收数据
 

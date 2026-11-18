@@ -257,7 +257,7 @@ adapter → contract
 项目必须区分两类模块：
 
 ```text
-主模块      唯一组合根，承载入口与顶层编排；主模块页默认展示主流程
+主模块      唯一组合根，承载入口与顶层编排；其能力页展示 Provider/API/类型关系
 功能模块    暴露 Provider/Capability；数量允许为 0..N
 ```
 
@@ -266,15 +266,15 @@ adapter → contract
 - 恰好一个 `moduleKind=main`。
 - 不为了满足模块数量虚造功能模块。
 - 模块不拥有输入/输出端口；依赖和能力分别由调用证据与 `providedApis` 表达。
-- 主流程 `flowRole` 独立于 Provider Role，不得因主流程分析改变功能模块 API 分类。
-- 主流程节点：entry / orchestrator / provider / interface / dispatch。
-- 主流程边：call / call_path / composition；composition 只能低置信度虚线。
+- P5 执行流 `flowRole` 独立于 Provider Role，不得因主流程分析改变功能模块 API 分类。
+- P5 执行流节点：entry / exit / free_function / interface / branch / multi_branch / loop / break / continue / return / dispatch。
+- P5 执行流边只表达控制连接；`mainFlows` 调用投影数据保留但默认不展示。
 - dispatch 候选需要显式完整性标记，无法推断时保留 unresolved。
-- **主流程边界**：遍历只在主模块内部继续；跨入功能模块时只物化 canonical interface/provider，不穿透其实现。
-- 功能模块边界节点 `flowBoundary=true`、`expandable=false`，无出边；内部 utility 不进入主流程。
-- 主流程是组合视图，全量跨模块调用与内部实现分别由模块关系视图、Method Detail 和 P4 trace 承担。
+- **主流程边界**：P5 执行流只展开主模块入口函数控制骨架；跨入功能模块时只物化 canonical interface，不穿透其实现。
+- 功能模块边界节点 `expandable=false`，无图内下钻；内部 utility 不进入主流程。
+- 主流程是项目级执行叙事，全量跨模块调用与内部实现分别由模块关系视图、Method Detail 和 P4 trace 承担。
 
-项目页只展示顶层模块。功能模块页展示 Provider；主模块页默认展示主流程，并保留能力视图。
+项目页展示独立主流程入口与全部模块卡片。主模块和功能模块统一使用模块能力页；主流程页只展示执行流，不嵌入模块契约或调用总览。
 
 ```text
 Project

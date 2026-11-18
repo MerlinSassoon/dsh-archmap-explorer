@@ -10,7 +10,9 @@
 >
 > **P5.4 补充（2026-11-18）**：bundle schema 升级到 4.1。执行边只保留连接关系 `next` / `true` / `false` / `case` / `default` / `loop_body` / `loop_complete`；`break` / `continue` / `return` 仅作为节点终止类型且无出边；`loop_complete` 是循环唯一结构化离开出口。执行卡片改用 human note，不再渲染 signature。<br>
 >
-> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4/P5/P5.1/P5.2/P5.3/P5.4 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
+> **P5.5 补充（2026-11-18）**：主流程页独立为 `#/flow` 项目级视图，只展示 `executionFlows`；主模块与功能模块统一进入 `#/module/<id>` 能力页。`mainFlows` 数据保留，但不再作为默认 UI 调用总览展示。<br>
+>
+> **当前状态（2026-11-18）**：P0/P1/P1.5/P2.0/P2.1/P2.2/P2.3/P2.4/P3/P4/P5/P5.1/P5.2/P5.3/P5.4/P5.5 已完成。类焦点页与类内方法图不在产品计划中；后续扩展以增量扫描、ArkTS surface 和更精细类型推断为主。
 
 ## 1. 三层投影
 
@@ -44,7 +46,7 @@
 
 ### ModuleGraph
 
-功能模块页展示提供接口、Provider、类节点和模块级自由函数节点；主模块页展示主流程并可切换能力视图：
+主模块与功能模块统一使用模块能力页展示提供接口、Provider、类节点和模块级自由函数节点；主流程作为独立 `#/flow` 页面展示：
 
 - 顶部提供接口条来自 `moduleGraphs[].providedApis`，接口 chips 可下钻到 Method Detail。
 - `moduleGraphs[].apiProviders` 按 Provider 分组展示模块公开能力，并携带 `providerRole` / `roleSource` / `roleConfidence`。

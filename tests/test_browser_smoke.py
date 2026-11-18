@@ -108,29 +108,30 @@ def test_browser_smoke() -> None:
         execute("document.getElementById('relationModeBtn').click(); return true")
         assert execute("return document.getElementById('relationModeBtn').getAttribute('aria-pressed')") == "true"
         execute("document.getElementById('relationModeBtn').click(); return true")
-        execute("location.hash='#/module/entry'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        assert execute("return document.querySelectorAll('#projectFlowEntry.is-visible').length") == 1
+        assert execute("return document.querySelectorAll('[data-open-flow]').length") == 1
+        execute("document.querySelector('[data-open-flow]').click(); return true")
         time.sleep(.4)
+        assert execute("return window.location.hash.startsWith('#/flow')") is True
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
         assert execute("return document.querySelectorAll('.execution-edge').length") > 0
         assert execute("return document.querySelectorAll('.exec-node-header').length") > 0
         assert execute("return document.querySelectorAll('.exec-port-item').length") > 0
         assert execute("return document.querySelectorAll('.exec-port-dot, .execution-node.kind-merge').length") == 0
         assert execute("return document.querySelectorAll('.execution-node.kind-provider, .execution-node.kind-action, .execution-node.kind-statement').length") == 0
-        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
-        time.sleep(.3)
-        assert execute("return document.querySelectorAll('.main-flow-node').length") > 0
-        assert execute("return document.querySelectorAll('.boundary-node').length") == 0
+        assert execute("return document.querySelectorAll('[data-main-view], .main-flow-node').length") == 0
+        assert execute("return document.querySelectorAll('.module-contracts.is-visible, .function-node, .class-node').length") == 0
+        execute("location.hash='#/flow/missing-flow'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.35)
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        assert execute("return window.location.hash !== '#/flow/missing-flow'") is True
+        execute("location.hash='#/module/entry'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
+        time.sleep(.4)
+        assert execute("return document.querySelectorAll('.function-node').length") == 1
+        assert execute("return document.querySelectorAll('.execution-node').length") == 0
         assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
         assert execute("return document.querySelectorAll('.contracts-track .module-api-chip').length") > 0
-        flow_edge_count = execute("return document.querySelectorAll('.flow-edge').length")
-        assert flow_edge_count > 0
-        execute("document.querySelector('.main-flow-node').dispatchEvent(new MouseEvent('mouseenter')); return true")
-        assert execute("return document.querySelectorAll('.flow-edge.is-dim').length") == 0
-        assert execute("return document.querySelectorAll('.flow-edge.is-highlight').length") > 0
-        execute("document.querySelector('.main-flow-node').dispatchEvent(new MouseEvent('mouseleave')); return true")
-        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
-        time.sleep(.3)
-        assert execute("return document.querySelectorAll('.function-node').length") == 1
+        assert execute("return document.querySelectorAll('#projectFlowEntry.is-visible, .flow-picker.is-visible').length") == 0
         assert execute("return document.querySelectorAll('[data-expand]').length") == 0
         assert execute("return document.querySelectorAll('.module-mini').length") == 0
         drag_result = execute("""return (() => {
@@ -171,7 +172,7 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.method-page').length") == 1
         assert execute("return document.querySelectorAll('.method-source-line').length") > 0
         assert execute("return document.querySelectorAll('.method-call-item').length") > 0
-        assert execute("return document.querySelectorAll('.flow-node').length") == 0
+        assert execute("return document.querySelectorAll('.main-flow-node').length") == 0
         assert execute("return document.querySelector('.method-source-line.is-call-site') !== null") is True
         method_theme = execute("""return (() => {
           const page = document.querySelector('.method-page');
@@ -191,7 +192,7 @@ def test_browser_smoke() -> None:
         student_bundle = build_architecture(REPO_ROOT / "Projects" / "student_system", student_config)
         student_html = browser_dir / "student-system-flow.html"
         student_html.write_text(render_html(student_bundle), encoding="utf-8")
-        request("POST", f"/session/{session}/url", {"url": f"{student_html.resolve().as_uri()}#/module/main"})
+        request("POST", f"/session/{session}/url", {"url": f"{student_html.resolve().as_uri()}#/flow"})
         time.sleep(.8)
         assert execute("return window.__ARCHMAP_ERRORS__") == []
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
@@ -236,84 +237,20 @@ def test_browser_smoke() -> None:
         assert drag_result["edgeChanged"] is True
         assert drag_result["storedFlows"] > 0
         execute("localStorage.removeItem('archmap-v3-layout-v1'); return true")
-        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
-        time.sleep(.3)
-        assert execute("return document.querySelectorAll('.flow-edge').length") == 10
-        labels = execute("return Array.from(document.querySelectorAll('.flow-node-label')).map(node => node.textContent)")
-        assert "with Spinner(message: str='加载中')" in labels
-        assert "with Database(password: str)" in labels
-        spinner_badge = execute("""return Array.from(document.querySelectorAll('.main-flow-node'))
-          .find(node => node.textContent.includes('with Spinner'))
-          ?.querySelector('.flow-node-badges')?.textContent || ''""")
-        assert "context_manager" in spinner_badge
-        assert "with" in spinner_badge
-        edge_titles = execute("return Array.from(document.querySelectorAll('.flow-edge title')).map(node => node.textContent)")
-        assert any(title.startswith("with Spinner(") for title in edge_titles)
-        execute("""return (() => {
-          const spinner = Array.from(document.querySelectorAll('.main-flow-node'))
-            .find(node => node.textContent.includes('with Spinner'));
-          spinner.dispatchEvent(new MouseEvent('mouseenter'));
-          return true;
-        })()""")
-        assert execute("return document.querySelectorAll('.flow-edge.is-dim').length") == 0
-        assert execute("return document.querySelectorAll('.flow-edge.is-highlight').length") == 2
-        positions = execute("""return (() => {
-          const byLabel = label => Array.from(document.querySelectorAll('.main-flow-node'))
-            .find(node => node.querySelector('.flow-node-label')?.textContent === label);
-          const client = byLabel('client()');
-          const server = byLabel('server()');
-          const actions = byLabel('Database.actions(client_input: bytes)');
-          const run = byLabel('MenuSystem.run()');
-          return {
-            clientTop: client.style.top,
-            serverTop: server.style.top,
-            actionsTop: actions.style.top,
-            runTop: run.style.top,
-          };
-        })()""")
-        assert positions["clientTop"] != positions["serverTop"]
-        assert positions["actionsTop"] != positions["runTop"]
-        assert execute("return window.__ARCHMAP_ERRORS__") == []
-
-        # Long flow labels must stay inside the fixed-height card, with badges
-        # pinned inside the card instead of spilling below the border.
+        # The self-build main flow is an execution-only page.  Capability and
+        # call-overview projections must not share this canvas.
         self_config = REPO_ROOT / "examples" / "archmap_v3.archmap.json"
         self_bundle = build_architecture(REPO_ROOT, self_config)
         self_html = browser_dir / "self-flow.html"
         self_html.write_text(render_html(self_bundle), encoding="utf-8")
-        request("POST", f"/session/{session}/url", {"url": f"{self_html.resolve().as_uri()}#/module/main-pipeline"})
+        request("POST", f"/session/{session}/url", {"url": f"{self_html.resolve().as_uri()}#/flow"})
         time.sleep(.8)
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
-        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
-        time.sleep(.3)
-        card_bounds = execute("""return (() => {
-          const card = Array.from(document.querySelectorAll('.main-flow-node'))
-            .find(node => node.querySelector('.flow-node-label')?.textContent.startsWith('RenderManager.render'));
-          if (!card) return null;
-          const label = card.querySelector('.flow-node-label');
-          const note = card.querySelector('.flow-node-note');
-          const badges = card.querySelector('.flow-node-badges');
-          const cardRect = card.getBoundingClientRect();
-          const labelRect = label.getBoundingClientRect();
-          const noteRect = note ? note.getBoundingClientRect() : null;
-          const badgesRect = badges.getBoundingClientRect();
-          return {
-            card: {top: cardRect.top, bottom: cardRect.bottom, styleHeight: card.style.height},
-            label: {top: labelRect.top, bottom: labelRect.bottom, title: label.title},
-            note: noteRect ? {top: noteRect.top, bottom: noteRect.bottom} : null,
-            badges: {top: badgesRect.top, bottom: badgesRect.bottom},
-            scrollHeight: card.scrollHeight,
-            clientHeight: card.clientHeight,
-          };
-        })()""")
-        assert card_bounds is not None
-        assert card_bounds["card"]["styleHeight"] == "140px"
-        assert card_bounds["label"]["bottom"] <= card_bounds["card"]["bottom"] + 0.5
-        assert card_bounds["badges"]["top"] >= card_bounds["card"]["top"]
-        assert card_bounds["badges"]["bottom"] <= card_bounds["card"]["bottom"] + 0.5
-        if card_bounds["note"] is not None:
-            assert card_bounds["note"]["bottom"] <= card_bounds["card"]["bottom"] + 0.5
-        assert "RenderManager.render" in card_bounds["label"]["title"]
+        assert execute("return document.querySelectorAll('.main-flow-node, .function-node, .class-node').length") == 0
+        assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 0
+        clipped_exec_bodies = execute("""return Array.from(document.querySelectorAll('.execution-node .exec-node-body'))
+          .filter(body => body.scrollHeight > body.clientHeight + 1).length""")
+        assert clipped_exec_bodies == 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # Phase 1 class layer: classes are component nodes on the module page;
@@ -325,8 +262,6 @@ def test_browser_smoke() -> None:
         time.sleep(.6)
         execute("location.hash='#/module/worker'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
-        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
-        time.sleep(.3)
         assert execute("return document.querySelectorAll('.class-node').length") == 2
         assert execute("return document.querySelectorAll('.class-node.is-abstract').length") == 1
         assert execute("return document.querySelectorAll('.function-node').length") == 1
@@ -349,8 +284,6 @@ def test_browser_smoke() -> None:
         time.sleep(.6)
         execute("location.hash='#/module/roles'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
-        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
-        time.sleep(.3)
         assert execute("return document.querySelectorAll('.module-contracts .role-count-chip').length") >= 6
         assert execute("return document.querySelectorAll('.class-node.is-type-card').length") == 3
         assert execute("return document.querySelectorAll('.type-field-chip').length") > 0
@@ -360,43 +293,22 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.type-field-row').length") == 3
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
-        # P2.4: dispatch candidates are visible as dashed low-confidence
-        # composition edges, never as ordinary call edges.
+        # Removed call-overview UI must not leak back into the flow page.
         dispatch_bundle = build_architecture(DISPATCH_ROOT)
         dispatch_html = browser_dir / "dispatch-flow.html"
         dispatch_html.write_text(render_html(dispatch_bundle), encoding="utf-8")
-        request("POST", f"/session/{session}/url", {"url": dispatch_html.resolve().as_uri()})
+        request("POST", f"/session/{session}/url", {"url": f"{dispatch_html.resolve().as_uri()}#/flow"})
         time.sleep(.6)
-        execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
-        time.sleep(.4)
-        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
-        time.sleep(.25)
-        assert execute("return document.querySelectorAll('.flow-dispatch').length") == 1
-        assert execute("return document.querySelectorAll('.graph-edge.kind-composition').length") == 2
-        assert execute("return document.querySelectorAll('.graph-edge.kind-composition.is-low').length") == 2
-        assert execute("return document.querySelectorAll('.boundary-node').length") == 0
+        assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        assert execute("return document.querySelectorAll('.main-flow-node, [data-main-view]').length") == 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
-        # P3: inheritance/implements and polymorphic dispatch are visible as
-        # structural hierarchy data and low-confidence composition edges.
+        # P3: inheritance/implements remain visible on the module capability page.
         inheritance_bundle = build_architecture(INHERITANCE_ROOT)
         inheritance_html = browser_dir / "inheritance-flow.html"
         inheritance_html.write_text(render_html(inheritance_bundle), encoding="utf-8")
-        request("POST", f"/session/{session}/url", {"url": inheritance_html.resolve().as_uri()})
+        request("POST", f"/session/{session}/url", {"url": f"{inheritance_html.resolve().as_uri()}#/module/impl"})
         time.sleep(.6)
-        execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
-        time.sleep(.4)
-        execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
-        time.sleep(.25)
-        assert execute("return document.querySelectorAll('.flow-dispatch').length") == 2
-        assert execute("return document.querySelectorAll('.graph-edge.kind-composition.is-low').length") == 3
-        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
-        time.sleep(.25)
-        assert execute("return document.querySelectorAll('.main-flow-node').length") == 0
-        execute("location.hash='#/module/impl'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
-        time.sleep(.4)
-        execute("document.querySelector('[data-main-view=\"capabilities\"]')?.click(); return true")
-        time.sleep(.25)
         assert execute("return document.querySelectorAll('.class-node').length") == 4
         execute("document.querySelector('.class-node[data-uid=\"cls:app.impl.EchoWorker\"]').click(); return true")
         time.sleep(.2)
@@ -414,12 +326,8 @@ def test_browser_smoke() -> None:
         execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.35)
         assert execute("return document.querySelectorAll('.user-surface-chip').length") >= 2
-        execute("document.querySelector('[data-main-view=\"capabilities\"]').click(); return true")
-        time.sleep(.25)
         execute("location.hash='#/module/service'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.35)
-        execute("document.querySelector('[data-main-view=\"capabilities\"]')?.click(); return true")
-        time.sleep(.25)
         assert execute("return document.querySelectorAll('.type-relation-chip.kind-composes').length") >= 1
         execute("document.querySelector('.class-node[data-uid=\"cls:app.manager.OrderManager\"]').click(); return true")
         time.sleep(.2)
