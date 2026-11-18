@@ -192,6 +192,7 @@ def test_browser_smoke() -> None:
         time.sleep(.8)
         assert execute("return window.__ARCHMAP_ERRORS__") == []
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
+        assert execute("return document.querySelectorAll('.exec-edge-capsule').length") > 0
         execution_labels = execute("return Array.from(document.querySelectorAll('.execution-node .exec-node-label')).map(node => node.textContent)")
         assert "server()" in execution_labels
         assert "client()" in execution_labels
@@ -200,6 +201,34 @@ def test_browser_smoke() -> None:
         assert "with Database(password: str)" not in execution_labels
         assert "Database.actions(client_input: bytes)" not in execution_labels
         assert "MenuSystem.run()" not in execution_labels
+        clipped_execution_bodies = execute("""return Array.from(document.querySelectorAll('.execution-node:not(.is-junction) .exec-node-body'))
+          .filter(body => body.scrollHeight > body.clientHeight + 1).length""")
+        assert clipped_execution_bodies == 0
+        drag_result = execute("""return (() => {
+          const node = Array.from(document.querySelectorAll('.execution-node'))
+            .find(item => item.querySelector('.exec-node-label')?.textContent === 'server()');
+          if (!node) return null;
+          const edge = Array.from(document.querySelectorAll('.execution-edge'))
+            .find(path => path.dataset.from === node.dataset.uid);
+          const beforeEdge = edge?.getAttribute('d') || '';
+          const rect = node.getBoundingClientRect();
+          const x = rect.left + 16;
+          const y = rect.top + 16;
+          node.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, button: 0, pointerId: 41, clientX: x, clientY: y}));
+          node.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, pointerId: 41, clientX: x + 70, clientY: y + 90}));
+          node.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, pointerId: 41, clientX: x + 70, clientY: y + 90}));
+          const stored = JSON.parse(localStorage.getItem('archmap-v3-layout-v1') || '{}');
+          return {
+            left: parseFloat(node.style.left),
+            top: parseFloat(node.style.top),
+            edgeChanged: beforeEdge !== (edge?.getAttribute('d') || ''),
+            storedFlows: Object.keys(stored.executions || {}).length,
+          };
+        })()""")
+        assert drag_result is not None
+        assert drag_result["edgeChanged"] is True
+        assert drag_result["storedFlows"] > 0
+        execute("localStorage.removeItem('archmap-v3-layout-v1'); return true")
         execute("document.querySelector('[data-main-view=\"flow\"]').click(); return true")
         time.sleep(.3)
         assert execute("return document.querySelectorAll('.flow-edge').length") == 10

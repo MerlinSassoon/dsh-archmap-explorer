@@ -1,4 +1,10 @@
-"""Deterministic compact top-to-bottom layout for bounded execution flows."""
+"""Deterministic horizontal execution-flow layout for P5.
+
+The graph uses a left-to-right main spine.  Branch and multi-branch arms fan
+vertically; loops expose a ``loop_body`` port without drawing a back lane.
+Edges are cubic curves and every edge stores the source/target port names so the
+browser can reroute incident curves while a card is dragged.
+"""
 
 from __future__ import annotations
 
@@ -6,10 +12,10 @@ from collections import defaultdict, deque
 from typing import Any
 
 PAD = 64.0
-X_GAP = 58.0
-Y_GAP = 24.0
-LANE_GAP = 38.0
-LANE_STEP = 22.0
+X_GAP = 78.0
+Y_GAP = 46.0
+LANE_GAP = 48.0
+LANE_STEP = 18.0
 _NON_RANK_KINDS = {"back", "continue"}
 
 
@@ -17,20 +23,61 @@ def _node_size(node: dict[str, Any]) -> tuple[float, float]:
     kind = str(node.get("kind") or "")
     if kind == "multi_branch":
         cases = len(node.get("cases") or [])
-        return 250.0, max(62.0, 44.0 + cases * 18.0)
+        return 260.0, max(104.0, 82.0 + cases * 20.0)
     if kind in {"entry", "free_function", "interface", "dispatch"}:
-        return 232.0, 58.0
-    if kind in {"branch", "loop"}:
-        return 232.0, 62.0
+        return 240.0, 96.0
+    if kind == "branch":
+        return 244.0, 112.0
+    if kind == "loop":
+        return 260.0, 128.0
     if kind in {"break", "continue"}:
-        return 88.0, 34.0
+        return 112.0, 44.0
     if kind == "return":
-        return 130.0, 40.0
+        return 150.0, 50.0
     if kind == "merge":
-        return 56.0, 20.0
+        return 28.0, 28.0
     if kind == "exit":
-        return 110.0, 38.0
-    return 160.0, 52.0
+        return 126.0, 50.0
+    return 180.0, 64.0
+
+
+def _port_specs(node: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return relative port anchors and display metadata for a node."""
+
+    kind = str(node.get("kind") or "")
+    w = float(node.get("w") or 0)
+    h = float(node.get("h") or 0)
+    ports: dict[str, dict[str, Any]] = {
+        "in": {"x": 0.0, "y": h * 0.5, "side": "left", "shape": "triangle", "label": ""},
+    }
+    if kind == "exit":
+        return ports
+    if kind == "branch":
+        ports["true"] = {"x": w, "y": h * 0.36, "side": "right", "shape": "circle", "label": "是"}
+        ports["false"] = {"x": w, "y": h * 0.68, "side": "right", "shape": "circle", "label": "否"}
+        return ports
+    if kind == "multi_branch":
+        cases = list(node.get("cases") or [])
+        count = max(1, len(cases))
+        for index, case in enumerate(cases):
+            ratio = 0.36 + (0.48 * index / max(1, count - 1))
+            ports[f"case:{index}"] = {
+                "x": w, "y": h * ratio, "side": "right", "shape": "circle",
+                "label": str(case.get("label") or case.get("key") or f"case {index + 1}"),
+                "caseIndex": index,
+            }
+        ports["default"] = {"x": w, "y": h * 0.88, "side": "right", "shape": "diamond", "label": "默认"}
+        return ports
+    if kind == "loop":
+        ports["in"] = {"x": 0.0, "y": h * 0.18, "side": "left", "shape": "triangle", "label": ""}
+        ports["loop_body"] = {"x": w, "y": h * 0.33, "side": "right", "shape": "triangle", "label": "循环体"}
+        ports["loop_complete"] = {"x": w, "y": h * 0.64, "side": "right", "shape": "triangle", "label": "循环完成"}
+        ports["loop_break"] = {"x": 0.0, "y": h * 0.50, "side": "left", "shape": "triangle", "label": "跳出循环"}
+        ports["loop_start"] = {"x": 0.0, "y": h * 0.82, "side": "left", "shape": "circle", "label": "循环起始值"}
+        ports["loop_current"] = {"x": w, "y": h * 0.82, "side": "right", "shape": "circle", "label": "当前循环值"}
+        return ports
+    ports["out"] = {"x": w, "y": h * 0.5, "side": "right", "shape": "triangle", "label": ""}
+    return ports
 
 
 def _rank_nodes(
@@ -41,8 +88,7 @@ def _rank_nodes(
     outgoing: dict[str, list[str]] = defaultdict(list)
     indegree = {node_id: 0 for node_id in node_ids}
     for edge in edges:
-        kind = str(edge.get("kind") or "")
-        if kind in _NON_RANK_KINDS:
+        if str(edge.get("kind") or "") in _NON_RANK_KINDS:
             continue
         source = str(edge.get("from") or "")
         target = str(edge.get("to") or "")
@@ -70,51 +116,47 @@ def _rank_nodes(
     return rank
 
 
-def _source_point(
-    node: dict[str, Any],
-    edge: dict[str, Any],
-    outgoing_same_source: list[dict[str, Any]],
-) -> tuple[float, float]:
+def _port_for_edge(edge: dict[str, Any], source: dict[str, Any], outgoing_same_source: list[dict[str, Any]]) -> str:
     kind = str(edge.get("kind") or "")
-    x = float(node["x"])
-    y = float(node["y"])
-    w = float(node["w"])
-    h = float(node["h"])
-    if kind == "true":
-        return x + w * 0.30, y + h
-    if kind == "false":
-        return x + w * 0.70, y + h
-    if kind in {"case", "default"}:
-        controls = [item for item in outgoing_same_source if item.get("kind") in {"case", "default"}]
+    if kind in {"true", "false", "loop_body", "loop_complete"}:
+        return kind
+    if kind == "default":
+        return "default"
+    if kind == "case":
+        controls = [item for item in outgoing_same_source if item.get("kind") == "case"]
         index = controls.index(edge) if edge in controls else 0
-        count = max(1, len(controls))
-        ratio = 0.5 if count == 1 else 0.14 + 0.72 * index / (count - 1)
-        return x + w * ratio, y + h
-    if kind == "loop_body":
-        return x + w * 0.44, y + h
-    if kind == "loop_complete":
-        return x + w, y + h * 0.50
-    return x + w * 0.50, y + h
+        return f"case:{index}"
+    if kind == "break":
+        return "out"
+    return "out"
 
 
-def _target_point(node: dict[str, Any], edge: dict[str, Any]) -> tuple[float, float]:
-    kind = str(edge.get("kind") or "")
-    x = float(node["x"])
-    y = float(node["y"])
-    w = float(node["w"])
-    h = float(node["h"])
-    if kind in {"back", "continue"}:
-        return x, y + h * 0.50
-    return x + w * 0.50, y
-
-
-def _orth_path(points: list[tuple[float, float]]) -> str:
-    if not points:
-        return ""
-    parts = [f"M {points[0][0]:.2f} {points[0][1]:.2f}"]
-    for x, y in points[1:]:
-        parts.append(f"L {x:.2f} {y:.2f}")
-    return " ".join(parts)
+def _curve_path(
+    sx: float,
+    sy: float,
+    tx: float,
+    ty: float,
+    *,
+    lane_y: float | None = None,
+) -> str:
+    if lane_y is None:
+        bend = max(42.0, min(210.0, abs(tx - sx) * 0.46))
+        c1x = sx + bend
+        c2x = tx - bend
+        return f"M {sx:.2f} {sy:.2f} C {c1x:.2f} {sy:.2f} {c2x:.2f} {ty:.2f} {tx:.2f} {ty:.2f}"
+    # Long forward edges use a smooth two-curve lane.  This is not a loop back
+    # lane; it only prevents a long loop-complete/break edge from crossing the
+    # main spine cards.
+    left = sx + 34.0
+    right = tx - 34.0
+    if right <= left:
+        right = left + 18.0
+    return (
+        f"M {sx:.2f} {sy:.2f} "
+        f"C {left:.2f} {sy:.2f} {left:.2f} {lane_y:.2f} {left + 32.0:.2f} {lane_y:.2f} "
+        f"L {right - 32.0:.2f} {lane_y:.2f} "
+        f"C {right:.2f} {lane_y:.2f} {right:.2f} {ty:.2f} {tx:.2f} {ty:.2f}"
+    )
 
 
 def layout_execution_flow(
@@ -122,7 +164,7 @@ def layout_execution_flow(
     edges: list[dict[str, Any]],
     flow_id: str,
 ) -> dict[str, Any]:
-    """Lay out a bounded execution flow top-to-bottom with control lanes."""
+    """Lay out a bounded execution flow left-to-right with curved edges."""
 
     if not nodes:
         return {
@@ -152,8 +194,8 @@ def layout_execution_flow(
         if source in by_id and target in by_id:
             incoming[target].append(edge)
 
-    positions: dict[str, dict[str, float]] = {}
-    current_y = PAD
+    rank_widths: dict[int, float] = {}
+    rank_heights: dict[int, float] = {}
     for rank_value in sorted(groups):
         group = groups[rank_value]
         if rank_value == 0:
@@ -163,42 +205,46 @@ def layout_execution_flow(
                 min((edge_order.get(str(edge.get("id")), 10_000) for edge in incoming.get(node_id, [])), default=10_000),
                 node_ids.index(node_id),
             ))
-        total_width = sum(float(by_id[node_id]["w"]) for node_id in group) + X_GAP * max(0, len(group) - 1)
-        cursor_x = -total_width / 2.0
-        row_height = max(float(by_id[node_id]["h"]) for node_id in group)
+        rank_widths[rank_value] = max(float(by_id[node_id]["w"]) for node_id in group)
+        rank_heights[rank_value] = (
+            sum(float(by_id[node_id]["h"]) for node_id in group)
+            + Y_GAP * max(0, len(group) - 1)
+        )
+    max_height = max(rank_heights.values(), default=0.0)
+
+    positions: dict[str, dict[str, Any]] = {}
+    cursor_x = PAD
+    for rank_value in sorted(groups):
+        group = groups[rank_value]
+        group_height = rank_heights[rank_value]
+        cursor_y = PAD + (max_height - group_height) / 2.0
         for node_id in group:
             node = by_id[node_id]
             positions[node_id] = {
-                "x": cursor_x,
-                "y": current_y,
+                "x": round(cursor_x, 2),
+                "y": round(cursor_y, 2),
                 "w": float(node["w"]),
                 "h": float(node["h"]),
             }
-            cursor_x += float(node["w"]) + X_GAP
-        current_y += row_height + Y_GAP
+            cursor_y += float(node["h"]) + Y_GAP
+        cursor_x += rank_widths[rank_value] + X_GAP
 
-    min_x = min(position["x"] for position in positions.values())
-    x_shift = PAD - min_x
-    for position in positions.values():
-        position["x"] = round(position["x"] + x_shift, 2)
-        position["y"] = round(position["y"], 2)
     for node_id, position in positions.items():
         by_id[node_id]["x"] = position["x"]
         by_id[node_id]["y"] = position["y"]
         by_id[node_id]["w"] = position["w"]
         by_id[node_id]["h"] = position["h"]
+        port_specs = _port_specs(by_id[node_id])
+        positions[node_id]["ports"] = port_specs
 
     max_x = max(position["x"] + position["w"] for position in positions.values())
     max_y = max(position["y"] + position["h"] for position in positions.values())
-    min_node_x = min(position["x"] for position in positions.values())
-    left_lane = max(12.0, min_node_x - LANE_GAP)
-    right_lane = max_x + LANE_GAP
+    bottom_lane = max_y + LANE_GAP
 
     outgoing: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for edge in edges:
         outgoing[str(edge.get("from") or "")].append(edge)
-    left_count = 0
-    right_count = 0
+    lane_count = 0
     edge_layout: dict[str, dict[str, Any]] = {}
     for edge in edges:
         source_id = str(edge.get("from") or "")
@@ -207,38 +253,44 @@ def layout_execution_flow(
         target = positions.get(target_id)
         if source is None or target is None:
             continue
-        kind = str(edge.get("kind") or "next")
-        sx, sy = _source_point(source, edge, outgoing.get(source_id, []))
-        tx, ty = _target_point(target, edge)
-        label = str(edge.get("label") or "")
-        if kind in {"back", "continue"}:
-            lane_x = left_lane - left_count * LANE_STEP
-            left_count += 1
-            points = [(sx, sy), (lane_x, sy), (lane_x, ty), (tx, ty)]
-            label_xy = (lane_x + 4.0, max(sy, ty) - 6.0)
-        elif kind in {"break", "loop_complete"}:
-            lane_x = right_lane + right_count * LANE_STEP
-            right_count += 1
-            points = [(sx, sy), (lane_x, sy), (lane_x, ty - 8.0), (tx, ty - 8.0), (tx, ty)]
-            label_xy = (lane_x + 4.0, max(sy, ty) - 6.0)
-        else:
-            mid_y = (sy + ty) / 2.0
-            points = [(sx, sy), (sx, mid_y), (tx, mid_y), (tx, ty)]
-            label_xy = ((sx + tx) / 2.0, mid_y - 6.0)
+        source_ports = source.get("ports") or {}
+        target_ports = target.get("ports") or {}
+        from_port = _port_for_edge(edge, by_id[source_id], outgoing.get(source_id, []))
+        if from_port not in source_ports and "out" in source_ports:
+            from_port = "out"
+        to_port = "in"
+        if to_port not in target_ports:
+            to_port = next(iter(target_ports), "in")
+        from_spec = source_ports.get(from_port) or {"x": float(source["w"]), "y": float(source["h"]) * 0.5}
+        to_spec = target_ports.get(to_port) or {"x": 0.0, "y": float(target["h"]) * 0.5}
+        sx = float(source["x"]) + float(from_spec.get("x", 0))
+        sy = float(source["y"]) + float(from_spec.get("y", 0))
+        tx = float(target["x"]) + float(to_spec.get("x", 0))
+        ty = float(target["y"]) + float(to_spec.get("y", 0))
+        long_forward = tx - sx > 620.0 or (
+            str(edge.get("kind") or "") in {"break", "loop_complete"} and tx - sx > 360.0
+        )
+        lane_y = None
+        if long_forward:
+            lane_y = bottom_lane + lane_count * LANE_STEP
+            lane_count += 1
         edge_layout[str(edge.get("id"))] = {
-            "d": _orth_path(points),
-            "labelX": round(label_xy[0], 2),
-            "labelY": round(label_xy[1], 2),
-            "kind": kind,
-            "text": label,
+            "d": _curve_path(sx, sy, tx, ty, lane_y=lane_y),
+            "fromPort": from_port,
+            "toPort": to_port,
+            "labelX": round(sx + 12.0, 2),
+            "labelY": round(sy - 12.0, 2),
+            "kind": str(edge.get("kind") or "next"),
+            "text": str(edge.get("label") or ""),
+            "laneY": lane_y,
         }
 
-    canvas_right = max(max_x, right_lane + max(0, right_count - 1) * LANE_STEP)
+    canvas_bottom = max(bottom_lane + max(0, lane_count - 1) * LANE_STEP, max_y)
     return {
         "mode": "execution-flow",
         "canvas": {
-            "width": round(canvas_right + PAD, 2),
-            "height": round(max_y + PAD, 2),
+            "width": round(max_x + PAD, 2),
+            "height": round(canvas_bottom + PAD, 2),
             "padding": PAD,
         },
         "nodes": positions,

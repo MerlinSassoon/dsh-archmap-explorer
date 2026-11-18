@@ -204,10 +204,11 @@ P5 实现后，主模块默认进入执行流视图，调用/组合视图保留�
 #### `loop`
 
 - 统一表示 `for`、`while`、`async for`；
-- 携带 `loopKind`、条件/迭代表达式、循环变量、`mayExit`；
-- 恰好一条 `body` 边和一条 `complete` 边；
-- `continue` 指回 loop；
-- `break` 指向该 loop 的 `complete` 路径。
+- 携带 `loopKind`、条件/迭代表达式、循环变量、`mayExit`、`hasBreak`；
+- 端口契约参考千星奇域：`循环体`、`跳出循环`、`循环完成`；存在循环变量时展示 `循环起始值` / `当前循环值`；
+- 恰好一条 `loop_body` 边和一条 `loop_complete` 边；
+- 不绘制 back 回边；循环体完成后隐式回到循环节点；
+- `break` 节点连接到循环完成后的汇合节点。
 
 #### `dispatch`
 
@@ -231,10 +232,12 @@ next
 true / false
 case / default
 loop_body / loop_complete
-back / break / continue
+break
 return
 dispatch
 ```
+
+P5 v1 不生成 `back` / `continue` 执行边。循环体通过 `loop_body` 从循环节点进入，循环何时回到条件由循环节点本身表达，不绘制回边 lane；`continue` 只作为循环体内的终止标记。
 
 边不表达“调用谁”。调用目标属于节点属性：
 
@@ -291,24 +294,20 @@ student_system 的主执行流目标快照如下，并已成为验收基线：
 
 ```text
 ENTRY main()
-  ↓
-LOOP while True
-  ├─ body
-  │   ↓
-  │  INTERFACE NetworkAdapter.init_connection()
-  │   ↓
-  │  MULTI_BRANCH model
-  │   ├─ case SERVER → FREE_FUNCTION server()
-  │   ├─ case CLIENT → FREE_FUNCTION client()
-  │   └─ default     → merge
-  │   ↓
-  │  MERGE
-  │   ↓
-  │  BRANCH status.upper() == "Q"
-  │   ├─ true  → BREAK
-  │   └─ false → back to LOOP
-  └─ complete → EXIT
+  → LOOP while True
+      ├─ 循环体 → INTERFACE NetworkAdapter.init_connection()
+      │            → MULTI_BRANCH model
+      │                ├─ SERVER → FREE_FUNCTION server()
+      │                └─ CLIENT → FREE_FUNCTION client()
+      │            → BRANCH status.upper() == "Q"
+      │                ├─ 是 → BREAK
+      │                └─ 否 → 循环体结束
+      ├─ 跳出循环 ───────────────┐
+      └─ 循环完成 ───────────────┤
+                                 └→ LOOP_COMPLETE → EXIT
 ```
+
+该图采用横向主脊：顺序节点从左向右，branch / multi_branch 的路径在上下 lane 展开，循环节点不绘制回边。
 
 明确要求：
 
@@ -418,25 +417,29 @@ executionEdges
 
 ### 10.1 布局
 
-- Python 端生成确定性布局，浏览器不重新推导控制流；
-- branch 左右展开；
-- multi_branch 多列展开；
-- loop body 向下、complete 向右/下；
-- back / continue 使用左侧 lane；
-- break / loop_complete 使用右侧 lane；
+- Python 端生成确定性横向布局，浏览器不重新推导控制流；
+- 主流程从左向右推进；
+- branch 的上/下路径垂直展开，merge 回到主轴；
+- multi_branch 各 case 垂直展开；
+- loop 通过 `循环体` 端口连接 body，不绘制 back lane；
+- loop complete / break / 长距离边使用曲线 lane 绕开节点；
 - merge 与 branch 中心对齐；
-- 边使用正交折线，禁止穿越节点；
-- 嵌套结构必须有碰撞检测。
+- 边使用贝塞尔曲线，禁止穿过卡片内容；
+- 布局节点提供真实端口锚点；
+- 嵌套结构必须有碰撞检测，卡片内容自适应高度。
 
 ### 10.2 UI
 
 - 主模块页默认显示执行流，调用总览作为辅助切换；
-- 节点显示名称、模块、备注和必要徽章；
+- 节点使用保守的千星奇域风格：彩色标题栏、深色主体、显式端口；
+- 边标签使用深色小胶囊，优先贴近源端口；没有明确语义时不显示标签；
 - 分支显示“是/否”；
 - 多分支显示 case / default；
-- 循环显示“循环体/循环完成”；
+- 循环显示“循环体/跳出循环/循环完成”，存在循环变量时展示起始值/当前值；
 - break / continue / return 明确可见；
 - 函数和接口节点双击打开 Method Detail；
+- 节点支持拖拽移动，关联曲线实时重算；
+- 拖拽覆盖写入浏览器布局并持久化，可通过“重置布局”恢复；
 - 不提供图内展开按钮或下钻手势；
 - 提供图例、适应画布、缩放、平移和空状态；
 - 所有节点颜色不能只作为唯一语义来源，必须同时有文字标签。
@@ -452,7 +455,7 @@ executionEdges
 - `branch` 恰好一条 `true` 和一条 `false`；
 - `multi_branch` 至少一个 case，default 最多一个；
 - `loop` 恰好一条 `body` 和一条 `complete`；
-- `back` 目标必须是所属 loop；
+- `back` 边若存在则目标必须是所属 loop；P5 v1 不生成该边；
 - `break` / `continue` 必须解析到当前最内层 loop；
 - `return` 必须指向 `exit`；
 - `merge` 至少一条入边、恰好一条出边；
@@ -499,7 +502,7 @@ tests/test_execution_flow.py
 
 - loop；
 - break / continue；
-- back / complete；
+- loop body / complete；
 - 嵌套分支与循环；
 - dispatch；
 - 简化诊断。
@@ -514,8 +517,9 @@ tests/test_execution_flow.py
 
 ### M4：布局与 UI
 
-- 结构化布局；
-- 端口与正交路由；
+- 横向结构化布局；
+- 端口锚点与贝塞尔曲线；
+- 节点拖拽与布局覆盖持久化；
 - 执行流渲染；
 - 执行流/调用总览切换；
 - 双击源码跳转；
@@ -537,7 +541,7 @@ tests/test_execution_flow.py
 - 节点和边满足第 11 节不变量；
 - 自由函数/接口双击可进入源码；
 - 执行流中不出现 Provider、列表操作、try/except 或外部 IO 节点；
-- 现有 88 个测试继续通过；
+- 现有 93 个测试继续通过；
 - 自举 build/check 通过；
 - 浏览器冒烟无运行时错误。
 

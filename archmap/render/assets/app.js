@@ -56,6 +56,8 @@
     functionId: null,
     flowId: null,
     executionFlowId: null,
+    executionEdgeLayouts: {},
+    executionEdgeLabels: new Map(),
     mainView: (projectGraph.executionFlows || []).length ? "execution" : "flow",
   };
 
@@ -68,6 +70,7 @@
       project: { nodes: {}, singleModule: false },
       modules: {},
       functions: {},
+      executions: {},
     };
   }
 
@@ -79,6 +82,7 @@
     base.project.singleModule = Boolean(value.project?.singleModule);
     base.modules = value.modules && typeof value.modules === "object" ? value.modules : {};
     base.functions = value.functions && typeof value.functions === "object" ? value.functions : {};
+    base.executions = value.executions && typeof value.executions === "object" ? value.executions : {};
     return base;
   }
 
@@ -277,11 +281,20 @@
     return { width, height, ...bounds };
   }
 
+  function executionTopPadding(fallback = 122) {
+    if (!moduleContracts?.classList.contains("is-visible")) return fallback;
+    const panel = moduleContracts.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    return Math.max(fallback, panel.bottom - viewportRect.top + 26);
+  }
+
   function fitView(animate = false) {
     const bounds = contentBounds();
     const rect = viewport.getBoundingClientRect();
     const padX = 58;
-    const padTop = state.pageKind === "module" ? 122 : state.pageKind === "method" ? 26 : 64;
+    const isExecutionPage = Boolean(world.querySelector(".execution-node"));
+    const basePadTop = state.pageKind === "module" ? 122 : state.pageKind === "method" ? 26 : 64;
+    const padTop = isExecutionPage ? executionTopPadding(basePadTop) : basePadTop;
     const padBottom = 46;
     const availableW = rect.width - padX * 2;
     const availableH = rect.height - padTop - padBottom;
@@ -298,6 +311,21 @@
     state.y = bounds.height * state.scale <= availableH
       ? padTop + (availableH - bounds.height * state.scale) / 2 - bounds.minY * state.scale
       : padTop - bounds.minY * state.scale;
+    applyTransform();
+  }
+
+  function focusExecutionStart(flow) {
+    if (!flow) return;
+    const entry = flow.nodes.find(node => node.kind === "entry") || flow.nodes[0];
+    const pos = entry ? state.positions.get(entry.id) : null;
+    if (!pos) return;
+    const rect = viewport.getBoundingClientRect();
+    const padTop = executionTopPadding(148);
+    state.scale = Math.max(.78, Math.min(1, state.scale));
+    state.x = 72 - pos.x * state.scale;
+    state.y = padTop - pos.y * state.scale;
+    // Keep a little breathing room without hiding the whole graph offscreen.
+    if (rect.width > 900) state.x += 18;
     applyTransform();
   }
 
@@ -894,6 +922,64 @@
     return flows.find(flow => flow.id === wanted) || flows[0];
   }
 
+  function executionFlowStorageId(flow) {
+    return flow?.id || "primary";
+  }
+
+  function getExecutionPosition(flowId, nodeId, base) {
+    const custom = override.executions?.[flowId]?.nodes?.[nodeId];
+    return {
+      x: Number(custom?.x ?? base?.x ?? 0),
+      y: Number(custom?.y ?? base?.y ?? 0),
+    };
+  }
+
+  function setExecutionPosition(flowId, nodeId, x, y) {
+    if (!override.executions[flowId]) override.executions[flowId] = { nodes: {} };
+    if (!override.executions[flowId].nodes) override.executions[flowId].nodes = {};
+    override.executions[flowId].nodes[nodeId] = { x: Math.round(x), y: Math.round(y) };
+  }
+
+  function executionPortPoint(nodeId, portName) {
+    const pos = state.positions.get(nodeId);
+    if (!pos) return { x: 0, y: 0 };
+    const spec = pos.ports?.[portName] || pos.ports?.out || pos.ports?.in || { x: 0, y: 0 };
+    return { x: pos.x + Number(spec.x || 0), y: pos.y + Number(spec.y || 0) };
+  }
+
+  function executionCurveD(edge) {
+    const geometry = state.executionEdgeLayouts?.[edge.id] || {};
+    const from = executionPortPoint(edge.from, geometry.fromPort || "out");
+    const to = executionPortPoint(edge.to, geometry.toPort || "in");
+    const sx = from.x, sy = from.y, tx = to.x, ty = to.y;
+    if (geometry.laneY != null) {
+      const bottoms = [...state.positions.values()].map(pos => pos.y + pos.h);
+      const laneY = Math.max(...bottoms, 0) + 48;
+      const left = sx + 34;
+      const right = Math.max(left + 18, tx - 34);
+      return `M ${sx.toFixed(2)} ${sy.toFixed(2)} C ${left.toFixed(2)} ${sy.toFixed(2)} ${left.toFixed(2)} ${laneY.toFixed(2)} ${(left + 32).toFixed(2)} ${laneY.toFixed(2)} L ${(right - 32).toFixed(2)} ${laneY.toFixed(2)} C ${right.toFixed(2)} ${laneY.toFixed(2)} ${right.toFixed(2)} ${ty.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)}`;
+    }
+    const bend = Math.max(42, Math.min(210, Math.abs(tx - sx) * .46));
+    return `M ${sx.toFixed(2)} ${sy.toFixed(2)} C ${(sx + bend).toFixed(2)} ${sy.toFixed(2)} ${(tx - bend).toFixed(2)} ${ty.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)}`;
+  }
+
+  function refreshExecutionEdges() {
+    const edgesById = new Map((state.pageEdges || []).map(edge => [edge.id, edge]));
+    world.querySelectorAll(".execution-edge").forEach(path => {
+      const edge = edgesById.get(path.dataset.edgeId);
+      if (!edge) return;
+      path.setAttribute("d", executionCurveD(edge));
+    });
+    state.executionEdgeLabels.forEach((element, edgeId) => {
+      const edge = edgesById.get(edgeId);
+      if (!edge) return;
+      const geometry = state.executionEdgeLayouts?.[edgeId] || {};
+      const point = executionPortPoint(edge.from, geometry.fromPort || "out");
+      element.style.left = `${point.x + 12}px`;
+      element.style.top = `${point.y - 10}px`;
+    });
+  }
+
   function renderModuleContracts(moduleId) {
     if (!moduleContracts) return;
     const graph = moduleGraphById.get(moduleId);
@@ -978,7 +1064,7 @@
       canvasKicker.textContent = isExecution ? "Main execution flow" : isMain ? "Call overview" : "Module capability";
       canvasTitle.textContent = module?.name || state.route.moduleId;
       canvasSub.textContent = isExecution
-        ? "入口函数控制骨架 · 自由函数/接口原子化 · 双击节点进入源码"
+        ? "入口函数控制骨架 · 自由函数/接口原子化 · 拖拽节点调整布局 · 双击进入源码"
         : isMain
           ? "入口 → 主模块编排 → 功能模块接口 · 实线 call · 虚线 composition"
           : "提供接口 · 类/自由函数 · 内部调用 · 双击进入详情";
@@ -1234,28 +1320,66 @@
 
   function executionKindLabel(kind) {
     return ({
-      entry: "ENTRY",
-      exit: "EXIT",
-      free_function: "FREE FUNCTION",
-      interface: "INTERFACE",
-      branch: "BRANCH",
-      multi_branch: "MULTI BRANCH",
-      loop: "LOOP",
-      break: "BREAK",
-      continue: "CONTINUE",
-      return: "RETURN",
-      dispatch: "DISPATCH",
-      merge: "MERGE",
-    }[kind] || String(kind || "NODE").toUpperCase());
+      entry: "入口",
+      exit: "结束",
+      free_function: "自由函数",
+      interface: "功能接口",
+      branch: "双分支",
+      multi_branch: "多分支",
+      loop: "循环",
+      break: "跳出循环",
+      continue: "继续循环",
+      return: "返回",
+      dispatch: "动态分发",
+      merge: "汇合",
+    }[kind] || String(kind || "节点"));
   }
 
   function executionEdgeClass(edge) {
     return `execution-edge kind-${escapeHtml(edge.kind || "next")}${edge.kind === "back" || edge.kind === "continue" ? " is-back" : ""}`;
   }
 
+  function executionPortDots(pos) {
+    const ports = pos.ports || {};
+    return Object.entries(ports).map(([name, spec]) => {
+      const left = spec.side === "left" ? -4 : Number(pos.w || 0) - 4;
+      const top = Number(spec.y || 0) - 4;
+      const shape = spec.shape || "circle";
+      return `<span class="exec-port-dot port-${escapeHtml(String(name).replaceAll(":", "-"))} shape-${escapeHtml(shape)} side-${escapeHtml(spec.side || "right")}" style="left:${left}px;top:${top}px" title="${escapeHtml(spec.label || name)}"></span>`;
+    }).join("");
+  }
+
+  function executionPortRows(node) {
+    const kind = node.kind;
+    if (kind === "branch") {
+      return `<div class="exec-port-rows">
+        <div class="exec-port-row align-right"><span>是</span></div>
+        <div class="exec-port-row align-right"><span>否</span></div>
+      </div>`;
+    }
+    if (kind === "multi_branch") {
+      const cases = node.cases || [];
+      const rows = cases.map(item => `<div class="exec-port-row align-right"><span>${escapeHtml(item.label || item.key || "")}</span></div>`).join("");
+      return `<div class="exec-port-rows">${rows}<div class="exec-port-row align-right is-default"><span>默认</span></div></div>`;
+    }
+    if (kind === "loop") {
+      const valueRow = (node.loopVariable || node.iterable)
+        ? `<div class="exec-port-row dual"><span>循环起始值</span><span>当前循环值</span></div>`
+        : "";
+      return `<div class="exec-port-rows">
+        <div class="exec-port-row align-right"><span>循环体</span></div>
+        <div class="exec-port-row dual"><span>跳出循环</span><span>循环完成</span></div>
+        ${valueRow}
+      </div>`;
+    }
+    return "";
+  }
+
   function renderExecutionNode(moduleId, nodeId, node) {
     const pos = state.positions.get(nodeId);
     const kind = node.kind || "merge";
+    const flow = currentExecutionFlow();
+    const flowId = executionFlowStorageId(flow);
     const targetId = node.targetFunctionId || (
       ["entry", "free_function", "interface", "dispatch"].includes(kind) ? node.functionId : null
     );
@@ -1264,39 +1388,43 @@
       branch: "◇", multi_branch: "⑂", loop: "↻", break: "↩",
       continue: "↪", return: "⤴", dispatch: "⑂", merge: "•",
     }[kind] || "•");
-    const ports = Array.isArray(node.ports) ? node.ports : [];
     const meta = [];
-    if (node.condition) meta.push(`条件：${truncate(node.condition, 48)}`);
-    if (node.loopKind) meta.push(`${node.loopKind}${node.loopVariable ? ` · ${node.loopVariable}` : ""}${node.mayExit === false ? " · 可能不退出" : ""}`);
+    if (node.condition && kind !== "branch" && kind !== "multi_branch") meta.push(`条件：${truncate(node.condition, 46)}`);
     if (kind === "dispatch") meta.push(`${Number(node.candidateCount || 0)} candidates · ${node.candidateSetComplete ? "complete" : "partial"}`);
+    if (kind === "loop" && node.mayExit === false) meta.push("可能不退出");
     if (node.usageKind) meta.push(node.usageKind);
-    const portChips = ports
-      .filter(port => port !== "in" && port !== "out")
-      .slice(0, 5)
-      .map(port => `<span>${escapeHtml(({
-        true: "是", false: "否", loop_body: "循环体", loop_complete: "完成",
-        default: "默认", next: "next",
-      }[port] || port))}</span>`)
-      .join("");
+    const noteText = String(node.note || "").trim();
+    const signatureText = node.signature && !["entry", "exit", "merge", "branch", "multi_branch", "loop", "break", "continue", "return"].includes(kind)
+      ? String(node.signature).trim()
+      : "";
     const element = document.createElement("article");
-    element.className = `node-card execution-node kind-${escapeHtml(kind)}${targetId ? " is-navigable" : ""}`;
+    element.className = `node-card execution-node kind-${escapeHtml(kind)}${targetId ? " is-navigable" : ""}${kind === "merge" ? " is-junction" : ""}`;
     element.dataset.uid = nodeId;
+    element.dataset.kind = kind;
     element.style.left = `${pos.x}px`;
     element.style.top = `${pos.y}px`;
     element.style.width = `${pos.w}px`;
     element.style.height = `${pos.h}px`;
     element.style.setProperty("--mc", node.color || "#60a5fa");
     element.style.setProperty("--mc-rgb", rgbFromHex(node.color || "#60a5fa"));
-    element.innerHTML = `<div class="exec-node-top">
-        <span class="exec-node-icon">${icon}</span>
-        <span class="exec-node-kind">${escapeHtml(executionKindLabel(kind))}</span>
-        <span class="exec-node-module">${escapeHtml(node.moduleName || node.moduleId || "")}</span>
-      </div>
-      <div class="exec-node-label" title="${escapeHtml(node.label || "")}">${escapeHtml(node.label || "")}</div>
-      ${node.note ? `<div class="exec-node-note">${escapeHtml(node.note)}</div>` : ""}
-      ${meta.length ? `<div class="exec-node-meta">${escapeHtml(meta.join(" · "))}</div>` : ""}
-      ${portChips ? `<div class="exec-node-ports">${portChips}</div>` : ""}
-      ${targetId ? `<div class="exec-node-open">双击查看源码 ↗</div>` : ""}`;
+    if (kind === "merge") {
+      element.innerHTML = `<span class="exec-node-label">${escapeHtml(node.label || "汇合")}</span>${executionPortDots(pos)}`;
+    } else {
+      element.innerHTML = `
+        <div class="exec-node-header">
+          <span class="exec-node-icon">${icon}</span>
+          <span class="exec-node-kind">${escapeHtml(executionKindLabel(kind))}</span>
+          <span class="exec-node-module">${escapeHtml(node.moduleName || node.moduleId || "")}</span>
+        </div>
+        <div class="exec-node-body">
+          <div class="exec-node-label" title="${escapeHtml(node.label || "")}">${escapeHtml(node.label || "")}</div>
+          ${signatureText ? `<div class="exec-node-signature" title="${escapeHtml(signatureText)}">${escapeHtml(signatureText)}</div>` : ""}
+          ${noteText ? `<div class="exec-node-note" title="${escapeHtml(noteText)}">${escapeHtml(noteText)}</div>` : ""}
+          ${meta.length ? `<div class="exec-node-meta">${escapeHtml(meta.join(" · "))}</div>` : ""}
+          ${executionPortRows(node)}
+        </div>
+        ${executionPortDots(pos)}`;
+    }
     world.appendChild(element);
     bindNodeHover(element, nodeId);
     element.addEventListener("click", event => {
@@ -1308,6 +1436,16 @@
       const target = targetId ? functionDetailById.get(targetId) : null;
       if (target) navigate({ kind: "function", moduleId: target.moduleId, functionId: target.id });
     });
+    attachDrag(element, element, {
+      getPosition: () => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }),
+      setPosition: (x, y) => {
+        const item = state.positions.get(nodeId);
+        item.x = x; item.y = y;
+        setExecutionPosition(flowId, nodeId, x, y);
+      },
+      onMove: () => { refreshExecutionEdges(); updateModuleWorldSize(moduleId); },
+      onEnd: () => { persistOverride(); updateModuleWorldSize(moduleId); },
+    });
   }
 
   function renderExecutionFlowPage(moduleId, graph) {
@@ -1317,6 +1455,8 @@
     state.nodes = new Map();
     state.sizes = new Map();
     state.positions = new Map();
+    state.executionEdgeLabels = new Map();
+    state.executionEdgeLayouts = {};
     if (!flow) {
       world.style.width = "760px";
       world.style.height = "420px";
@@ -1326,14 +1466,18 @@
       return;
     }
     state.executionFlowId = flow.id;
+    state.executionEdgeLayouts = flow.layout?.edges || {};
+    const flowId = executionFlowStorageId(flow);
     flow.nodes.forEach(node => {
-      const position = flow.layout?.nodes?.[node.id] || { x: 80, y: 100, w: 250, h: 92 };
-      const item = { ...node, execution: true, color: node.color || graph.color };
+      const base = flow.layout?.nodes?.[node.id] || { x: 80, y: 100, w: 250, h: 92, ports: {} };
+      const position = getExecutionPosition(flowId, node.id, base);
+      const item = { ...node, execution: true, color: node.color || graph.color, ports: base.ports || {} };
       state.nodes.set(node.id, item);
-      state.sizes.set(node.id, { w: Number(position.w || node.w || 250), h: Number(position.h || node.h || 92) });
+      state.sizes.set(node.id, { w: Number(base.w || node.w || 250), h: Number(base.h || node.h || 92) });
       state.positions.set(node.id, {
         x: Number(position.x || 0), y: Number(position.y || 0),
-        w: Number(position.w || node.w || 250), h: Number(position.h || node.h || 92),
+        w: Number(base.w || node.w || 250), h: Number(base.h || node.h || 92),
+        ports: base.ports || {},
       });
     });
     const canvas = flow.layout?.canvas || { width: 1200, height: 800 };
@@ -1350,30 +1494,25 @@
       const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
       title.textContent = `${edge.kind || "next"}${edge.label ? ` · ${edge.label}` : ""}`;
       path.appendChild(title);
-      const geometry = flow.layout?.edges?.[edge.id];
-      if (geometry?.d) {
-        path.setAttribute("d", geometry.d);
-        if (edge.label) {
-          const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          label.setAttribute("class", "execution-edge-label");
-          label.setAttribute("x", String(geometry.labelX || 0));
-          label.setAttribute("y", String(geometry.labelY || 0));
-          label.textContent = edge.label;
-          svg.appendChild(label);
-        }
-      } else {
-        const from = state.positions.get(edge.from);
-        const to = state.positions.get(edge.to);
-        if (from && to) path.setAttribute("d", curvePath(from, to));
-      }
+      path.setAttribute("d", executionCurveD(edge));
       svg.appendChild(path);
+      if (edge.label) {
+        const capsule = document.createElement("div");
+        capsule.className = `exec-edge-capsule kind-${escapeHtml(edge.kind || "next")}`;
+        capsule.dataset.edgeId = edge.id;
+        capsule.textContent = edge.label;
+        world.appendChild(capsule);
+        state.executionEdgeLabels.set(edge.id, capsule);
+      }
     });
     state.nodes.forEach((node, nodeId) => renderExecutionNode(moduleId, nodeId, node));
+    refreshExecutionEdges();
     updateModuleWorldSize(moduleId);
     world.classList.add("page-enter");
     requestAnimationFrame(() => {
       applyTransform();
       fitView();
+      if (state.scale < .78) focusExecutionStart(flow);
       renderDefaultDetail();
       const pendingUid = state.pendingSelectUid;
       state.pendingSelectUid = null;

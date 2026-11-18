@@ -84,12 +84,12 @@ yield/student_system/
 ## 三层视图
 
 - **项目页**：模块能力卡片，展示职责、模块角色、Provider Role 数量、Provider/Capability、类/Provider/API 数量；默认不绘制模块依赖线，依赖证据仍保留在 bundle 中，可通过“关系”按钮查看。P4 User Surface 也在项目页/模块契约区展示。
-- **主模块页**：默认展示 P5 有界执行流；可切换到“调用总览”查看 entry → orchestrator/provider/interface 的调用 DAG，或切换到能力视图查看类与自由函数。上下文管理器等协议用法会在 Provider 边界节点上携带 `capabilityKind`、`protocols` 与 `usageKind`，例如显示 `with Spinner(...)`。
+- **主模块页**：默认展示 P5 横向有界执行流；可切换到“调用总览”查看 entry → orchestrator/provider/interface 的调用 DAG，或切换到能力视图查看类与自由函数。执行流节点可拖拽调整布局，双击进入源码。上下文管理器等协议用法会在 Provider 边界节点上携带 `capabilityKind`、`protocols` 与 `usageKind`，例如显示 `with Spinner(...)`。
 - **功能模块页**：顶部展示模块提供接口与 Provider Role 组合；画布展示类节点、模块级自由函数节点；不再有模块输入/输出端口。config/model Provider 以类型卡片展示字段摘要。
 - **类节点详情**：展示类类型、抽象/接口标记、构造签名和提供接口；P3 还展示继承/实现、MRO、继承 API 和 override 来源；P4 展示 `instantiates/uses/aggregates/composes` 结构关系。内部方法只显示数量，不展开类内方法图。
 - **方法详情页**：左侧/右侧展示人类备注、LLM 语义、签名、返回/异常、源码切片、callers/callees、override / overridden-by、多态调用邻域和 User Surface 标签；点击调用者可继续下钻；页面背景跟随系统浅色/深色模式。
 - 所有页面使用 Hash 路由和平级切换，不使用弹窗。
-- 项目页与模块页节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存项目页/模块页的用户覆盖；可用“适应画布”或“重置布局”找回节点。
+- 项目页、模块页和执行流节点支持无固定边界拖拽；布局默认坐标由 Python 生成，浏览器只保存用户覆盖；可用“适应画布”或“重置布局”找回节点。
 - P5 执行流只展开 entrypoint 的控制骨架；自由函数和功能模块接口均为原子节点，双击进入源码。
 - 不生成或渲染函数内部完整 CFG、逐语句执行流图；函数实现以源码为最终事实来源。
 
@@ -100,6 +100,9 @@ P5 把主模块默认流程从“函数级调用/模块组合 DAG”升级为**�
 - 只展示 selected entrypoint 函数内部的控制骨架；
 - 主模块自由函数、功能模块公开接口都作为原子执行步骤，不展开；双击进入 Method Detail / 源码页面；
 - 使用封闭节点集合：`entry` / `exit` / `free_function` / `interface` / `branch` / `multi_branch` / `loop` / `break` / `continue` / `return` / `dispatch` / `merge`；
+- 横向主脊布局，分支上下展开，循环节点通过 `循环体` 端口连接循环体，不再绘制回边 lane；
+- 节点使用保守的千星奇域风格卡片、显式端口、深色边标签胶囊和贝塞尔曲线；
+- 节点位置可在浏览器中拖拽覆盖，关联曲线实时重算并持久化；
 - 不生成逐语句节点、列表操作节点、`try/except` 异常控制、数据流边或图内下钻；
 - 新增 `projectGraph.executionFlows` 和 `primaryExecutionFlowId`；`mainFlows` 保留为辅助的“调用总览”；
 - bundle schema 升级到 4.0，新增执行流校验、确定性布局和浏览器交互。
@@ -456,8 +459,8 @@ modules:              6
 classes:              31
 functions:            269
 methods:              70
-callSites:            3862
-resolvedCalls:        673
+callSites:            3880
+resolvedCalls:        668
 typeRelations:        57
 structuralRelations:  57
 userSurfaces:         0
@@ -481,7 +484,7 @@ typeRelations:        4
 structuralRelations:  4
 userSurfaces:         14
 executionFlows:       1
-executionNodes:       11
+executionNodes:       12
 executionEdges:       14
 diagnostics:          0
 build/check:          OK

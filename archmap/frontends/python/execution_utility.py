@@ -565,8 +565,11 @@ class ExecutionSkeletonBuilder:
                 "condition": condition,
                 "iterable": iterable,
                 "loopVariable": loop_variable,
+                "loopStart": iterable or condition,
+                "loopCurrent": loop_variable,
                 "mayExit": False,
-                "ports": ["in", "loop_body", "loop_complete"],
+                "hasBreak": False,
+                "ports": ["in", "loop_body", "loop_break", "loop_complete", "loop_start", "loop_current"],
                 "expandable": False,
                 "execution": True,
                 "flowId": self.flow_id,
@@ -582,40 +585,9 @@ class ExecutionSkeletonBuilder:
             )
         finally:
             self._loop_stack.pop()
-        if body_endpoints:
-            special_endpoints = [
-                endpoint for endpoint in body_endpoints
-                if endpoint.kind in {"loop_complete", "break"}
-            ]
-            normal_endpoints = [
-                endpoint for endpoint in body_endpoints
-                if endpoint.kind not in {"loop_complete", "break"}
-            ]
-            if special_endpoints:
-                join_id = self._next_node_id("merge", stmt.lineno, stmt.col_offset + 1)
-                self._connect(normal_endpoints, join_id)
-                self._connect(special_endpoints, join_id)
-                self._add_node(
-                    node_id=join_id,
-                    kind="merge",
-                    label="汇合",
-                    line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-                    end_line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
-                    column=stmt.col_offset + 1,
-                    data={
-                        "functionId": self.entry.id,
-                        "moduleId": self.entry.module_id,
-                        "moduleName": self._entry_module.get("name", self.entry.module_id),
-                        "color": self._entry_module.get("color", "#f59e0b"),
-                        "ports": ["in", "out"],
-                        "expandable": False,
-                        "execution": True,
-                        "flowId": self.flow_id,
-                    },
-                )
-                self._add_edge(join_id, loop_id, "back", label="回边")
-            else:
-                self._connect(normal_endpoints, loop_id, force_kind="back", label="回边")
+        # P5 visual model follows the Qixing-style loop node: the loop node
+        # exposes a ``loop_body`` port, but the body does not draw a back lane.
+        # Iteration is implicit in the loop node itself.
         # Preserve the body/complete pair when the body only contains opaque
         # statements (for example a print call) and therefore emitted no node.
         if not any(
@@ -642,7 +614,6 @@ class ExecutionSkeletonBuilder:
                 },
             )
             self._add_edge(loop_id, body_merge, "loop_body", label="循环体")
-            self._add_edge(body_merge, loop_id, "back", label="回边")
         if stmt.orelse:
             self.diagnostics.append(
                 {
@@ -661,13 +632,39 @@ class ExecutionSkeletonBuilder:
                 may_exit = True
         else:
             may_exit = True
+        has_break = bool(loop_context["break_nodes"])
         for node in self.nodes:
             if node.get("id") == loop_id:
                 node["mayExit"] = may_exit
+                node["hasBreak"] = has_break
+                node["breakCount"] = len(loop_context["break_nodes"])
                 break
-        endpoints = [self._endpoint(loop_id, "loop_complete", "完成")]
-        endpoints.extend(self._endpoint(node_id, "break", "跳出") for node_id in loop_context["break_nodes"])
-        return endpoints
+        # Every loop gets a visible completion junction.  The loop node
+        # exposes ``loop_complete`` and break exits converge here; the body
+        # itself never draws a back lane.
+        after_id = self._next_node_id("merge", stmt.lineno, stmt.col_offset + 1)
+        self._add_node(
+            node_id=after_id,
+            kind="merge",
+            label="循环完成",
+            line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
+            end_line=getattr(stmt, "end_lineno", stmt.lineno) or stmt.lineno,
+            column=stmt.col_offset + 1,
+            data={
+                "functionId": self.entry.id,
+                "moduleId": self.entry.module_id,
+                "moduleName": self._entry_module.get("name", self.entry.module_id),
+                "color": self._entry_module.get("color", "#f59e0b"),
+                "ports": ["in", "out"],
+                "expandable": False,
+                "execution": True,
+                "flowId": self.flow_id,
+            },
+        )
+        self._add_edge(loop_id, after_id, "loop_complete", label="循环完成")
+        for break_id in loop_context["break_nodes"]:
+            self._add_edge(break_id, after_id, "break", label="跳出")
+        return [self._endpoint(after_id)]
 
     def _visit_break(self, stmt: ast.Break, incoming: list[_Endpoint]) -> list[_Endpoint]:
         if not self._loop_stack:
@@ -738,7 +735,9 @@ class ExecutionSkeletonBuilder:
             },
         )
         self._connect(incoming, continue_id)
-        self._add_edge(continue_id, self._loop_stack[-1]["node_id"], "continue", label="继续")
+        # The compact loop model does not draw a back lane.  ``continue`` is a
+        # terminal marker inside the body; iteration is implicit in the loop
+        # node's ``loop_body`` port.
         return []
 
     def _emit_exception_diagnostic(self, stmt: ast.Try) -> None:

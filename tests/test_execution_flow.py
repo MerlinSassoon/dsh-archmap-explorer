@@ -41,7 +41,10 @@ def test_execution_flow_does_not_expand_interface_internals() -> None:
     assert {"load_items()", "save_item(item)"} <= labels
     assert "read_all()" not in labels
     assert "write_one(item)" not in labels
-    assert any(node["kind"] == "loop" for node in flow["nodes"])
+    loop = next(node for node in flow["nodes"] if node["kind"] == "loop")
+    loop_ports = flow["layout"]["nodes"][loop["id"]]["ports"]
+    assert {"loop_body", "loop_break", "loop_complete"} <= set(loop_ports)
+    assert not any(edge["kind"] == "back" for edge in flow["edges"])
     assert any(node["kind"] == "branch" for node in flow["nodes"])
 
 
@@ -86,7 +89,11 @@ def test_execution_flow_layout_is_non_overlapping_and_orthogonal() -> None:
     for payload in flow["layout"]["edges"].values():
         assert payload["d"].startswith("M ")
         commands = set(re.findall(r"[A-Za-z]", payload["d"]))
-        assert commands <= {"M", "L"}
+        assert commands <= {"M", "C", "L"}
+        assert payload["fromPort"]
+        assert payload["toPort"]
+    for position in layout_nodes.values():
+        assert "in" in position["ports"] or position["ports"]
 
 
 def test_execution_flow_call_sites_are_instance_scoped() -> None:
