@@ -132,7 +132,7 @@ dsh plugin --profile web add link:/absolute/path/to/archmap_v3
 - `issues`（code/message/file/line/functionId/nodeId/sourceCode）与 `nextActions`
 - `architecture.json` 与 `architecture.html` 绝对路径
 
-构建内部校验失败时返回 `ok: false`、完整 diagnostics 明细和可执行修复建议，不伪造成功产物。
+构建内部校验失败时返回 `ok: false`、完整 diagnostics 明细和可执行修复建议，不伪造成功产物。只有结构错误会阻断构建；可解释的静态解析不完整（例如 polymorphic call 没有候选）以 warning 返回并继续生成 HTML。
 
 ### 4.2 `archmap_annotate`
 

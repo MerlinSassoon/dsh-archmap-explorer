@@ -45,6 +45,8 @@ AI 应生成**模块边界清楚、Provider 职责明确、能力面稳定、入
 
 当业务框架要求与 ArchMap 友好性冲突时，优先保证代码正确；分析边界通过配置、注释和 diagnostics 显式表达。
 
+如果动态分发暂时无法解析出候选，应保留 Protocol / ABC / 依赖倒置等设计，并通过 `dispatchHints.complete=false` 或 warning 说明不完整；不得为了把 diagnostics 归零而删除抽象、合并模块或改变依赖方向。
+
 ---
 
 ## 1. 开始前的强制事实盘点

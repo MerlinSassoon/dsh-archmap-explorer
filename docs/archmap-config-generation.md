@@ -248,6 +248,8 @@ contract.providerRoles 显式覆盖
 
 ### 5.3 providerRoles 使用规则
 
+优先依赖现有结构/命名推断：`Store/Repository/Client` 通常为 adapter，`Controller/Service/Manager` 通常为 manager，`Handler/Server/Cli` 通常为 component。只有推断仍与真实职责不符时才写显式 role。
+
 只在以下情况写显式 role：
 
 - 结构推断与真实业务职责明显不符；

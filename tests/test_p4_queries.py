@@ -40,7 +40,7 @@ def test_structural_relations_cover_uses_aggregation_composition_and_instantiati
     for relation in relations.values():
         assert relation["source"]
         assert relation["fromProviderRole"] == "manager"
-        assert relation["toProviderRole"] in {"config", "model", "manager"}
+        assert relation["toProviderRole"] in {"config", "model", "manager", "adapter"}
         assert relation["evidenceFunctionIds"]
     assert bundle["stats"]["structuralRelations"] >= 5
 

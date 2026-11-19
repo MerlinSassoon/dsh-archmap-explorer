@@ -188,7 +188,7 @@ def _api_exposure(
         return "internal", "comment", "high"
 
     name = getattr(node, "name", "")
-    if name.startswith("_"):
+    if name.startswith("_") or name.startswith(("do_", "log_")):
         return "internal", "naming", "high"
     return "public", "naming", "medium"
 

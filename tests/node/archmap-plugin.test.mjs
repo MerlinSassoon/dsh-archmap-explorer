@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -465,6 +465,65 @@ test('archmap_annotate supports missing then stale refresh modes', async () => {
     assert.equal(mock.calls.length, callsAfterFirst + 1)
   } finally {
     await rm(outputRoot, { recursive: true, force: true })
+  }
+})
+
+test('archmap_build keeps HTML for warning-only unresolved polymorphic calls', async () => {
+  const projectRoot = await mkdtemp(join(REPO_ROOT, '.dsh-archmap-warning-'))
+  try {
+    await mkdir(join(projectRoot, 'app'), { recursive: true })
+    await writeFile(join(projectRoot, 'app', '__init__.py'), '', 'utf8')
+    await writeFile(
+      join(projectRoot, 'app', 'main.py'),
+      [
+        'from typing import Protocol',
+        '',
+        'class Store(Protocol):',
+        '    def save(self, value: str) -> None: ...',
+        '',
+        'class Manager:',
+        '    def __init__(self, store: Store) -> None:',
+        '        self.store = store',
+        '',
+        '    def run(self, value: str) -> None:',
+        '        self.store.save(value)',
+        '',
+        'def main() -> None:',
+        '    pass',
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+    await writeFile(
+      join(projectRoot, 'archmap.config.json'),
+      JSON.stringify({
+        projectName: 'warning-project',
+        include: ['app/**/*.py'],
+        entrypoints: ['app.main:main'],
+      }),
+      'utf8',
+    )
+    const { tools } = await pluginTools(REPO_ROOT, {
+      pythonPath: process.env.ARCHMAP_PYTHON || 'python3',
+      toolTimeoutMs: 120000,
+    })
+    const build = tools.find((item) => item.name === 'archmap_build')
+    const result = await build.execute(
+      { projectPath: relative(REPO_ROOT, projectRoot) },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(result.ok, true, result.text)
+    assert.ok(result.warningCount >= 1)
+    assert.equal(result.errorCount, 0)
+    assert.ok(
+      result.issues.some(
+        (issue) =>
+          issue.code === 'POLYMORPHIC_CALL_CANDIDATES' && issue.severity === 'warning',
+      ),
+    )
+    assert.match(await readFile(result.htmlPath, 'utf8'), /ArchMap/)
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true })
   }
 })
 

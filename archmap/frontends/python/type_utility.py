@@ -289,12 +289,17 @@ def resolve_type_hierarchy(analysis: AnalysisResult) -> dict[str, list[dict[str,
     class_by_id = {class_id(cls): cls for cls in analysis.classes}
     relations: list[dict[str, object]] = []
 
+    # Reset derived hierarchy fields in a separate pass. Resolving bases mutates
+    # ``target.subclass_ids``; clearing the target later in the same loop would
+    # silently erase subclass links for classes that appear after their parent.
     for cls in analysis.classes:
         cls.base_class_ids = []
         cls.unresolved_bases = []
         cls.subclass_ids = []
         cls.mro_class_ids = []
         cls.abstract_method_names = []
+
+    for cls in analysis.classes:
         current = module_by_name.get(cls.module_name)
         seen_bases: set[str] = set()
         for base_node in getattr(cls.node, "bases", []):

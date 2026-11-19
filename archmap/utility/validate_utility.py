@@ -1109,7 +1109,14 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
             if site.get("resolved") or site.get("toFunctionId"):
                 issues.append(_issue("error", "POLYMORPHIC_CALL_RESOLVED", f"polymorphic call site {site.get('id')} must not claim one resolved target"))
             if not candidates:
-                issues.append(_issue("error", "POLYMORPHIC_CALL_CANDIDATES", f"polymorphic call site {site.get('id')} has no candidates"))
+                issues.append(
+                    _issue(
+                        "warning",
+                        "POLYMORPHIC_CALL_CANDIDATES",
+                        f"polymorphic call site {site.get('id')} has no candidates; "
+                        "keep the abstraction and add dispatchHints or explicit incomplete evidence",
+                    )
+                )
             for candidate in candidates:
                 if candidate not in detail_by_id:
                     issues.append(_issue("error", "POLYMORPHIC_CANDIDATE_MISSING", f"polymorphic call site {site.get('id')} candidate missing: {candidate}"))

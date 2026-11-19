@@ -201,3 +201,78 @@ def test_self_build_only_exposes_facade_managers_and_hides_internal_stages() -> 
     assert "fn:archmap.frontends.python.analysis_utility.analyze_project" not in api_provider_ids
     assert "fn:archmap.frontends.python.call_utility.collect_call_sites" not in api_provider_ids
     assert "fn:archmap.utility.graph_utility.build_bundle" not in api_provider_ids
+
+
+def test_common_role_suffixes_and_protocol_methods_are_handled_without_overrides(tmp_path: Path) -> None:
+    import json
+
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "app" / "main.py").write_text(
+        """
+class JsonStudentStore:
+    def save(self, value):
+        print(value)
+
+
+class StudentApiController:
+    def handle(self):
+        return 1
+
+
+class StudentRequestHandler:
+    def do_GET(self):
+        return self._handle()
+
+    def log_message(self, fmt, *args):
+        print(fmt)
+
+    def _handle(self):
+        return 1
+
+
+class StudentHttpServer:
+    def __init__(self, controller):
+        self.controller = controller
+
+
+class StudentCli:
+    def run(self):
+        return 0
+
+
+def main():
+    return StudentCli().run()
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "archmap.config.json").write_text(
+        json.dumps(
+            {
+                "projectName": "role_suffixes",
+                "include": ["app/**/*.py"],
+                "entrypoints": ["app.main:main"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    bundle = build_architecture(tmp_path)
+    nodes = {
+        node["name"]: node
+        for graph in bundle["moduleGraphs"]
+        for node in graph["nodes"]
+        if node.get("kind") == "class"
+    }
+    assert nodes["JsonStudentStore"]["providerRole"] == "adapter"
+    assert nodes["StudentApiController"]["providerRole"] == "manager"
+    assert nodes["StudentRequestHandler"]["providerRole"] == "component"
+    assert nodes["StudentHttpServer"]["providerRole"] == "component"
+    assert nodes["StudentCli"]["providerRole"] == "component"
+
+    details = {detail["name"]: detail for detail in bundle["functionDetails"]}
+    assert details["do_GET"]["apiExposure"] == "internal"
+    assert details["log_message"]["apiExposure"] == "internal"
+    assert details["handle"]["apiExposure"] == "public"
+    api_displays = [api["display"] for graph in bundle["moduleGraphs"] for api in graph["providedApis"]]
+    assert not any(display.startswith(("StudentRequestHandler.do_GET", "StudentRequestHandler.log_message")) for display in api_displays)

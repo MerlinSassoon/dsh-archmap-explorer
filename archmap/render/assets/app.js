@@ -2355,6 +2355,7 @@
         <aside class="method-calls-panel">
           <section>
             <div class="method-panel-heading"><span>调用者</span><em>${detail.callerCount || 0}</em></div>
+            ${(detail.unresolvedCallerCount || 0) ? `<div class="method-call-empty">调用者计数只包含已解析调用；下方存在 ${escapeHtml(String(detail.unresolvedCallerCount))} 条可能的未解析入边。</div>` : ""}
             ${methodCallList(detail.callers || [], "暂无调用者")}
           </section>
           <section>

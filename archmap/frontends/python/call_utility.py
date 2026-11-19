@@ -89,6 +89,59 @@ class CallResolver:
     def _find_constructor(self, cls: ClassInfo) -> FunctionInfo | None:
         return self._find_declared_method(cls, "__init__")
 
+    def _find_attribute_type(
+        self, cls: ClassInfo, attr_name: str, seen: set[tuple[str, str]] | None = None
+    ) -> ClassInfo | None:
+        """Resolve an instance attribute's declared/injected type on a class."""
+
+        visited = seen if seen is not None else set()
+        key = (class_id(cls), attr_name)
+        if key in visited:
+            return None
+        visited.add(key)
+        init = self._find_constructor(cls)
+        for stmt in cls.node.body:
+            if (
+                isinstance(stmt, ast.AnnAssign)
+                and isinstance(stmt.target, ast.Name)
+                and stmt.target.id == attr_name
+            ):
+                return self._resolve_type_expression(
+                    init, stmt.annotation, visited
+                ) if init is not None else self._class_for_name(
+                    self.module_by_name.get(cls.module_name), ast.unparse(stmt.annotation)
+                )
+        if init is None:
+            return None
+        for node in ast.walk(init.node):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if not any(
+                isinstance(target, ast.Attribute)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "self"
+                and target.attr == attr_name
+                for target in targets
+            ):
+                continue
+            if isinstance(node, ast.AnnAssign):
+                return self._resolve_type_expression(init, node.annotation, visited)
+            if isinstance(node.value, ast.Call):
+                ctor = node.value.func
+                ctor_name = ctor.id if isinstance(ctor, ast.Name) else ast.unparse(ctor) if isinstance(ctor, ast.Attribute) else ""
+                if ctor_name.rsplit(".", 1)[-1] == "cast" and node.value.args:
+                    return self._resolve_type_expression(init, node.value.args[0], visited)
+                return self._resolve_type_expression(init, ctor, visited)
+            if isinstance(node.value, ast.Name):
+                for arg in list(init.node.args.posonlyargs) + list(init.node.args.args) + list(init.node.args.kwonlyargs):
+                    if arg.arg == node.value.id and arg.annotation is not None:
+                        return self._resolve_type_expression(init, arg.annotation, visited)
+            resolved = self._resolve_type_expression(init, node.value, visited)
+            if resolved is not None:
+                return resolved
+        return None
+
     def _find_self_attribute_type(self, current_fn: FunctionInfo, attr_name: str) -> ClassInfo | None:
         """Resolve the declared/injected type of ``self.<attr>``."""
 
@@ -100,38 +153,57 @@ class CallResolver:
         owner = self._find_class(current_module, current_fn.class_name)
         if owner is None:
             return None
-        annotation = None
-        for stmt in owner.node.body:
-            if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == attr_name:
-                annotation = stmt.annotation
-                break
-        init = owner.methods.get("__init__")
-        if annotation is None and init is not None:
-            for node in ast.walk(init.node):
-                if not isinstance(node, (ast.Assign, ast.AnnAssign)):
-                    continue
-                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                if not any(
-                    isinstance(target, ast.Attribute)
-                    and isinstance(target.value, ast.Name)
-                    and target.value.id == "self"
-                    and target.attr == attr_name
-                    for target in targets
-                ):
-                    continue
-                if isinstance(node, ast.AnnAssign):
-                    annotation = node.annotation
-                elif isinstance(node.value, ast.Name):
-                    for arg in list(init.node.args.args) + list(init.node.args.kwonlyargs):
-                        if arg.arg == node.value.id and arg.annotation is not None:
-                            annotation = arg.annotation
-                            break
-                elif isinstance(node.value, ast.Call):
-                    annotation = node.value.func
-                break
-        if annotation is None:
+        return self._find_attribute_type(owner, attr_name)
+
+    def _resolve_type_expression(
+        self,
+        current_fn: FunctionInfo | None,
+        expression: ast.AST | str | None,
+        seen: set[Any] | None = None,
+    ) -> ClassInfo | None:
+        """Resolve a minimal receiver expression to a canonical project class."""
+
+        if not expression:
             return None
-        return self._class_for_name(current_module, ast.unparse(annotation).split("[", 1)[0])
+        expr = expression
+        if isinstance(expr, str):
+            try:
+                expr = ast.parse(expr, mode="eval").body
+            except SyntaxError:
+                return None
+        visited: set[Any] = set(seen or ())
+        visit_key = ("expr", ast.unparse(expr))
+        if visit_key in visited:
+            return None
+        visited.add(visit_key)
+        current_module = (
+            self.module_by_name.get(current_fn.module_name)
+            if current_fn is not None
+            else None
+        )
+        if isinstance(expr, ast.Name):
+            name = expr.id
+            if name in {"self", "cls"} and current_fn is not None and current_fn.class_name:
+                return self._find_class(current_module, current_fn.class_name) if current_module else None
+            if current_fn is not None:
+                local_type = self._find_local_type(current_fn.node, name)
+                if local_type and local_type != name:
+                    return self._resolve_type_expression(current_fn, local_type, visited)
+            return self._class_for_name(current_module, name) if current_module else None
+        if isinstance(expr, ast.Attribute):
+            base = self._resolve_type_expression(current_fn, expr.value, visited)
+            if base is not None:
+                return self._find_attribute_type(base, expr.attr, visited)
+            return self._class_for_name(current_module, ast.unparse(expr)) if current_module else None
+        if isinstance(expr, ast.Call):
+            func = expr.func
+            func_name = func.id if isinstance(func, ast.Name) else ast.unparse(func) if isinstance(func, ast.Attribute) else ""
+            if func_name.rsplit(".", 1)[-1] == "cast" and expr.args:
+                return self._resolve_type_expression(current_fn, expr.args[0], visited)
+            return self._resolve_type_expression(current_fn, func, visited)
+        if isinstance(expr, ast.Subscript):
+            return self._resolve_type_expression(current_fn, expr.value, visited)
+        return None
 
     def _descendant_implementations(self, cls: ClassInfo, name: str) -> list[FunctionInfo]:
         """Return concrete overrides below ``cls`` without sibling bleeding."""
@@ -351,24 +423,19 @@ class CallResolver:
                     if fn:
                         candidates.append(fn)
                 if not candidates:
-                    type_name = self._find_local_type(current_fn.node, base)
-                    if type_name:
-                        receiver_cls = self._class_for_name(current_module, type_name)
-                        if receiver_cls is not None:
-                            return self._resolve_method_on_class(name, receiver_cls)
+                    receiver_cls = self._resolve_type_expression(current_fn, receiver_expr)
+                    if receiver_cls is not None:
+                        return self._resolve_method_on_class(name, receiver_cls)
                 if not candidates:
                     receiver_cls = self._find_class(current_module, base)
                     if receiver_cls is not None:
                         return self._resolve_method_on_class(name, receiver_cls)
             elif isinstance(receiver_expr, ast.Attribute):
-                # self.attr.method(): resolve the attribute's declared/injected type.
-                if (
-                    isinstance(receiver_expr.value, ast.Name)
-                    and receiver_expr.value.id == "self"
-                ):
-                    receiver_cls = self._find_self_attribute_type(current_fn, receiver_expr.attr)
-                    if receiver_cls is not None:
-                        return self._resolve_method_on_class(name, receiver_cls)
+                # Attribute-chain receiver: self.attr.method(),
+                # local.attr.method(), and cast(Type, value).attr.method().
+                receiver_cls = self._resolve_type_expression(current_fn, receiver_expr)
+                if receiver_cls is not None:
+                    return self._resolve_method_on_class(name, receiver_cls)
                 # Module/class-qualified receiver such as pkg.Base.run().
                 receiver_name = ast.unparse(receiver_expr)
                 receiver_cls = self._find_class(current_module, receiver_name)
@@ -418,12 +485,22 @@ class CallResolver:
                     return _annotation_name(stmt.annotation)
                 elif isinstance(stmt, ast.Assign):
                     for target in stmt.targets:
-                        if isinstance(target, ast.Name) and target.id == name and isinstance(stmt.value, ast.Call):
+                        if not isinstance(target, ast.Name) or target.id != name:
+                            continue
+                        if isinstance(stmt.value, ast.Call):
                             ctor = stmt.value.func
-                            if isinstance(ctor, ast.Name):
-                                return ctor.id
-                            if isinstance(ctor, ast.Attribute):
-                                return ctor.attr
+                            ctor_name = (
+                                ctor.id
+                                if isinstance(ctor, ast.Name)
+                                else ctor.attr
+                                if isinstance(ctor, ast.Attribute)
+                                else ""
+                            )
+                            if ctor_name.rsplit(".", 1)[-1] == "cast" and stmt.value.args:
+                                return _annotation_name(stmt.value.args[0])
+                            return ctor_name or None
+                        if isinstance(stmt.value, (ast.Name, ast.Attribute)):
+                            return ast.unparse(stmt.value)
                 elif isinstance(stmt, ast.If):
                     found = search(stmt.body) or search(stmt.orelse)
                     if found:

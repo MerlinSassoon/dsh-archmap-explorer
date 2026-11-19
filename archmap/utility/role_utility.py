@@ -27,7 +27,7 @@ MODEL_NAME_SUFFIXES = {
 }
 MANAGER_NAME_SUFFIXES = {
     "manager", "service", "controller", "coordinator", "orchestrator",
-    "resolver", "builder", "engine", "frontend", "handler", "runner", "processor",
+    "resolver", "builder", "engine", "frontend", "runner", "processor",
 }
 ADAPTER_NAME_SUFFIXES = {
     "adapter", "client", "gateway", "repository", "repo", "driver",
@@ -35,6 +35,7 @@ ADAPTER_NAME_SUFFIXES = {
 }
 COMPONENT_NAME_SUFFIXES = {
     "component", "widget", "spinner", "dialog", "view", "screen", "panel",
+    "handler", "server", "cli", "command", "console",
 }
 UTILITY_NAME_SUFFIXES = {
     "util", "utils", "utility", "helper", "helpers", "common", "tool", "tools",
@@ -43,7 +44,7 @@ EXTERNAL_ADAPTER_MODULES = {
     "aiohttp", "boto3", "grpc", "http", "httpx", "kafka", "mysql",
     "paramiko", "pika", "psycopg", "psycopg2", "pymysql", "redis",
     "requests", "serial", "socket", "sqlalchemy", "sqlite3", "ssl",
-    "urllib", "websockets",
+    "websockets",
 }
 EXTERNAL_IO_CALL_NAMES = {
     "connect", "send", "sendall", "recv", "recvfrom", "request", "urlopen",
@@ -248,8 +249,9 @@ def _uses_external_io(node: ast.AST, module: ModuleInfo | None) -> bool:
         if not isinstance(child, ast.Call):
             continue
         func = child.func
-        if isinstance(func, ast.Name) and func.id in aliases:
-            return True
+        if isinstance(func, ast.Name):
+            if func.id in aliases or func.id in EXTERNAL_IO_CALL_NAMES:
+                return True
         if isinstance(func, ast.Attribute):
             if isinstance(func.value, ast.Name) and func.value.id in aliases:
                 return True
@@ -300,6 +302,13 @@ def _infer_class_role(
 
     if _static_like_public_methods(cls) and not instance_attrs:
         return "utility", "structure", "medium"
+    # Common structural/naming roles should win over the generic
+    # "has public methods => manager" rule. Explicit decorator/docstring roles
+    # and structural evidence still take precedence above this point.
+    if _name_has_suffix(cls.name, ADAPTER_NAME_SUFFIXES):
+        return "adapter", "naming", "low"
+    if _name_has_suffix(cls.name, COMPONENT_NAME_SUFFIXES):
+        return "component", "naming", "low"
     if public_methods:
         confidence = "high" if instance_attrs or len(public_methods) >= 2 else "medium"
         return "manager", "structure", confidence

@@ -1163,3 +1163,104 @@ M2.0 基线确认
 5. 不新增工具、query operation、bundle 顶层字段或配置键。
 6. 全部 Python/Node/自构建/check/pack 验证通过。
 7. 文档只更新现有权威文件，不新增重复计划文件。
+
+## 15. 第二批实施记录（2026-11-19）
+
+> 状态：P0-5 收尾、P1-1、P1-2、P1-3 已完成并通过回归。<br>
+> 实体约束：未新增工具、query operation、bundle 顶层字段、配置键、页面或永久测试夹具。
+
+| 工作包 | 状态 | 实施结果 |
+|---|---|---|
+| W1 / P0-5 | 已完成 | 方法详情增加“调用者计数只包含已解析调用”提示；detail 与 trace 继续使用同一 callSiteId，未新增重复状态字段 |
+| W2 / P1-1 | 已完成 | 修复 type hierarchy 重置顺序；支持 `cast`、属性链、构造/注解注入和 Protocol 单实现候选 |
+| W3 / P1-2 | 已完成 | `POLYMORPHIC_CALL_CANDIDATES` 改为 warning；warning-only 项目继续生成 HTML |
+| W4 / P1-3 | 已完成 | 常见角色后缀优先于通用 public-method 规则；`do_*` / `log_*` 默认 internal |
+| W5 | 已完成 | 全量 Python/Node/自构建/check/pack 验证通过 |
+
+### 15.1 关键实现
+
+- `type_utility.resolve_type_hierarchy()`：先统一清空派生字段，再解析所有基类，修复父类在子类之后处理时 `subclass_ids` 被清空的问题。
+- `CallResolver`：
+  - 识别 `cast(Type, value)`。
+  - 支持 `local.attr.method()` 和 `cast(Type, value).attr.method()`。
+  - 支持从 `__init__` 参数注解、构造赋值和类字段注解推断属性类型。
+  - 增加表达式递归保护，避免类型推断循环。
+- `validate_utility`：`POLYMORPHIC_CALL_CANDIDATES` 为 warning；候选 id 缺失和错误声称单一目标仍为 error。
+- `role_utility`：
+  - `Store/Repository/Client` → adapter 名称推断。
+  - `Handler/Server/Cli/Command/Console` → component 名称推断。
+  - `Controller/Service/Manager` 继续通过结构或既有 manager 规则解析。
+  - 移除 `urllib` 被整体视为 I/O adapter 的误判，改为识别实际 I/O callable 名称。
+- `analysis_utility._api_exposure()`：`do_*`、`log_*` 默认 internal。
+- 方法详情 UI：当 `callerCount=0` 且存在 unresolved 入边时明确提示计数边界。
+
+### 15.2 真实样本复核
+
+学生管理系统去掉全部手工 `providerRoles` 后：
+
+```text
+JsonStudentStore       -> adapter
+StudentApiController   -> manager
+StudentRequestHandler  -> component
+StudentHttpServer      -> component
+StudentCli             -> component
+```
+
+Capability surface：
+
+```text
+do_GET/do_POST/do_PUT/do_DELETE -> internal
+log_message                     -> internal
+```
+
+未解析调用复核：
+
+```text
+server.controller.handle -> resolved
+StudentApiController.handle callerCount = 1
+```
+
+Protocol 单实现复核：
+
+```text
+StudentStore.subclassIds = [JsonStudentStore]
+self.store.save -> polymorphic candidate = JsonStudentStore.save
+```
+
+无实现 Protocol 复核：
+
+```text
+build: exit 0
+HTML: generated
+check: ok=true / errorCount=0 / POLYMORPHIC_CALL_CANDIDATES=warning
+```
+
+### 15.3 验证结果
+
+```text
+python3 -m pytest -q
+161 passed, 1 skipped
+
+npm run prepare
+prepare: ok
+
+npm test
+11 passed, 0 failed
+
+python3 -m archmap build . --config examples/archmap_v3.archmap.json --out .archmap/self
+5 modules / 307 functions / 4981 call sites
+
+python3 -m archmap check .archmap/self/architecture.json --json
+ok: true / issueCount: 0
+
+npm pack --dry-run
+75 files / 217.5 kB package
+```
+
+### 15.4 下一批候选
+
+1. P1-5：构建/注解阶段耗时、成本和截断可观测性。
+2. P2-1：执行流纵深与请求生命周期视图。
+3. P2-2：模块备注单一事实源与漂移检查。
+4. P2-3：性能、体积和查询预算基线。
+5. 发布前迁移说明与真实 DSH 会话 live smoke。
