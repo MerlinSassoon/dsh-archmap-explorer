@@ -1,6 +1,9 @@
 # HANDOFF：DSH 插件 dsh-archmap-explorer
 
-> 状态：设计已确认，尚未开始插件实现<br>
+> 归档说明：本文是 0.1.0 实施前的设计与验收计划快照，不代表当前状态。<br>
+> `dsh-archmap-explorer@0.1.0` 已完成并打标签 `dsh-plugin-v0.1.0`。<br>
+> 当前使用文档：[docs/dsh-plugin.md](../dsh-plugin.md)；当前交接：[docs/HANDOFF-DSH-PLUGIN-0.1.0.md](../HANDOFF-DSH-PLUGIN-0.1.0.md)。<br>
+> 历史状态：设计已确认，尚未开始插件实现<br>
 > 交接日期：2026-11-19<br>
 > 目标 DSH 版本：`0.2.2-rc.1`<br>
 > npm 包名：`dsh-archmap-explorer`<br>

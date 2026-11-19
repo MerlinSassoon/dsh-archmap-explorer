@@ -284,7 +284,7 @@ user surface    最终用户能感知或操作的交互面
 }
 ```
 
-ArchMap Python 核心只读取并在详情面板展示注解，不调用 LLM。后续 DSH 插件通过宿主模型生成同一侧车文件，不改变 bundle 契约。`sourceHash` 不匹配时显示过期提示。
+ArchMap Python 核心只读取并在详情面板展示注解，不调用 LLM。DSH 插件 `dsh-archmap-explorer@0.1.0` 已通过宿主模型生成同一侧车文件，不改变 bundle 契约。`sourceHash` 不匹配时显示过期提示。
 
 Python 侧提供两条确定性命令：
 

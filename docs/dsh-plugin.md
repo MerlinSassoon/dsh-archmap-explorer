@@ -1,10 +1,11 @@
 # DSH 插件：dsh-archmap-explorer
 
 > npm 包：`dsh-archmap-explorer`<br>
-> 插件版本：`0.1.0`<br>
+> 插件版本：`0.1.0`（已发布标签 `dsh-plugin-v0.1.0`）<br>
 > 目标 DSH：`0.2.2-rc.1`<br>
 > Python 核心：随 npm 包分发，要求 Python 3.10+<br>
-> 许可证：MIT
+> 许可证：MIT<br>
+> 当前交接：[HANDOFF-DSH-PLUGIN-0.1.0.md](HANDOFF-DSH-PLUGIN-0.1.0.md)
 
 ## 1. 定位
 
@@ -266,3 +267,22 @@ dsh --profile <test> --dump-config-schema
 ```bash
 dsh plugin --profile <test> add git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git
 ```
+
+## 11. 发布后验证边界
+
+0.1.0 的 Python 回归、Node 插件测试、npm pack、临时 profile 安装和真实 Git URL 安装均已通过。
+
+真实 DSH 宿主模型注解还需要在已配置模型的会话中完成一次 live smoke。本次发布收口环境只有 `MISSING_CREDENTIAL`，因此模型调用链由 mock 覆盖，而不是当前终端中的真实模型输出。建议首次 live smoke 使用：
+
+```text
+scope = functions
+maxNodes = 1
+projectPath = 一个 DSH workspace 内的 Python 样例项目
+```
+
+重点检查：
+
+- `llm-annotations.json` 是否写入正确 nodeId/sourceHash
+- `architecture.html` 是否显示“已加载”注解
+- 模型非法 JSON 时是否只修复一次
+- 取消或超时是否能终止模型流与 Python 子进程

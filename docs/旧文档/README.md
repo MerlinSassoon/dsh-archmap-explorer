@@ -15,13 +15,15 @@
 - [archmap-config-generation](../archmap-config-generation.md)
 - [archmap-code-conventions](../archmap-code-conventions.md)
 - [当前 bundle schema 6.4](../schema/archmap-v6.4-bundle.schema.json)
+- [DSH 插件使用文档](../dsh-plugin.md)
+- [DSH 插件 0.1.0 交接](../HANDOFF-DSH-PLUGIN-0.1.0.md)
 
 ## README 过程内容归档
 
 | 文档 | 内容 |
 |---|---|
 | [`README-历史过程与验收数据.md`](README-历史过程与验收数据.md) | 原 README 中的 P0–P12 阶段状态、P5/P10/P11 过程说明、历史测试与验收数据、旧文档维护规则 |
-| [`HANDOFF-DSH-PLUGIN.md`](HANDOFF-DSH-PLUGIN.md) | DSH 插件 dsh-archmap-explorer 的设计决策、包结构、工具与 Skill 契约、实施顺序和验收门槛 |
+| [`HANDOFF-DSH-PLUGIN.md`](HANDOFF-DSH-PLUGIN.md) | 历史快照：DSH 插件 dsh-archmap-explorer 实施前设计决策、包结构、工具与 Skill 契约、实施顺序和验收门槛；当前状态见 `docs/dsh-plugin.md` 与 `docs/HANDOFF-DSH-PLUGIN-0.1.0.md` |
 | [`archmap-v3-design-阶段补充.md`](archmap-v3-design-阶段补充.md) | 原数据与扩展设计顶部的 P5–P12 阶段补充说明 |
 | [`archmap-api-contract-阶段规划与实现记录.md`](archmap-api-contract-阶段规划与实现记录.md) | 原 API 契约模型中的阶段规划和 P2.2 实现记录 |
 | [`archmap-architecture-spec-历史迁移说明.md`](archmap-architecture-spec-历史迁移说明.md) | 原架构规范中的 P2.3 识别策略与迁移原则 |

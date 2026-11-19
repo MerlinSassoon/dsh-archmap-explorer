@@ -338,7 +338,7 @@ ArchMap 同时提供 DSH bundle 插件。插件只做 DSH 适配、宿主模型�
 
 ```text
 npm 包名：dsh-archmap-explorer
-初始版本：0.1.0
+当前版本：0.1.0（tag dsh-plugin-v0.1.0）
 许可证：MIT
 目标 DSH：0.2.2-rc.1
 Python：3.10+，随 npm 包分发，无需预先 pip install
@@ -384,7 +384,7 @@ pnpm 可能拦截包的 `prepare` 自检脚本。按安装输出提示，在目�
 
 两份 Skill 正文直接读取包内权威文档。配置生成 Skill 缺失或为空时，插件加载失败。
 
-详细架构、配置、错误处理和验收命令见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。
+详细架构、配置、错误处理和验收命令见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。发布状态、验证边界和后续维护事项见 [`docs/HANDOFF-DSH-PLUGIN-0.1.0.md`](docs/HANDOFF-DSH-PLUGIN-0.1.0.md)。
 
 ## 当前边界
 
