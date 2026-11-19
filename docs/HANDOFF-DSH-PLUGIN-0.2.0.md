@@ -96,7 +96,7 @@ python3 -m archmap check .archmap/self/architecture.json --json
 ok: true / issueCount: 0 / errorCount: 0 / warningCount: 0
 
 npm pack --dry-run
-75 files / 218.3 kB package
+76 files / 221.0 kB package
 ```
 
 flowScopes 默认开启性能对比（学生管理系统）：
@@ -148,26 +148,37 @@ maxNodes = 1
 
 当前环境的模型调用链仍由 Node mock 覆盖。
 
-## 5. 发布步骤
+## 5. 发布完成记录
 
-1. 在真实 DSH 会话完成 live smoke。
-2. 全量回归：
-   - `python3 -m pytest -q`
-   - `ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py`
-   - `npm run prepare`
-   - `npm test`
-   - 自构建 + `archmap check --json`
-   - `npm pack --dry-run`
-3. 临时 profile 安装验证：
-   - link 安装
-   - 真实 Git URL 安装
-   - `--dump-config`
-   - `--dump-config-schema`
-4. 已合入 `main`。
-5. 已新增并推送标签 `dsh-plugin-v0.2.0`。
-6. 未移动 `dsh-plugin-v0.1.0`。
+已完成的发布步骤：
 
-## 6. 回滚
+1. 全量回归：
+   - `python3 -m pytest -q`：163 passed, 1 skipped
+   - `ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py`：1 passed
+   - `npm run prepare`：ok
+   - `npm test`：11 passed
+   - 自构建 + `archmap check --json`：0 errors / 0 warnings
+   - `npm pack --dry-run`：76 files / 221.0 kB
+2. 临时 profile 真实 Git URL 安装验证：
+   - 首次安装被 pnpm prepare allowlist 拦截；加入精确 codeload key 后成功
+   - `--dump-config` 与 `--dump-config-schema` 通过
+   - 包内 Python 核心 `archmap 2.6.0`
+3. 已 fast-forward 合入 `main`。
+4. 已新增并推送标签 `dsh-plugin-v0.2.0`，指向 `d0df553`。
+5. 未移动 `dsh-plugin-v0.1.0`。
+6. 临时 profile `v020check` 已清理。
+
+发布后唯一剩余事项：在已配置模型的真实 DSH Web 会话中完成宿主模型 live smoke。
+
+## 6. 当前维护状态
+
+- `main` 与 `origin/main` 已同步。
+- 已发布标签：`dsh-plugin-v0.2.0`（指向 `d0df553`）。
+- 历史发布标签：`dsh-plugin-v0.1.0`。
+- 当前唯一未完成验证：真实 DSH Web 宿主模型 live smoke。
+- 在该验证完成前，不应移动 `dsh-plugin-v0.2.0`；如有修复，新增后续标签。
+
+## 7. 回滚
 
 - 回退到 `dsh-plugin-v0.1.0`。
 - 显式 `flowScopes.enabled=false` 可恢复 0.1.0 的默认 scope 行为。

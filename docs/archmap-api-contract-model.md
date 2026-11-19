@@ -1,6 +1,6 @@
 # ArchMap API 契约模型
 
-> 版本：ArchMap 2.5.0 / bundle schema 6.4<br>
+> 版本：ArchMap 2.6.0 / bundle schema 6.4<br>
 > 日期：2026-11-19<br>
 > 文档性质：当前 API 契约模型<br>
 > 目标：描述模块/类/函数对外提供什么能力，并保持语言中立的 Provider + Capability 模型。

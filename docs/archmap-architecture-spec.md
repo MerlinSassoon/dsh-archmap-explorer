@@ -1,6 +1,6 @@
 # ArchMap 架构与编码规范
 
-> 版本：ArchMap 2.5.0 / bundle schema 6.4<br>
+> 版本：ArchMap 2.6.0 / bundle schema 6.4<br>
 > 日期：2026-11-19<br>
 > 文档性质：当前架构与编码规范<br>
 > 适用范围：ArchMap 自身源码、被分析项目代码和后续语言前端扩展。

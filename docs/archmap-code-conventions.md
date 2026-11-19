@@ -8,7 +8,7 @@ user-invocable: true
 # ArchMap 代码约定 Skill（archmap-code-conventions）
 
 > 适用对象：编写或改造 Python 项目、并需要生成 ArchMap 模块配置的 AI 编码模型<br>
-> 适用版本：ArchMap 2.5.0 / bundle schema 6.4<br>
+> 适用版本：ArchMap 2.6.0 / bundle schema 6.4<br>
 > 文档性质：执行规范，不是历史说明。AI 在开始编码前必须完整阅读本文。
 
 ## 0. 目标与边界
