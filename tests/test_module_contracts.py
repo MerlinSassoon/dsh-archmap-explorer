@@ -76,8 +76,11 @@ def test_project_layout_is_a_capability_board_without_dependency_edges() -> None
 def test_render_exposes_module_capability_contracts() -> None:
     bundle = build_architecture(ROOT)
     html = render_html(bundle)
-    assert "module-contracts" in html
-    assert "renderModuleContracts" in html
+    assert "module-contracts" not in html
+    assert "renderModuleContracts" not in html
+    assert "模块组成" in html
+    assert "用户交互面 · " in html
+    assert "类型关系" in html
     assert "module-api-chip" in html
     assert "providedApis" in html
 

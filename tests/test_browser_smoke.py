@@ -176,7 +176,8 @@ def test_browser_smoke() -> None:
         assert execute("return document.querySelectorAll('.exec-port-dot, .execution-node.kind-merge').length") == 0
         assert execute("return document.querySelectorAll('.execution-node.kind-provider, .execution-node.kind-action, .execution-node.kind-statement').length") == 0
         assert execute("return document.querySelectorAll('[data-main-view], .main-flow-node').length") == 0
-        assert execute("return document.querySelectorAll('.module-contracts.is-visible, .function-node, .class-node').length") == 0
+        assert execute("return document.querySelectorAll('.function-node, .class-node').length") == 0
+        assert execute("return document.getElementById('moduleContracts')") is None
         # The same stale-geometry guard must cover execution-flow coordinates.
         execute("""return (() => {
           const flow = window.__ARCHMAP_DATA__.projectGraph.executionFlows[0];
@@ -214,55 +215,28 @@ def test_browser_smoke() -> None:
         time.sleep(.4)
         assert execute("return document.querySelectorAll('.function-node').length") == 1
         assert execute("return document.querySelectorAll('.execution-node').length") == 0
-        assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 1
-        assert execute("return document.querySelectorAll('.module-contracts .module-api-chip').length") == 0
-        assert execute("return document.querySelectorAll('.detail-panel .detail-api-row').length") > 0
+        assert execute("return document.getElementById('moduleContracts')") is None
+        assert execute("return document.querySelectorAll('#detailScroll .detail-api-row').length") > 0
         assert execute("return document.querySelectorAll('.macro-edge').length") == 0
         assert execute("return document.querySelectorAll('.flow-picker.is-visible, .flow-card-node').length") == 0
         module_layout = execute("""return (() => {
           const graph = window.__ARCHMAP_DATA__.moduleGraphs.find(item => item.moduleId === 'entry');
-          const panel = document.querySelector('.module-contracts');
-          const labels = [...document.querySelectorAll('.module-contracts .contracts-label')].map(item => item.textContent.trim());
-          const rect = panel.getBoundingClientRect();
-          const drawer = document.getElementById('moduleContractsDrawer');
-          const toggle = document.querySelector('[data-contracts-toggle]');
+          const detail = document.getElementById('detailScroll');
+          const headings = [...detail.querySelectorAll('.class-method-heading')].map(item => item.textContent.trim());
+          const rect = detail.getBoundingClientRect();
           return {
             mode: graph?.layout?.mode,
-            labels,
-            noHorizontalOverflow: panel.scrollWidth <= panel.clientWidth + 1,
+            headings,
+            hasTopBar: Boolean(document.getElementById('moduleContracts')),
+            noHorizontalOverflow: detail.scrollWidth <= detail.clientWidth + 1,
             withinViewport: rect.right <= window.innerWidth + 1,
-            compactHeight: rect.height,
-            drawerHidden: drawer.hidden,
-            expanded: toggle.getAttribute('aria-expanded'),
-            labelFont: parseFloat(getComputedStyle(document.querySelector('.module-contracts .contracts-label')).fontSize || '0'),
           };
         })()""")
         assert module_layout["mode"] == "module-grid"
-        assert module_layout["compactHeight"] < 100
-        assert module_layout["drawerHidden"] is True
-        assert module_layout["expanded"] == "false"
+        assert module_layout["hasTopBar"] is False
         assert module_layout["noHorizontalOverflow"] is True
         assert module_layout["withinViewport"] is True
-        assert module_layout["labelFont"] >= 10
-        assert {"模块能力", "类型关系", "用户交互面"}.issubset(set(module_layout["labels"]))
-        assert "提供接口" not in module_layout["labels"]
-        drawer_open = execute("""return (() => {
-          document.querySelector('[data-contracts-target="types"]').click();
-          const drawer = document.getElementById('moduleContractsDrawer');
-          const panel = document.querySelector('.module-contracts');
-          return {
-            hidden: drawer.hidden,
-            expanded: document.querySelector('[data-contracts-toggle]').getAttribute('aria-expanded'),
-            sections: drawer.querySelectorAll('.contracts-drawer-section').length,
-            noHorizontalOverflow: panel.scrollWidth <= panel.clientWidth + 1,
-          };
-        })()""")
-        assert drawer_open["hidden"] is False
-        assert drawer_open["expanded"] == "true"
-        assert drawer_open["sections"] == 2
-        assert drawer_open["noHorizontalOverflow"] is True
-        execute("document.querySelector('[data-contracts-toggle]').click(); return true")
-        assert execute("return document.getElementById('moduleContractsDrawer').hidden") is True
+        assert module_layout["headings"].index("模块组成") < module_layout["headings"].index("提供接口")
         assert execute("return document.querySelectorAll('[data-expand]').length") == 0
         assert execute("return document.querySelectorAll('.module-mini').length") == 0
         drag_result = execute("""return (() => {
@@ -495,37 +469,27 @@ def test_browser_smoke() -> None:
         time.sleep(.8)
         assert execute("return document.querySelectorAll('.execution-node').length") > 0
         assert execute("return document.querySelectorAll('.main-flow-node, .function-node, .class-node').length") == 0
-        assert execute("return document.querySelectorAll('.module-contracts.is-visible').length") == 0
+        assert execute("return document.getElementById('moduleContracts')") is None
         clipped_exec_bodies = execute("""return Array.from(document.querySelectorAll('.execution-node .exec-node-body'))
           .filter(body => body.scrollHeight > body.clientHeight + 1).length""")
         assert clipped_exec_bodies == 0
         assert execute("return window.__ARCHMAP_ERRORS__") == []
         execute("location.hash='#/module/python-frontend'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.5)
-        execute("document.querySelector('[data-contracts-target=\"types\"]').click(); return true")
-        time.sleep(.2)
         dense_module_layout = execute("""return (() => {
-          const panel = document.querySelector('.module-contracts');
-          const drawer = document.getElementById('moduleContractsDrawer');
-          const rect = panel.getBoundingClientRect();
-          const labels = [...panel.querySelectorAll('.contracts-label')].map(item => item.textContent.trim());
+          const detail = document.getElementById('detailScroll');
+          const headings = [...detail.querySelectorAll('.class-method-heading')].map(item => item.textContent.trim());
           return {
-            noHorizontalOverflow: panel.scrollWidth <= panel.clientWidth + 1,
-            withinViewport: rect.right <= window.innerWidth + 1,
-            hasChineseSections: ['模块能力', '类型关系', '用户交互面'].every(label => labels.includes(label)),
-            hasTopApiChips: panel.querySelectorAll('.module-api-chip').length > 0,
-            drawerVisible: !drawer.hidden,
-            typeGridDisplay: getComputedStyle(drawer.querySelector('.contracts-grid')).display,
-            typeChips: drawer.querySelectorAll('.type-relation-chip').length,
+            hasTopBar: Boolean(document.getElementById('moduleContracts')),
+            noHorizontalOverflow: detail.scrollWidth <= detail.clientWidth + 1,
+            hasComposition: headings.includes('模块组成'),
+            hasProvidedApis: headings.includes('提供接口'),
           };
         })()""")
+        assert dense_module_layout["hasTopBar"] is False
         assert dense_module_layout["noHorizontalOverflow"] is True
-        assert dense_module_layout["withinViewport"] is True
-        assert dense_module_layout["hasChineseSections"] is True
-        assert dense_module_layout["hasTopApiChips"] is False
-        assert dense_module_layout["drawerVisible"] is True
-        assert dense_module_layout["typeGridDisplay"] == "grid"
-        assert dense_module_layout["typeChips"] > 0
+        assert dense_module_layout["hasComposition"] is True
+        assert dense_module_layout["hasProvidedApis"] is True
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # Phase 1 class layer: classes are component nodes on the module page;
@@ -559,29 +523,29 @@ def test_browser_smoke() -> None:
         time.sleep(.6)
         execute("location.hash='#/module/roles'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.4)
-        assert execute("return document.querySelectorAll('.module-contracts .role-count-chip').length") >= 6
+        assert execute("return document.querySelectorAll('.module-composition .composition-row').length") >= 6
         assert execute("return document.querySelectorAll('.class-node.is-type-card').length") == 3
         assert execute("return document.querySelectorAll('.type-field-chip').length") > 0
         assert execute("return Array.from(document.querySelectorAll('.function-node')).some(el => el.dataset.uid.includes('_provider_role'))") is False
-        execute("Array.from(document.querySelectorAll('.class-node')).find(el => el.dataset.uid.endsWith('AppConfig')).click(); return true")
-        time.sleep(.2)
-        assert execute("return document.querySelectorAll('.type-field-row').length") == 3
         role_layout = execute("""return (() => {
           const graph = window.__ARCHMAP_DATA__.moduleGraphs.find(item => item.moduleId === 'roles');
-          document.querySelector('[data-contracts-target="types"]').click();
-          const panel = document.querySelector('.module-contracts');
-          const drawer = document.getElementById('moduleContractsDrawer');
+          const detail = document.getElementById('detailScroll');
           return {
             mode: graph?.layout?.mode,
             columns: graph?.layout?.columns,
-            drawerVisible: !drawer.hidden,
-            topApiChips: panel.querySelectorAll('.module-api-chip').length,
+            hasTopBar: Boolean(document.getElementById('moduleContracts')),
+            compositionRows: detail.querySelectorAll('.module-composition .composition-row').length,
+            noHorizontalOverflow: detail.scrollWidth <= detail.clientWidth + 1,
           };
         })()""")
         assert role_layout["mode"] == "module-grid"
         assert role_layout["columns"] >= 2
-        assert role_layout["drawerVisible"] is True
-        assert role_layout["topApiChips"] == 0
+        assert role_layout["hasTopBar"] is False
+        assert role_layout["compositionRows"] >= 6
+        assert role_layout["noHorizontalOverflow"] is True
+        execute("Array.from(document.querySelectorAll('.class-node')).find(el => el.dataset.uid.endsWith('AppConfig')).click(); return true")
+        time.sleep(.2)
+        assert execute("return document.querySelectorAll('.type-field-row').length") == 3
         execute("document.querySelector('.class-node[data-uid=\"cls:app.roles.OrderManager\"]').click(); return true")
         time.sleep(.2)
         api_notes = execute("""return (() => {
@@ -680,12 +644,44 @@ def test_browser_smoke() -> None:
         execute("location.hash='#/module/main'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.35)
         assert execute("return document.querySelectorAll('.user-surface-chip').length") >= 2
+        surface_layout = execute("""return (() => {
+          const detail = document.getElementById('detailScroll');
+          const headings = [...detail.querySelectorAll('.class-method-heading')].map(item => item.textContent.trim());
+          const track = detail.querySelector('.user-surface-track');
+          const chip = detail.querySelector('.user-surface-chip');
+          return {
+            headings,
+            inDetail: detail.querySelectorAll('.user-surface-chip').length,
+            hasTopBar: Boolean(document.getElementById('moduleContracts')),
+            trackFlexWrap: track ? getComputedStyle(track).flexWrap : '',
+            chipWhiteSpace: chip ? getComputedStyle(chip).whiteSpace : '',
+          };
+        })()""")
+        assert surface_layout["hasTopBar"] is False
+        assert surface_layout["inDetail"] >= 2
+        assert surface_layout["trackFlexWrap"] == "wrap"
+        assert surface_layout["chipWhiteSpace"] != "nowrap"
+        assert surface_layout["headings"].index("模块组成") < surface_layout["headings"].index("用户交互面 · 2")
+        assert surface_layout["headings"].index("用户交互面 · 2") < surface_layout["headings"].index("提供接口")
         execute("location.hash='#/module/service'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.35)
-        assert execute("return document.querySelectorAll('.type-relation-chip.kind-composes').length") >= 1
         execute("document.querySelector('.class-node[data-uid=\"cls:app.manager.OrderManager\"]').click(); return true")
         time.sleep(.2)
-        assert execute("return document.querySelectorAll('.structural-relation-row').length") >= 3
+        relation_layout = execute("""return (() => {
+          const detail = document.getElementById('detailScroll');
+          const headings = [...detail.querySelectorAll('.class-method-heading')].map(item => item.textContent.trim());
+          const rows = [...detail.querySelectorAll('.structural-relation-row')];
+          return {
+            rowCount: rows.length,
+            hasHeading: headings.includes('类型关系'),
+            rowsFit: rows.every(row => row.scrollWidth <= row.clientWidth + 1),
+            detailFits: detail.scrollWidth <= detail.clientWidth + 1,
+          };
+        })()""")
+        assert relation_layout["rowCount"] >= 3
+        assert relation_layout["hasHeading"] is True
+        assert relation_layout["rowsFit"] is True
+        assert relation_layout["detailFits"] is True
         execute("location.hash='#/module/main/function/fn%3Aapp.main.run_cli'; window.dispatchEvent(new HashChangeEvent('hashchange')); return true")
         time.sleep(.3)
         assert execute("return document.querySelectorAll('.method-page').length") == 1

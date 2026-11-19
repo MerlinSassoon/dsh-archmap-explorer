@@ -42,7 +42,6 @@
   const canvasSub = $("canvasSub");
   const zoomValue = $("zoomValue");
   const saveState = $("saveState");
-  const moduleContracts = $("moduleContracts");
   const flowPicker = $("flowPicker");
   const projectNameEl = $("projectName");
   const projectLanguageEl = $("projectLanguage");
@@ -68,7 +67,6 @@
     executionScopeId: null,
     executionEdgeLayouts: {},
     executionEdgeLabels: new Map(),
-    moduleContractsExpanded: false,
   };
 
   let override = loadOverrides();
@@ -430,7 +428,7 @@
   }
 
   function overlayTopPadding(fallback = 122) {
-    const panels = [moduleContracts, flowPicker].filter(panel => panel?.classList.contains("is-visible"));
+    const panels = [flowPicker].filter(panel => panel?.classList.contains("is-visible"));
     if (!panels.length) return fallback;
     const viewportRect = viewport.getBoundingClientRect();
     const bottom = Math.max(...panels.map(panel => panel.getBoundingClientRect().bottom - viewportRect.top));
@@ -441,7 +439,7 @@
     const bounds = contentBounds();
     const rect = viewport.getBoundingClientRect();
     const padX = 58;
-    const basePadTop = state.pageKind === "module" ? 122 : state.pageKind === "method" ? 26 : state.pageKind === "flow" ? 72 : 64;
+    const basePadTop = state.pageKind === "module" ? 64 : state.pageKind === "method" ? 26 : state.pageKind === "flow" ? 72 : 64;
     const padTop = overlayTopPadding(basePadTop);
     const padBottom = 46;
     const availableW = rect.width - padX * 2;
@@ -750,7 +748,7 @@
 
   function userSurfaceChips(surfaces, limit = 8) {
     const items = (surfaces || []).slice(0, limit);
-    if (!items.length) return `<span class="contracts-empty">暂无用户交互面</span>`;
+    if (!items.length) return `<span class="class-method-empty">暂无用户交互面</span>`;
     return items.map(surface => `<span class="user-surface-chip kind-${escapeHtml(surface.kind)}" title="${escapeHtml(surface.display || surface.id)}">
       <b>${escapeHtml(surfaceKindLabel(surface.kind))}</b><span>${escapeHtml(surface.moduleId || "")}</span>
     </span>`).join("") + ((surfaces || []).length > limit ? `<span class="user-surface-chip more">+${surfaces.length - limit}</span>` : "");
@@ -760,11 +758,16 @@
     const relations = (graph?.typeRelations || []).filter(relation =>
       relation.fromClassId === node.id || relation.toClassId === node.id
     );
-    if (!relations.length) return `<div class="class-method-empty">暂无结构关系</div>`;
+    if (!relations.length) return `<div class="class-method-empty">暂无类型关系</div>`;
     const short = id => String(id || "").split(".").pop();
     return `<div class="structural-relations">${relations.map(relation => `<div class="structural-relation-row">
-      <span>${escapeHtml(short(relation.fromClassId))}</span><em>${escapeHtml(typeRelationLabel(relation.kind))}</em><span>${escapeHtml(short(relation.toClassId))}</span>
-      <i>${escapeHtml(relation.source || "")}</i>
+      <div class="structural-relation-main">
+        <span class="structural-relation-node" title="${escapeHtml(relation.fromClassId || "")}">${escapeHtml(short(relation.fromClassId))}</span>
+        <em>${escapeHtml(typeRelationLabel(relation.kind))}</em>
+        <span class="structural-relation-arrow">→</span>
+        <span class="structural-relation-node" title="${escapeHtml(relation.toClassId || "")}">${escapeHtml(short(relation.toClassId))}</span>
+      </div>
+      <div class="structural-relation-source">来源：${escapeHtml(relation.source || "—")}</div>
     </div>`).join("")}</div>`;
   }
 
@@ -781,15 +784,6 @@
       <div class="hierarchy-row"><span>子类</span><div>${list(subclasses, "—")}</div></div>
       ${unresolved.length ? `<div class="hierarchy-row is-unresolved"><span>未解析</span><div>${unresolved.map(item => `<code>${escapeHtml(item)}</code>`).join("")}</div></div>` : ""}
     </div>`;
-  }
-
-  function typeRelationChips(graph, limit = 8) {
-    const relations = graph?.typeRelations || [];
-    if (!relations.length) return `<span class="contracts-empty">暂无继承/实现关系</span>`;
-    const short = id => String(id || "").split(".").pop();
-    return relations.slice(0, limit).map(relation => `<span class="type-relation-chip kind-${escapeHtml(relation.kind)}" title="${escapeHtml(`${relation.fromClassId} ${typeRelationLabel(relation.kind)} ${relation.toClassId}`)}">
-      <b>${escapeHtml(short(relation.fromClassId))}</b><em>${escapeHtml(typeRelationLabel(relation.kind))}</em><span>${escapeHtml(short(relation.toClassId))}</span>
-    </span>`).join("") + (relations.length > limit ? `<span class="type-relation-chip more">+${relations.length - limit}</span>` : "");
   }
 
   function polymorphicCallList(entries, emptyText) {
@@ -1015,8 +1009,8 @@
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
         <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(module.role || "service"))}</b></span><span>备注来源 <b>${escapeHtml(module.noteSource || "—")}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span></div>
         <div class="class-method-section"><div class="class-method-heading">模块组成</div>${roleCompositionBlock(module)}</div>
+        ${(module.userSurfaces || []).length ? `<div class="class-method-section"><div class="class-method-heading">用户交互面 · ${(module.userSurfaces || []).length}</div><div class="user-surface-track">${userSurfaceChips(module.userSurfaces || [], (module.userSurfaces || []).length)}</div></div>` : ""}
         <div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiProviderList(providers)}</div>
-        ${(module.userSurfaces || []).length ? `<div class="class-method-section"><div class="class-method-heading">用户交互面</div><div class="user-surface-track">${userSurfaceChips(module.userSurfaces || [])}</div></div>` : ""}
         ${annotationBlock(module.moduleId)}
         <div class="empty-hint">双击自由函数进入方法详情；类节点右栏展示其提供接口。</div>`;
       bindApiNavigation(detailScroll);
@@ -1124,6 +1118,7 @@
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
           <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(macroNode.role || "service"))}</b></span><span>备注来源 <b>${escapeHtml(macroNode.noteSource || "—")}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
           <div class="class-method-section"><div class="class-method-heading">模块组成</div>${roleCompositionBlock(graph)}</div>
+          ${(graph?.userSurfaces || []).length ? `<div class="class-method-section"><div class="class-method-heading">用户交互面 · ${(graph.userSurfaces || []).length}</div><div class="user-surface-track">${userSurfaceChips(graph.userSurfaces || [], (graph.userSurfaces || []).length)}</div></div>` : ""}
           <div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiProviderList(providers)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>
           ${annotationBlock(uid)}
@@ -1152,7 +1147,7 @@
           <div class="port-detail"><span>声明接口 <b>${Number(macroNode.declaredApiCount || apis.filter(api => !api.inherited).length)}</b></span><span>继承接口 <b>${Number(macroNode.inheritedApiCount || apis.filter(api => api.inherited).length)}</b></span></div>
           ${macroNode.isAbstract ? `<div class="llm-stale">抽象类/接口是契约节点，不进入主流程执行节点。</div>` : ""}
           <div class="class-method-section"><div class="class-method-heading">类型层级</div>${classHierarchyBlock(macroNode)}</div>
-          <div class="class-method-section"><div class="class-method-heading">结构关系</div>${structuralRelationsBlock(macroNode, moduleGraphById.get(state.moduleId))}</div>
+          <div class="class-method-section"><div class="class-method-heading">类型关系</div>${structuralRelationsBlock(macroNode, moduleGraphById.get(state.moduleId))}</div>
           ${isTypeCard ? `<div class="class-method-section"><div class="class-method-heading">类型字段 · ${Number(typeSummary?.fieldCount || 0)}</div>${typeFieldList(typeSummary)}</div>` : `<div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiDetailList(apis)}</div>`}
           <div class="class-method-section"><div class="class-method-heading">内部实现</div><div class="class-method-empty">${internalCount} 个内部方法，不在契约视图展示。</div></div>`;
         bindApiNavigation(detailScroll);
@@ -1286,72 +1281,6 @@
       element.style.left = `${(from.x + to.x) / 2}px`;
       element.style.top = `${(from.y + to.y) / 2 - 14}px`;
     });
-  }
-
-  function setModuleContractsExpanded(expanded, targetPanel = "") {
-    state.moduleContractsExpanded = Boolean(expanded);
-    const drawer = moduleContracts.querySelector("#moduleContractsDrawer");
-    const toggle = moduleContracts.querySelector("[data-contracts-toggle]");
-    if (!drawer || !toggle) return;
-    drawer.hidden = !state.moduleContractsExpanded;
-    moduleContracts.classList.toggle("is-expanded", state.moduleContractsExpanded);
-    moduleContracts.querySelectorAll("[data-contracts-toggle], [data-contracts-target]").forEach(button => {
-      button.setAttribute("aria-expanded", String(state.moduleContractsExpanded));
-      button.classList.toggle("is-open", state.moduleContractsExpanded);
-    });
-    toggle.innerHTML = state.moduleContractsExpanded
-      ? `收起概览 <span class="contracts-toggle-icon">▴</span>`
-      : `展开概览 <span class="contracts-toggle-icon">▾</span>`;
-    if (state.moduleContractsExpanded && targetPanel) {
-      const panel = drawer.querySelector(`[data-contracts-panel="${targetPanel}"]`);
-      if (panel) {
-        requestAnimationFrame(() => panel.scrollIntoView({ block: "nearest", behavior: "smooth" }));
-      }
-    }
-    requestAnimationFrame(() => fitView(false));
-  }
-
-  function renderModuleContracts(moduleId) {
-    if (!moduleContracts) return;
-    const graph = moduleGraphById.get(moduleId);
-    if (!graph) {
-      moduleContracts.innerHTML = "";
-      moduleContracts.classList.remove("is-visible", "is-expanded");
-      return;
-    }
-    const typeRelationCount = (graph.typeRelations || []).length;
-    const surfaceCount = (graph.userSurfaces || []).length;
-    moduleContracts.style.setProperty("--mc-rgb", rgbFromHex(graph.color || "#60a5fa"));
-    moduleContracts.innerHTML = `<div class="contracts-topline">
-        <div class="contracts-title-group">
-          <span class="contracts-label">模块能力</span>
-          <span class="contracts-subtitle">Provider 结构概览</span>
-        </div>
-        <div class="contracts-roles">${roleCountChips(visibleRoleCounts(graph))}</div>
-        <div class="contracts-summary-actions">
-          <button class="contracts-count-btn" type="button" data-contracts-target="types" aria-expanded="false" aria-controls="moduleContractsDrawer">类型关系 <b>${typeRelationCount}</b></button>
-          <button class="contracts-count-btn" type="button" data-contracts-target="surfaces" aria-expanded="false" aria-controls="moduleContractsDrawer">用户交互面 <b>${surfaceCount}</b></button>
-          <button class="contracts-toggle" type="button" data-contracts-toggle aria-expanded="false" aria-controls="moduleContractsDrawer">展开概览 <span class="contracts-toggle-icon">▾</span></button>
-        </div>
-      </div>
-      <div class="contracts-drawer" id="moduleContractsDrawer" hidden>
-        <section class="contracts-drawer-section" data-contracts-panel="types">
-          <div class="contracts-section-head"><span class="contracts-label">类型关系</span><span class="contracts-count">${typeRelationCount} 条</span></div>
-          <div class="contracts-grid type-relation-track">${typeRelationChips(graph, typeRelationCount || 1)}</div>
-        </section>
-        <section class="contracts-drawer-section" data-contracts-panel="surfaces">
-          <div class="contracts-section-head"><span class="contracts-label">用户交互面</span><span class="contracts-count">${surfaceCount} 个</span></div>
-          <div class="contracts-grid user-surface-track">${userSurfaceChips(graph.userSurfaces || [], surfaceCount || 1)}</div>
-        </section>
-      </div>`;
-    moduleContracts.classList.add("is-visible");
-    moduleContracts.querySelector("[data-contracts-toggle]")?.addEventListener("click", () => {
-      setModuleContractsExpanded(!state.moduleContractsExpanded);
-    });
-    moduleContracts.querySelectorAll("[data-contracts-target]").forEach(button => {
-      button.addEventListener("click", () => setModuleContractsExpanded(true, button.dataset.contractsTarget || ""));
-    });
-    setModuleContractsExpanded(false);
   }
 
   function renderFlowPicker(selectedFlow) {
@@ -1497,10 +1426,6 @@
     viewport.classList.remove("is-detail");
     setGraphChromeVisible(true);
     updateChrome("project");
-    if (moduleContracts) {
-      moduleContracts.innerHTML = "";
-      moduleContracts.classList.remove("is-visible");
-    }
     flowPicker.classList.remove("is-visible");
     world.innerHTML = "";
     world.classList.remove("page-enter");
@@ -1962,10 +1887,6 @@
     viewport.classList.remove("is-light");
     viewport.classList.remove("is-detail");
     setGraphChromeVisible(true);
-    if (moduleContracts) {
-      moduleContracts.innerHTML = "";
-      moduleContracts.classList.remove("is-visible");
-    }
     const flows = projectGraph.executionFlows || [];
     let flow = flowId ? flows.find(item => item.id === flowId) : null;
     if (!flow) flow = flows.find(item => item.id === projectGraph.primaryExecutionFlowId) || flows[0] || null;
@@ -2127,7 +2048,6 @@
     setGraphChromeVisible(true);
     flowPicker.classList.remove("is-visible");
     updateChrome("module");
-    renderModuleContracts(moduleId);
     world.innerHTML = "";
     world.classList.remove("page-enter");
     state.nodes = new Map();
@@ -2285,15 +2205,10 @@
     state.moduleId = moduleId;
     state.functionId = functionId;
     flowPicker.classList.remove("is-visible");
-    if (moduleContracts) moduleContracts.classList.remove("is-visible");
     viewport.classList.add("is-light");
     viewport.classList.add("is-detail");
     updateChrome("method");
     setGraphChromeVisible(false);
-    if (moduleContracts) {
-      moduleContracts.innerHTML = "";
-      moduleContracts.classList.remove("is-visible");
-    }
 
     const source = detail.source || {};
     const sourceStart = Number(source.startLine || detail.line || 1);

@@ -11,7 +11,7 @@ ArchMap 把 Python 项目转换为**模块优先、可逐层下钻、源码可�
   ├─ 主流程页（入口函数控制骨架；本地调用/功能接口原子化）
   │    ├─ 一级接口 scope（callable 的一级外部能力投影）
   │    └─ dispatch 候选旅程（候选 free_function 的一级 scope）
-  └─ 模块能力页（提供接口 + 类节点 + 模块级自由函数）
+  └─ 模块能力页（右侧详情：模块组成 + 用户交互面 + 提供接口；画布：类/函数节点）
        └─ 方法详情页（源码 + 人类备注 + LLM 语义 + callers/callees）
 ```
 
@@ -21,7 +21,7 @@ ArchMap 把 Python 项目转换为**模块优先、可逐层下钻、源码可�
 - 在项目页用同层卡片展示项目级主流程和普通能力模块。
 - 以有界执行流展示入口函数的控制骨架：分支、多分支、循环、终止和动态 dispatch。
 - 对编排 callable 生成深度固定为 1 的接口 scope；对完整 dispatch 候选集生成独立候选旅程。
-- 展示模块能力契约、七类 Provider Role、类结构、继承/实现/组合关系和 User Surface。
+- 展示模块能力契约、七类 Provider Role、类结构、继承/实现/组合关系和 User Surface；模块级信息统一在右侧详情栏，类型关系明细在类节点详情展示。
 - 提供 Method Detail、源码切片、callers/callees、override/overridden-by 和多态调用邻域。
 - 提供 `impact`、`trace`、`surfaces`、`dsm` 等只读查询。
 - 输出稳定、可校验、可离线打开的 JSON 与 HTML。
@@ -35,7 +35,7 @@ ArchMap **不是**运行时追踪器，也不生成逐语句 CFG、数据流图�
 | 投影 | 作用 |
 |---|---|
 | `ProjectGraph` | 项目页：flow cards、普通能力模块、项目级入口与布局 |
-| `ModuleGraph` | 模块能力页：Provider、公开 API、类、类型关系和模块内方法关系 |
+| `ModuleGraph` | 模块能力页：Provider、公开 API、类、类型关系和模块内方法关系；模块摘要与用户交互面在右侧详情栏 |
 | `ExecutionFlow` | 主流程页：入口控制骨架、一级 scope、dispatch 候选旅程 |
 
 函数级事实统一保存在 `functionDetails` 和 `callSites` 中，供 Method Detail、影响分析、追踪和查询使用。
@@ -134,7 +134,8 @@ yield/student_system/
 交互约定：
 
 - 项目页不绘制模块间依赖线；跨模块调用事实保留在 `callSites`、`functionDetails` 和查询接口中。
-- 模块能力页展示 Provider/Capability 与结构关系，不默认绘制调用边。
+- 模块能力页不设顶部契约概览浮层；模块组成、用户交互面和提供接口统一在右侧详情栏展示，不默认绘制调用边。
+- 类节点详情展示“类型层级”和“类型关系”；模块级类型关系只保留摘要计数，不展开全量列表。
 - flow card 与 module card 同层、同网格；空能力模块后端保留，前端不渲染。
 - 节点支持拖拽，布局覆盖保存在浏览器并由前端导出；默认坐标由 Python 生成。
 - 右侧详情栏可拖拽调宽并独立持久化。

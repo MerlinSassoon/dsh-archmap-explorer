@@ -46,6 +46,10 @@
 所有普通能力模块统一使用模块能力页展示提供接口、Provider、类节点和模块级自由函数节点；主流程作为独立 `#/flow` 页面展示：
 
 - 顶部提供接口条来自 `moduleGraphs[].providedApis`，接口 chips 可下钻到 Method Detail。
+- 模块页不设顶部模块能力概览浮层；模块标题、备注、摘要、模块组成、用户交互面和提供接口统一放在右侧详情栏。
+- 用户交互面来自 `moduleGraphs[].userSurfaces`，仅非空时显示在“模块组成”和“提供接口”之间；它不是模块 `providedApis`。
+- 模块级类型关系不在默认 UI 展开全量列表；模块摘要保留类型关系计数，完整关系明细在类节点的“类型层级”和“类型关系”中展示。
+- “类型层级”展示继承/实现的基类、子类与未解析基类摘要；“类型关系”展示当前节点全部带 source 的类型关系。两者在 `inherits` / `implements` 上存在有意的信息重叠，当前默认 UI 接受该重叠，不强制去重；后续增删关系类型或调整信息密度时再评估是否将继承/实现从类型关系中分离。
 - `executionOnlyCallables` 不进入 `providedApis`、`moduleComposition`、Provider 计数或模块能力节点。
 - `functionSurface=internal` 的自由函数同样不进入公开能力面，但仍保留在 functionDetails / callSites / trace 中。
 - 类方法被声明为 executionOnly 时，所属类 Provider 保留，但该方法从类能力 API 中移除。

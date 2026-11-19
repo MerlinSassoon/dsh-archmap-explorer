@@ -262,7 +262,7 @@ service / adapter / component / test / other
 - 内部实现由 Method Detail、CallSite 和 trace/impact 承担；
 - `executionOnlyCallables` 中的入口/编排 callable 只在 execution flow 与 Method Detail 中作为主要 UI 入口，不进入模块能力面。
 
-项目页以标准卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片。模块能力页只展示 Provider / Capability / 类型关系，不默认绘制调用边；主流程页只展示执行流，不嵌入模块契约或调用总览。
+项目页以标准卡片展示一个或多个项目级执行流，并展示全部普通能力模块卡片。模块能力页只展示 Provider / Capability / 类型关系，不默认绘制调用边；模块级信息统一在右侧详情栏展示，用户交互面位于模块组成与提供接口之间，类型关系明细只在类节点详情展示。主流程页只展示执行流，不嵌入模块契约或调用总览。
 
 ```text
 Project
