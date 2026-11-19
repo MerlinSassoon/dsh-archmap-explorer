@@ -47,6 +47,7 @@ async function main() {
     'pyproject.toml',
     'docs/dsh-plugin.md',
     'docs/HANDOFF-DSH-PLUGIN-0.1.0.md',
+    'docs/HANDOFF-DSH-PLUGIN-0.2.0.md',
     'docs/archmap-config-generation.md',
     'docs/archmap-code-conventions.md',
     'LICENSE',

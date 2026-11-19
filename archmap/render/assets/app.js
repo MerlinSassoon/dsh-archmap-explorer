@@ -1013,7 +1013,7 @@
           <div class="eyebrow">模块能力</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(module.name)}</h2>
           <div class="detail-module">module://${escapeHtml(module.moduleId)} · ${escapeHtml(moduleRoleLabel(module.role))}</div></div></div>
         <div class="detail-note">${escapeHtml(module.note || "暂无模块备注")}</div>
-        <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(module.role || "service"))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span></div>
+        <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(module.role || "service"))}</b></span><span>备注来源 <b>${escapeHtml(module.noteSource || "—")}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span><span>类型关系 <b>${(module.typeRelations || []).length}</b></span></div>
         <div class="class-method-section"><div class="class-method-heading">模块组成</div>${roleCompositionBlock(module)}</div>
         <div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiProviderList(providers)}</div>
         ${(module.userSurfaces || []).length ? `<div class="class-method-section"><div class="class-method-heading">用户交互面</div><div class="user-surface-track">${userSurfaceChips(module.userSurfaces || [])}</div></div>` : ""}
@@ -1122,7 +1122,7 @@
             <div class="eyebrow">模块能力 · ${escapeHtml(moduleRoleLabel(macroNode.role))}</div><h2 class="detail-name" style="font-family:var(--font);font-size:18px">${escapeHtml(macroNode.name)}</h2>
             <div class="detail-module">module://${escapeHtml(uid)}</div></div></div>
           <div class="detail-note">${escapeHtml(macroNode.note || "暂无模块备注")}</div>
-          <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(macroNode.role || "service"))}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
+          <div class="port-detail"><span>角色 <b>${escapeHtml(moduleRoleLabel(macroNode.role || "service"))}</b></span><span>备注来源 <b>${escapeHtml(macroNode.noteSource || "—")}</b></span><span>Provider <b>${providers.length}</b></span><span>接口 <b>${apis.length}</b></span></div>
           <div class="class-method-section"><div class="class-method-heading">模块组成</div>${roleCompositionBlock(graph)}</div>
           <div class="class-method-section"><div class="class-method-heading">提供接口</div>${apiProviderList(providers)}</div>
           <div class="source-line">${escapeHtml((macroNode.sourceFiles || []).join("\n"))}</div>

@@ -9,6 +9,7 @@ import { apply } from '../../lib/index.js'
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const FIXTURE = join(REPO_ROOT, 'tests', 'fixtures', 'student_demo')
+const P4_FIXTURE = join(REPO_ROOT, 'tests', 'fixtures', 'p4_demo')
 
 function makeContext(root, llm = emptyLlm()) {
   const tools = []
@@ -325,7 +326,7 @@ test('archmap_query exposes check and trace without shelling out', async () => {
     const query = tools.find((item) => item.name === 'archmap_query')
     const buildResult = await build.execute(
       {
-        projectPath: relative(REPO_ROOT, FIXTURE),
+        projectPath: relative(REPO_ROOT, P4_FIXTURE),
         outDir: relative(REPO_ROOT, outputRoot),
       },
       { agent: { id: 'test' }, signal: new AbortController().signal },
@@ -353,22 +354,27 @@ test('archmap_query exposes check and trace without shelling out', async () => {
     assert.match(traced.text, /nodes=/)
 
     const surfaces = await query.execute(
-      { operation: 'surfaces', bundlePath },
+      { operation: 'surfaces', bundlePath, maxNodes: 1 },
       { agent: { id: 'test' }, signal: new AbortController().signal },
     )
     assert.equal(surfaces.ok, true, surfaces.text)
     assert.ok(Array.isArray(surfaces.data.items))
-    assert.equal(surfaces.data.total, surfaces.data.items.length)
+    assert.equal(surfaces.data.items.length, 1)
+    assert.ok(surfaces.data.total >= 2)
+    assert.equal(surfaces.data.truncated, true)
+    assert.ok(surfaces.data.omitted >= 1)
 
     const dsm = await query.execute(
-      { operation: 'dsm', bundlePath, level: 'module' },
+      { operation: 'dsm', bundlePath, level: 'module', maxNodes: 1 },
       { agent: { id: 'test' }, signal: new AbortController().signal },
     )
     assert.equal(dsm.ok, true, dsm.text)
-    assert.ok(dsm.data.stats.nodes > 0)
+    assert.equal(dsm.data.nodes.length, 1)
+    assert.equal(dsm.data.truncated, true)
+    assert.ok(dsm.data.budget.totalNodes > 1)
 
     const method = await query.execute(
-      { operation: 'method', projectPath: relative(REPO_ROOT, FIXTURE), function: 'main' },
+      { operation: 'method', projectPath: relative(REPO_ROOT, P4_FIXTURE), function: 'main' },
       { agent: { id: 'test' }, signal: new AbortController().signal },
     )
     assert.equal(method.ok, true, method.text)

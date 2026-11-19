@@ -1744,3 +1744,102 @@ M2.5 已完成，后续进入 M3：
 2. P2-3 性能、体积和查询预算基线。
 3. P2-4 文档、迁移、发布与回滚。
 4. 发布前真实 DSH 会话 live smoke。
+
+## 19. M3 实施记录：查询预算、备注来源与发布准备（2026-11-19）
+
+> 状态：M3 代码与文档准备完成；正式发布标签尚未创建。<br>
+> 版本：插件 `0.2.0`，Python 核心 `2.6.0`，bundle schema 仍为 `6.4`。<br>
+> 未完成项：真实 DSH 宿主模型 live smoke 与最终合入/打标签。
+
+### 19.1 P2-3 查询预算
+
+在不新增 query operation 的前提下，复用现有 `maxNodes` 参数：
+
+- `surfaces`
+  - 返回 `items`、`total`、`returned`、`omitted`、`truncated`、`budget`。
+- `dsm`
+  - 按 `maxNodes` 截断节点；
+  - 同步过滤矩阵；
+  - 返回 `budget.totalNodes/returnedNodes/omittedNodes/returnedEdges`。
+- `check`
+  - issues 数量超过 `maxNodes` 时截断返回内容；
+  - 保留总 issueCount/errorCount/warningCount；
+  - 返回 `budget` 和 `truncated`。
+- `trace` / `impact` 原有预算保持不变。
+
+所有预算只影响工具返回，不写入 bundle。
+
+### 19.2 P2-2 备注来源可见性
+
+- module detail 和 module 节点详情增加“备注来源”展示。
+- 来源继续使用已有 `noteSource=config|docstring|empty`。
+- 暂不增加全局 note 漂移 warning：
+  - 现有项目普遍同时存在 config note 与模块 docstring；
+  - 直接比较文本会产生大量低价值 warning；
+  - 后续如需要，应基于真实使用证据设计更精确的语义漂移规则。
+
+### 19.3 P2-4 发布准备
+
+版本调整：
+
+```text
+package.json: 0.1.0 -> 0.2.0
+pyproject.toml: 2.5.0 -> 2.6.0
+archmap/__init__.py: 2.5.0 -> 2.6.0
+bundle schema: 6.4 不变
+```
+
+新增/更新文档：
+
+- `docs/HANDOFF-DSH-PLUGIN-0.2.0.md`
+- `docs/dsh-plugin.md` 增加 0.1.0 → 0.2.0 迁移说明
+- `README.md` 更新当前版本和交接链接
+- `scripts/prepare.mjs` 检查新 handoff 文件
+- `package.json` files 列表包含 0.2.0 handoff
+
+迁移说明覆盖：
+
+- 新增 query / guide 工具；
+- build diagnostics、耗时和产物大小；
+- annotation refreshMode / stale 增量；
+- flowScopes 默认开启；
+- polymorphic warning 分级；
+- 配置 fail-loud；
+- role / exposure 推断变化；
+- unresolved 提示；
+- noteSource。
+
+### 19.4 验证结果
+
+```text
+python3 -m pytest -q
+163 passed, 1 skipped
+
+ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py
+1 passed
+
+npm run prepare
+prepare: ok (dsh-archmap-explorer@0.2.0)
+
+npm test
+11 passed, 0 failed
+
+python3 -m archmap build . --config examples/archmap_v3.archmap.json --out .archmap/self
+5 modules / 308 functions / 4990 call sites
+
+python3 -m archmap check .archmap/self/architecture.json --json
+ok: true / issueCount: 0 / errorCount: 0 / warningCount: 0
+
+npm pack --dry-run
+76 files / 221.0 kB package / dsh-archmap-explorer-0.2.0.tgz
+```
+
+### 19.5 发布前剩余事项
+
+1. 在真实 DSH Web 会话中完成宿主模型 live smoke。
+2. 执行真实 Git URL 安装验证和 `--dump-config-schema`。
+3. 将分支合入 `main`。
+4. 新增标签 `dsh-plugin-v0.2.0`。
+5. 不移动 `dsh-plugin-v0.1.0`。
+
+当前分支状态：发布候选，未打标签、未推送。
