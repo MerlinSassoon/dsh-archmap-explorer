@@ -339,7 +339,7 @@ ArchMap 同时提供 DSH bundle 插件。插件只做 DSH 适配、宿主模型�
 
 ```text
 npm 包名：dsh-archmap-explorer
-当前版本：0.2.0（待发布；上一发布标签 dsh-plugin-v0.1.0）
+当前版本：0.2.0（已发布标签 dsh-plugin-v0.2.0）
 许可证：MIT
 目标 DSH：0.2.2-rc.1
 Python：3.10+，随 npm 包分发，无需预先 pip install

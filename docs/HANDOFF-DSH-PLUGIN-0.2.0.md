@@ -1,11 +1,12 @@
 # HANDOFF：DSH 插件 dsh-archmap-explorer 0.2.0
 
-> 状态：发布候选，尚未创建 0.2.0 标签<br>
-> 分支：`feat/plugin-p0-closed-loop`<br>
+> 状态：已发布，标签 `dsh-plugin-v0.2.0`<br>
+> 发布提交：`d0df553`（main）<br>
 > 插件版本：`0.2.0`<br>
 > Python 核心：ArchMap `2.6.0` / bundle schema `6.4`<br>
 > 目标 DSH：`0.2.2-rc.1`<br>
 > 上一发布标签：`dsh-plugin-v0.1.0`<br>
+> 发布标签：`dsh-plugin-v0.2.0`<br>
 > 当前使用文档：[dsh-plugin.md](dsh-plugin.md)
 
 ## 1. 本版定位
@@ -108,9 +109,9 @@ htmlBytes   +5.0%
 
 均低于 20% 门禁。
 
-## 4. 尚未完成的发布验证
+## 4. 发布后验证
 
-真实 DSH 宿主模型 live smoke 仍需在已配置模型的会话中执行：
+真实 Git URL 安装、`--dump-config`、`--dump-config-schema` 和包内 Python 核心版本检查均已完成。真实 DSH Web 宿主模型 live smoke 仍需在已配置模型的 Web 会话中执行：
 
 ```text
 projectPath = 一个 workspace 内的 Python 样例项目
@@ -144,9 +145,9 @@ maxNodes = 1
    - 真实 Git URL 安装
    - `--dump-config`
    - `--dump-config-schema`
-4. 合入 `main`。
-5. 新增标签 `dsh-plugin-v0.2.0`。
-6. 不移动 `dsh-plugin-v0.1.0`。
+4. 已合入 `main`。
+5. 已新增并推送标签 `dsh-plugin-v0.2.0`。
+6. 未移动 `dsh-plugin-v0.1.0`。
 
 ## 6. 回滚
 

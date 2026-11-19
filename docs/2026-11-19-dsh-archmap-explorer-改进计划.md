@@ -1747,7 +1747,7 @@ M2.5 已完成，后续进入 M3：
 
 ## 19. M3 实施记录：查询预算、备注来源与发布准备（2026-11-19）
 
-> 状态：M3 代码与文档准备完成；正式发布标签尚未创建。<br>
+> 状态：M3 代码与文档完成；已发布标签 `dsh-plugin-v0.2.0`。<br>
 > 版本：插件 `0.2.0`，Python 核心 `2.6.0`，bundle schema 仍为 `6.4`。<br>
 > 未完成项：真实 DSH 宿主模型 live smoke 与最终合入/打标签。
 
@@ -1834,12 +1834,17 @@ npm pack --dry-run
 76 files / 221.0 kB package / dsh-archmap-explorer-0.2.0.tgz
 ```
 
-### 19.5 发布前剩余事项
+### 19.5 发布与发布后验证
+
+已完成：
+
+1. 真实 Git URL 安装验证。
+2. `--dump-config` 与 `--dump-config-schema` 验证。
+3. 包内 Python 核心版本检查（`archmap 2.6.0`）。
+4. 合并到 `main`。
+5. 新增并推送标签 `dsh-plugin-v0.2.0`。
+6. 未移动 `dsh-plugin-v0.1.0`。
+
+待完成：
 
 1. 在真实 DSH Web 会话中完成宿主模型 live smoke。
-2. 执行真实 Git URL 安装验证和 `--dump-config-schema`。
-3. 将分支合入 `main`。
-4. 新增标签 `dsh-plugin-v0.2.0`。
-5. 不移动 `dsh-plugin-v0.1.0`。
-
-当前分支状态：发布候选，未打标签、未推送。
