@@ -1,6 +1,6 @@
 # HANDOFF：DSH 插件 dsh-archmap-explorer 0.2.0
 
-> 状态：已发布，标签 `dsh-plugin-v0.2.0`<br>
+> 状态：已发布，标签 `dsh-plugin-v0.2.0`；真实宿主模型 live smoke 主链路已通过<br>
 > 发布提交：`d0df553`（main）<br>
 > 插件版本：`0.2.0`<br>
 > Python 核心：ArchMap `2.6.0` / bundle schema `6.4`<br>
@@ -111,6 +111,8 @@ htmlBytes   +5.0%
 
 ## 4. 发布后验证
 
+### 4.1 安装与配置验证
+
 真实 Git URL 安装、`--dump-config`、`--dump-config-schema` 和包内 Python 核心版本检查均已完成：
 
 ```bash
@@ -129,24 +131,43 @@ PYTHONPATH=<profile>/node_modules/dsh-archmap-explorer python3 -m archmap --vers
 - 包内 Python 核心版本为 `archmap 2.6.0`。
 - 临时 profile `v020check` 已清理。
 
-真实 DSH Web 宿主模型 live smoke 仍需在已配置模型的 Web 会话中执行：
+### 4.2 真实宿主模型 live smoke
+
+2026-11-19 已在 DSH 0.2.2-rc.1 + minimal preset + `deepseek-official / deepseek-flash` 会话中完成真实宿主模型 live smoke。详细记录见：
+
+- [2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md](2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md)
+
+主链路验证结果：
 
 ```text
-projectPath = 一个 workspace 内的 Python 样例项目
-scope = functions
-maxNodes = 1
+archmap_guide  → code-conventions / config-generation / usage 均可读取
+archmap_build  → 5 modules / 94 functions / 382 call sites / 3 flows
+archmap_query  → check / surfaces / dsm / trace 可调用
+archmap_annotate → 真实宿主模型两轮共 100 节点，0 rejected
+architecture.html → 注解文本已进入渲染产物
 ```
 
-重点检查：
+最终构建诊断为：
 
-- `llm-annotations.json` 的 nodeId/sourceHash 正确。
-- `architecture.html` 显示注解。
-- 非法 JSON 只修复一次。
-- 取消/超时能终止模型流与 Python 子进程。
-- `archmap_query trace/impact` 在真实会话中可调用。
-- `archmap_guide` 在 minimal preset 下可读取规范。
+```text
+0 error / 0 warning / 1 info
+```
 
-当前环境的模型调用链仍由 Node mock 覆盖。
+注：`100` 个被注解节点是“项目 1 + 模块 5 + 函数 94”，不是 100 个函数。
+
+### 4.3 live smoke 暴露的后续问题
+
+本次验证只关闭“真实宿主模型主链路未验证”这一阻塞项，不代表所有产品边界已验证。实际暴露并需后续处理的事项：
+
+- **CLI 行为回归**：示例项目 11 个 pytest 通过、build/check 0 warning，但 `client list/get/delete` 仍因 `argparse.Namespace` 字段不一致在运行期失败。说明结构检查不能替代 CLI 入口级验收。
+- **`dispatchHints` 契约偏差**：过程会话按 warning 建议加入/修正 `dispatchHints` 后，build fingerprint 与 6 条 `POLYMORPHIC_CALL_CANDIDATES` warning 均未变化；最终通过显式实现契约消除 warning。需明确 `dispatchHints` 是 execution-flow 投影配置还是 callSite 解析配置。
+- **trace 起点归一化**：`app.main:run_server` 无法作为起点，改用 `fn:app.main.run_server` 后成功。应增加唯一简写归一化或候选提示。
+- **execution entrypoint 与 flow 叙事**：为消除 `EXECUTION_ONLY_NOT_IN_FLOW` 将 `main` 加入 `executionEntrypoints` 后，形成 `main()` / `run_server()` / `run_client()` 三条同层 flow，存在叙事重复。
+- **注解成本与可信度**：两轮注解共约 110 秒、18 个 batch；评价会话指出注解体量约为 docstring 的 6.3 倍，存在复述和个别语义偏差。
+- **能力面与角色质量**：评价会话统计 34 个 API 全部来自 naming 推断；测试替身进入能力面，契约与实现 API 重复；`StudentClientManager` 被低置信度推断为 `adapter`。
+- **scope 预算与产物体积**：`run_client` scope 在默认 24 节点预算下截断；约 1,926 行源码对应约 1.6MB JSON / 1.4MB HTML。
+
+本次 live smoke 未覆盖：模型非法 JSON 修复、取消/超时、workspace 越界、`refreshMode=stale`、`archmap_query impact/method`、大项目性能。这些仍由自动化测试或后续专项验收覆盖。
 
 ## 5. 发布完成记录
 
@@ -168,15 +189,16 @@ maxNodes = 1
 5. 未移动 `dsh-plugin-v0.1.0`。
 6. 临时 profile `v020check` 已清理。
 
-发布后唯一剩余事项：在已配置模型的真实 DSH Web 会话中完成宿主模型 live smoke。
+发布后真实 DSH Web 宿主模型 live smoke 已完成；主链路通过，发现的后续问题记录在 live smoke 验证记录中。
 
 ## 6. 当前维护状态
 
 - `main` 与 `origin/main` 已同步。
 - 已发布标签：`dsh-plugin-v0.2.0`（指向 `d0df553`）。
 - 历史发布标签：`dsh-plugin-v0.1.0`。
-- 当前唯一未完成验证：真实 DSH Web 宿主模型 live smoke。
-- 在该验证完成前，不应移动 `dsh-plugin-v0.2.0`；如有修复，新增后续标签。
+- 真实 DSH Web 宿主模型 live smoke 已完成，主链路通过。
+- 仍需处理 live smoke 与评价会话发现的 CLI 验收、`dispatchHints` 契约、trace 起点归一化、能力面策展和注解可信度问题。
+- 不移动已发布的 `dsh-plugin-v0.2.0`；如有修复，新增后续版本和标签。
 
 ## 7. 回滚
 

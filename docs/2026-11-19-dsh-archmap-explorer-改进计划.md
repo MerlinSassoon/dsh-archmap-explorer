@@ -1853,6 +1853,21 @@ npm pack --dry-run
 - 包内 Python 核心 `archmap 2.6.0`。
 - 临时 profile 已清理。
 
-待完成：
+### 19.6 真实宿主模型 live smoke（2026-11-19 补录）
 
-1. 在真实 DSH Web 会话中完成宿主模型 live smoke。
+已在 DSH 0.2.2-rc.1 + minimal preset + `deepseek-official / deepseek-flash` 会话中完成真实宿主模型 live smoke：
+
+- `archmap_guide`、`archmap_build`、`archmap_query`、`archmap_annotate` 主链路均真实走通。
+- 示例项目最终为 5 modules / 94 functions / 382 call sites / 3 flows，0 error / 0 warning / 1 info。
+- 注解两轮共 100 节点（项目 1 + 模块 5 + 函数 94），0 rejected，HTML 已加载注解。
+- 详细记录：[2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md](2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md)。
+
+live smoke 同时暴露了后续项：
+
+1. CLI 入口级行为未被 pytest/build 捕获，示例项目出现 `argparse.Namespace` 字段错误。
+2. `dispatchHints` 的 warning 修复建议与 callSite warning 的实际效果不一致，需要澄清契约。
+3. `trace` 起点需要 canonical `fn:` ID，缺少唯一简写归一化。
+4. 三条 flow 存在叙事重复；`run_client` scope 撞到默认预算。
+5. 能力面策展、Provider Role 低置信度提示和注解可信度仍需专项评估。
+
+结论：0.2.0 的宿主模型主链路阻塞项已关闭，但后续修复应新增版本与标签，不移动 `dsh-plugin-v0.2.0`。

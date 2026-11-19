@@ -301,23 +301,31 @@ dsh plugin --profile <test> add git+https://github.com/MerlinSassoon/dsh-archmap
 
 ## 11. 发布后验证边界
 
-0.2.0 的 Python 回归、Node 插件测试、npm pack、自构建、真实 Git URL 安装和 `--dump-config-schema` 已完成；真实 DSH 宿主模型注解仍需要一次 live smoke。
+0.2.0 的 Python 回归、Node 插件测试、npm pack、自构建、真实 Git URL 安装、`--dump-config-schema` 和真实 DSH 宿主模型 live smoke 主链路均已完成。
 
-真实 DSH 宿主模型注解还需要在已配置模型的会话中完成一次 live smoke。本次发布收口环境只有 `MISSING_CREDENTIAL`，因此模型调用链由 mock 覆盖，而不是当前终端中的真实模型输出。建议首次 live smoke 使用：
+真实 live smoke 使用 DSH `0.2.2-rc.1`、minimal preset 和 `deepseek-official / deepseek-flash`，验证结果：
 
 ```text
-scope = functions
-maxNodes = 1
-projectPath = 一个 DSH workspace 内的 Python 样例项目
+archmap_guide：三份权威 Markdown 可读取
+archmap_build：5 modules / 94 functions / 382 call sites / 3 flows
+archmap_query：check / surfaces / dsm / trace 可调用
+archmap_annotate：两轮共 100 节点，0 rejected
+architecture.html：注解文本已渲染
+最终诊断：0 error / 0 warning / 1 info
 ```
 
-重点检查：
+其中 100 个注解节点为“项目 1 + 模块 5 + 函数 94”，不是 100 个函数。
 
-- `llm-annotations.json` 是否写入正确 nodeId/sourceHash
-- `architecture.html` 是否显示“已加载”注解
-- 模型非法 JSON 时是否只修复一次
-- 取消或超时是否能终止模型流与 Python 子进程
+详细记录见 [`2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md`](2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md)。
 
+live smoke 同时发现以下后续问题，不能把主链路通过等同于所有验收边界通过：
+
+- CLI 入口级行为未被 pytest/build 捕获：示例项目 11 个测试通过，但 `client list/get/delete` 仍出现 `argparse.Namespace` 字段错误。
+- 按 warning 建议加入/修正 `dispatchHints` 后，`POLYMORPHIC_CALL_CANDIDATES` warning 和 fingerprint 未变化；`dispatchHints` 的真实作用边界需要澄清。
+- `archmap_query trace` 的起点需要 canonical `fn:` ID，简写未归一化。
+- 注解成本、语义复述和可信度仍需专项评估。
+
+本次未在真实会话中触发：模型非法 JSON 修复、取消/超时、workspace 越界、`refreshMode=stale`、`archmap_query impact/method` 和大项目性能。这些仍由自动化测试或后续专项验收覆盖。
 
 ## 12. 0.1.0 → 0.2.0 迁移说明
 
