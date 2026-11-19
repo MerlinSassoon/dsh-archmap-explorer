@@ -1325,3 +1325,279 @@ npm pack --dry-run
 2. P2-3：性能、体积和查询预算基线。
 3. 模块 note 漂移提示的进一步评估：当前只做来源回退，未对所有既有配置强制警告，避免批量噪声。
 4. 发布前迁移说明与真实 DSH 会话 live smoke。
+
+## 17. 下一批计划：P2-1a 有界请求生命周期与性能门禁
+
+> 状态：计划已制定，尚未开始代码工作<br>
+> 建议分支：继续使用 `feat/plugin-p0-closed-loop`<br>
+> 本批定位：优先让现有 `flowScopes` 真正出现在默认构建中，并通过性能门禁决定是否还需要新的“请求生命周期”实体。<br>
+> 最小实体原则：不新增页面、工具、query operation、bundle 顶层结构或配置键；优先复用现有 `flowScopes`、scope、`drilldown`、`interfaceSummary` 和构建统计。
+
+### 17.1 当前事实与问题
+
+现状：
+
+- `flowScopes` 已经支持一级 scope，且可以在入口 flow 的 `free_function` 节点上生成 `drilldown`。
+- scope 已包含预算、截断 diagnostics、`interfaceSummary` 和独立路由。
+- `FlowScopeConfig` 当前默认 `enabled=false`，大部分自动生成的配置不会主动打开 scope。
+- 在样本学生管理系统中，手工把 `flowScopes.enabled=true` 后，`run_server` 会生成 scope，并显示：
+  - `JsonStudentStore.load_all`
+  - `StudentManager.replace_all`
+- 但 `do_GET -> _handle -> controller.handle -> manager -> store` 这样的跨方法请求链路仍无法由现有 scope 直接表达，因为 scope root 必须是 `free_function`。
+
+因此先做低风险改进：
+
+```text
+把已有 scope 能力默认打开并测量真实收益/成本
+  → 如果仍不足以回答“请求如何走完”
+  → 再决定是否需要新的生命周期视图
+```
+
+而不是一开始就新增新的页面或数据结构。
+
+### 17.2 本批目标
+
+1. 让有明确执行入口和 `executionOnlyCallables` 的项目默认获得有界 scope。
+2. 不改变 scope 的既有数据契约、路由和深度固定为 1 的规则。
+3. 用现有 `durationMs`、`bundleBytes`、`htmlBytes` 建立开关前后对比。
+4. 用真实样本验证 scope 是否实际降低理解成本。
+5. 根据结果决定 P2-1b 是否需要跨方法请求生命周期视图。
+
+### 17.3 最小实体约束
+
+本批不做：
+
+- 不新增 flow 页面或 scope 页面。
+- 不新增 `archmap_query` operation。
+- 不新增 `requestLifecycle`、`lifeline`、`journey` 等 bundle 顶层字段。
+- 不新增配置键；只调整现有 `flowScopes.enabled` 的默认语义。
+- 不新增持久化缓存或索引文件。
+- 不新增独立执行流构建器；继续使用 `execution_flow_utility.py`。
+- 不默认递归展开调用目标；scope 深度仍固定为 1。
+- 不把方法调用强行改写成 free-function scope root。
+
+### 17.4 W1：冻结当前基线
+
+**目标**
+
+在改变默认行为前，记录当前关闭和手工开启 flowScopes 的差异。
+
+**步骤**
+
+1. 选择三个样本：
+   - 学生管理系统。
+   - ArchMap 自构建。
+   - 至少一个包含多个入口的临时项目。
+2. 每个样本记录：
+   - `durationMs`
+   - `bundleBytes`
+   - `htmlBytes`
+   - flow 数量
+   - scope 数量
+   - scope 节点/边数量
+   - 最大单 flow scope 数
+3. 分别记录：
+   - `flowScopes.enabled=false`
+   - `flowScopes.enabled=true`，`autoDetect=false`
+   - 可选：`flowScopes.enabled=true`，`autoDetect=true`
+4. 将结果记录到现有改进计划文档，不新建性能报告文件。
+
+**验收**
+
+- 三组数据可复现。
+- 明确当前默认方式下哪些 flow 没有 scope。
+- 明确开启后新增的 scope 数量和产物大小。
+
+### 17.5 W2：调整 flowScopes 默认行为
+
+**建议方案**
+
+- `FlowScopeConfig.enabled` 默认值从 `false` 改为 `true`。
+- 显式 `"enabled": false` 仍然关闭，保证逃生开关。
+- `autoDetect` 默认值保持 `false`，避免自动发现过多候选。
+- 继续优先将 `executionOnlyCallables` 作为 scope root；这已经在现有逻辑中生效。
+- 不改变 `maxScopesPerFlow/maxNodesPerScope/maxEdgesPerScope` 默认预算。
+
+**理由**
+
+- 只打开已有能力，不引入新实体。
+- 对有明确执行入口的项目，立即获得 `run_server` 等可下钻 scope。
+- 自动发现仍然显式开启，避免大项目默认产生大量 scope。
+
+**实施步骤**
+
+1. 修改 `FlowScopeConfig.enabled` 默认值。
+2. 确认配置对象缺省与完全不写 `flowScopes` 两种情况的语义一致。
+3. 确认显式 `enabled=false` 仍完全关闭。
+4. 更新配置生成 Skill：默认配置模板包含 `flowScopes.enabled=true` 的行为说明。
+5. 更新 `README.md` 和 `docs/dsh-plugin.md` 中关于 scope 默认值的说明。
+6. 仅在真实样本验证后决定是否将 `autoDetect` 也改为默认开启。
+
+**验收**
+
+- 学生管理系统不手工修改配置时，服务器 flow 出现 `run_server` scope。
+- 显式 `enabled=false` 的项目 scope 数为 0。
+- 所有 scope 仍满足深度 1、预算和截断 diagnostics 规则。
+- 不新增任何配置字段。
+
+### 17.6 W3：scope 可读性与导航
+
+**目标**
+
+确保 scope 不是“存在但用户不知道如何使用”。
+
+**步骤**
+
+1. 检查 flow 节点 `drilldown.status=available` 在 UI 中的入口是否明确。
+2. 检查 scope 标题是否说明：
+   - root callable；
+   - 来源是 execution-only、显式 root 还是自动发现；
+   - interface summary 数量；
+   - 是否 truncated。
+3. 如果现有 UI 已足够，不修改 UI。
+4. 如果缺少提示，仅使用已有组件增加一行文本，不新增页面或面板体系。
+5. 方法详情页不新增“请求生命周期”区块，留到 P2-1b 决策后再做。
+
+**验收**
+
+- 用户能从 flow 节点进入 scope。
+- scope 页面能看到 root、接口摘要和 truncation。
+- 不改变现有路由。
+
+### 17.7 W4：性能与产物门禁
+
+**目标**
+
+证明默认开启 scope 的收益大于成本，并避免大 bundle 回归。
+
+**测量**
+
+使用现有 `archmap_build` 返回：
+
+```text
+durationMs
+bundleBytes
+htmlBytes
+stats.flowScopes
+stats.flowScopeNodes
+stats.flowScopeEdges
+```
+
+**门禁阈值**
+
+建议先采用相对阈值：
+
+- 自构建和学生样本的 build duration 增幅不超过 20%。
+- bundle JSON 大小增幅不超过 20%。
+- HTML 大小增幅不超过 20%。
+- 单 flow scope 数不超过现有预算。
+- 不新增 error；warning 必须可解释。
+
+如果超过阈值：
+
+1. 优先收紧 `maxScopesPerFlow` 或调整 scope root 筛选。
+2. 不直接新增“懒加载”或额外缓存实体。
+3. 仍不满足时，保持 `enabled=false` 默认，改为配置生成 Skill 中显式推荐开启。
+
+**验收**
+
+- 有开启前后对比表。
+- 有阈值判定结论。
+- 若未通过，能回退到 opt-in，不影响现有构建。
+
+### 17.8 W5：请求生命周期视图的决策门
+
+完成 W1-W4 后，才对 P2-1b 做决策。
+
+**判断标准**
+
+如果满足以下条件，暂不新增生命周期实体：
+
+- 用户可以从 flow 进入 scope，看到关键 external interface。
+- 方法详情页的 callers/callees 结合 trace 查询足以回答请求链路。
+- 样本中 `do_GET -> _handle -> controller.handle -> manager -> store` 可通过方法详情和 trace 拼出。
+
+如果仍不满足，再规划 P2-1b，候选方向按优先级：
+
+1. **复用现有 scope**：允许在 scope 中增加一个“关键方法链摘要”，不新建页面。
+2. **复用 method detail**：在方法详情中增加最短调用路径摘要，不新增顶层图实体。
+3. **复用 query trace**：只增强现有 `archmap_query trace` 的输出，不新增 operation。
+
+只有在上述三项仍不足时，才讨论新页面或新 bundle 结构。
+
+### 17.9 测试矩阵
+
+Python：
+
+- 默认配置生成一次 flow scope。
+- 显式 `enabled=false` 不生成 scope。
+- `executionOnlyCallables` 作为 root 时生成 scope。
+- scope 预算截断产生 diagnostics。
+- `autoDetect=false` 时不发现额外候选。
+- `autoDetect=true` 时只接受满足现有安全条件的候选。
+- 无外部接口的 scope 不产生可用 drilldown。
+- 自构建通过且无 error。
+
+Node：
+
+- `archmap_build` 返回的 scope 统计与 bundle 一致。
+- `durationMs`、`bundleBytes`、`htmlBytes` 在开启 scope 后仍可读取。
+- warning-only scope 不阻断 HTML。
+
+渲染/手工验收：
+
+- flow 节点可进入 scope。
+- scope 标题、接口摘要、truncation 可见。
+- 方法详情和 trace 仍可直接使用。
+
+### 17.10 实施顺序
+
+```text
+M3.0 冻结 baseline（关闭 / 手工开启）
+  → W2 调整默认 enabled=true（autoDetect 保持 false）
+  → W3 检查现有 scope 导航与文案
+  → W4 性能与产物门禁
+  → W5 决定是否需要 P2-1b 请求生命周期视图
+  → 更新文档与计划记录
+```
+
+建议提交拆分：
+
+```text
+1. test: freeze flowScopes on/off baseline
+2. fix: enable safe executionOnly scopes by default
+3. docs: explain bounded scope defaults and budgets
+4. test: record scope size and latency gates
+```
+
+### 17.11 风险与缓解
+
+| 风险 | 缓解 |
+|---|---|
+| 默认 scope 使 bundle 变大 | 保留预算；先测三档样本；超过阈值则回退 opt-in |
+| executionOnly root 选取过多 | 继续使用现有预算和规则，不新增自动发现 |
+| UI 已有 scope 入口不明显 | 仅增加现有节点文案/提示，不新增页面 |
+| 用户误以为 scope 是完整运行时链路 | 在文案和文档中明确 depth=1、黑盒 interface |
+| 现有多入口项目 scope 数量上升 | 设置每 flow 预算并在 diagnostics 中显式截断 |
+| 为请求生命周期过早引入新实体 | 先完成 W5 决策门，再决定 P2-1b |
+
+### 17.12 本批不决定的事项
+
+- 不决定是否新增真正的 `request lifecycle` 页面。
+- 不决定是否改变 scope 深度固定为 1 的契约。
+- 不决定是否默认开启 `autoDetect`。
+- 不决定是否新增方法级跨调用链字段。
+- 不决定是否把 trace 嵌入 flow 主图。
+
+### 17.13 完成定义
+
+本批完成必须同时满足：
+
+1. `flowScopes.enabled` 默认行为有明确结论，并有开关回退。
+2. 样本项目的 executionOnly root 在默认构建中获得有界 scope。
+3. 显式关闭仍然有效。
+4. scope 预算和 truncation 仍可解释。
+5. 记录开启前后耗时与产物大小，并给出阈值判定。
+6. 不新增页面、工具、query operation、bundle 顶层字段或配置键。
+7. 完成 P2-1b 是否继续的决策记录。
+8. 全量 Python/Node/自构建/check/pack 验证通过。
