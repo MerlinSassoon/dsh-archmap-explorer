@@ -1264,3 +1264,64 @@ npm pack --dry-run
 3. P2-2：模块备注单一事实源与漂移检查。
 4. P2-3：性能、体积和查询预算基线。
 5. 发布前迁移说明与真实 DSH 会话 live smoke。
+
+## 16. 第三批实施记录（2026-11-19）
+
+> 状态：P1-5 基础可观测性与 P2-2 模块备注回退已完成。<br>
+> 实体约束：未新增工具、query operation、配置键、页面或持久化文件；仅增加必要返回统计和 `noteSource` 来源字段。
+
+| 工作包 | 状态 | 实施结果 |
+|---|---|---|
+| P1-5 | 已完成首批 | `archmap_build` 返回 `durationMs`、`bundleBytes`、`htmlBytes`；`archmap_annotate` 返回 `durationMs` 与 `batchDurationsMs` |
+| P2-2 | 已完成首批 | 模块 note 未配置时回退到模块 docstring 第一段，并输出 `noteSource=config/docstring/empty` |
+
+### 16.1 可观测性
+
+- 构建工具：
+  - `durationMs`：从工具调用到结果返回的总耗时。
+  - `bundleBytes`：architecture.json 大小。
+  - `htmlBytes`：architecture.html 大小。
+  - 成功文本中增加 `duration` 行。
+- 注解工具：
+  - `durationMs`：整次注解调用耗时。
+  - `batchDurationsMs`：每批宿主模型调用耗时。
+  - 成功文本中增加总耗时和分批耗时。
+- 统计只存在于工具返回，不写入 bundle，不改变数据契约。
+
+### 16.2 模块备注单一来源
+
+- 模块 note 解析顺序：
+  1. 显式 `modules[].note`；
+  2. 该模块所属源码文件的模块 docstring 第一段；
+  3. 空字符串。
+- projectGraph module node 和 moduleGraph 均返回 `noteSource`。
+- 没有新增 README 配置项，也没有复制第二份模块说明。
+
+### 16.3 验证结果
+
+```text
+python3 -m pytest -q
+162 passed, 1 skipped
+
+npm run prepare
+prepare: ok
+
+npm test
+11 passed, 0 failed
+
+python3 -m archmap build . --config examples/archmap_v3.archmap.json --out .archmap/self
+5 modules / 308 functions / 4990 call sites
+
+python3 -m archmap check .archmap/self/architecture.json --json
+ok: true / issueCount: 0
+
+npm pack --dry-run
+75 files / 218.2 kB package
+```
+
+### 16.4 下一批候选
+
+1. P2-1：执行流纵深与请求生命周期视图。
+2. P2-3：性能、体积和查询预算基线。
+3. 模块 note 漂移提示的进一步评估：当前只做来源回退，未对所有既有配置强制警告，避免批量噪声。
+4. 发布前迁移说明与真实 DSH 会话 live smoke。

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -44,6 +45,10 @@ from ..frontends.python.surface_utility import build_user_surfaces
 def _json_hash(payload: Any) -> str:
     data = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(data.encode("utf-8")).hexdigest()
+
+
+def _first_paragraph(text: str) -> str:
+    return str(text or "").strip().split("\n\n", 1)[0].strip()
 
 
 def _edge_id(prefix: str, index: int) -> str:
@@ -676,6 +681,13 @@ def build_bundle(
     fn_by_id = _function_lookup(analysis)
     call_site_list = list(call_sites)
     module_configs = {module.id: module for module in config.modules}
+    module_doc_notes: dict[str, str] = {}
+    for module in sorted(analysis.modules, key=lambda item: item.file.rel_path):
+        if module.module_id in module_doc_notes:
+            continue
+        note = _first_paragraph(ast.get_docstring(module.tree, clean=True) or "")
+        if note:
+            module_doc_notes[module.module_id] = note
     entrypoints = find_entrypoints(analysis, call_site_list)
     execution_entrypoints, execution_entrypoint_diagnostics = find_execution_entrypoints(
         analysis, entrypoints
@@ -820,7 +832,12 @@ def build_bundle(
             if fn_id in fn_by_id and fn_by_id[fn_id].class_name is not None
         ]
         module_name = configured.name if configured else module_id
-        module_note = configured.note if configured else ""
+        configured_note = configured.note.strip() if configured else ""
+        docstring_note = module_doc_notes.get(module_id, "")
+        module_note = configured_note or docstring_note
+        module_note_source = (
+            "config" if configured_note else "docstring" if docstring_note else "empty"
+        )
         color = _module_color(index, configured)
         module_capabilities = list(capabilities_by_module.get(module_id, []))
         export_ids = config.module_exports.get(module_id)
@@ -843,6 +860,7 @@ def build_bundle(
             "kind": "module",
             "name": module_name,
             "note": module_note,
+            "noteSource": module_note_source,
             "color": color,
             "role": role,
             "functions": function_ids,
@@ -1063,6 +1081,7 @@ def build_bundle(
                 "moduleId": module_id,
                 "name": module_name,
                 "note": module_note,
+                "noteSource": module_note_source,
                 "color": color,
                 "role": role,
                 "providedApis": [capability.as_dict() for capability in module_capabilities],

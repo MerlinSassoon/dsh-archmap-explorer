@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from archmap.managers.pipeline_manager import PipelineManager
@@ -123,3 +124,39 @@ def test_empty_capability_modules_do_not_create_project_grid_holes() -> None:
     assert set(ordered_ids[len(visible_ids):]) == hidden_ids
     assert layout["visibleCount"] == len(visible_ids)
     assert layout["columns"] == 3
+
+
+def test_module_note_falls_back_to_docstring_and_records_source(tmp_path: Path) -> None:
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "app" / "main.py").write_text(
+        '''"""应用模块说明。\n\n这一行不进入模块 note。\n"""\n\n\ndef main() -> None:\n    """Program entry."""\n    return None\n''',
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "archmap.config.json"
+    config_path.write_text(
+        '''{
+  "projectName": "note_demo",
+  "include": ["app/**/*.py"],
+  "entrypoints": ["app.main:main"],
+  "modules": [
+    {"id": "app", "include": ["app/**/*.py"], "role": "service"}
+  ]
+}''',
+        encoding="utf-8",
+    )
+    bundle = build_architecture(tmp_path, config_path)
+    module = next(item for item in bundle["projectGraph"]["modules"] if item["id"] == "app")
+    graph = _module_graph(bundle, "app")
+    assert module["note"] == "应用模块说明。"
+    assert module["noteSource"] == "docstring"
+    assert graph["note"] == "应用模块说明。"
+    assert graph["noteSource"] == "docstring"
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["modules"][0]["note"] = "配置覆盖说明。"
+    config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+    overridden = build_architecture(tmp_path, config_path)
+    module = next(item for item in overridden["projectGraph"]["modules"] if item["id"] == "app")
+    assert module["note"] == "配置覆盖说明。"
+    assert module["noteSource"] == "config"

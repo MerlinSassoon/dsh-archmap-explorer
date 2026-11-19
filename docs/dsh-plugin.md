@@ -130,6 +130,7 @@ dsh plugin --profile web add link:/absolute/path/to/archmap_v3
 - 模块数、函数数、执行流数、call site 数
 - error / warning / info 诊断统计
 - `issues`（code/message/file/line/functionId/nodeId/sourceCode）与 `nextActions`
+- `durationMs`、`bundleBytes`、`htmlBytes`
 - `architecture.json` 与 `architecture.html` 绝对路径
 
 构建内部校验失败时返回 `ok: false`、完整 diagnostics 明细和可执行修复建议，不伪造成功产物。只有结构错误会阻断构建；可解释的静态解析不完整（例如 polymorphic call 没有候选）以 warning 返回并继续生成 HTML。
@@ -179,7 +180,8 @@ projectPath 时先 build
 - 实际 applied / skipped 数量
 - 模型拒绝输出数量
 - provider / model / promptVersion
-- 批次数量
+- 批次数量、`durationMs` 和 `batchDurationsMs`
+- 候选/选中/stale/missing/unchanged/remaining/truncated 统计
 - `annotation-proposal.json` 之外的正式侧车路径与 HTML 路径
 
 ### 4.3 `archmap_query`

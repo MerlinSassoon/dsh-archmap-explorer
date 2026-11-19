@@ -201,6 +201,9 @@ test('archmap_build uses the bundled Python core', async () => {
     assert.ok(result.callSiteCount >= 1)
     assert.equal(result.diagnostics.error, 0)
     assert.match(result.fingerprint, /^sha256:[0-9a-f]{64}$/)
+    assert.ok(result.durationMs >= 0)
+    assert.ok(result.bundleBytes > 0)
+    assert.ok(result.htmlBytes > 0)
     const bundle = JSON.parse(await readFile(result.jsonPath, 'utf8'))
     assert.equal(bundle.kind, 'archmap.bundle')
     assert.match(await readFile(result.htmlPath, 'utf8'), /ArchMap/)
@@ -254,6 +257,8 @@ test('archmap_annotate uses the host model and Python-owned source hashes', asyn
     assert.equal(result.provider, 'mock-provider')
     assert.equal(result.model, 'mock-model')
     assert.equal(mock.calls.length, 1)
+    assert.ok(result.durationMs >= 0)
+    assert.equal(result.batchDurationsMs.length, result.batchCount)
 
     const sidecar = JSON.parse(await readFile(result.annotationsPath, 'utf8'))
     const [nodeId] = Object.keys(sidecar.nodes)
