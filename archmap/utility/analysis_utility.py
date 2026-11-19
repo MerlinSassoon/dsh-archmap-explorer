@@ -148,6 +148,7 @@ def _api_exposure(
     by the frontend capability builder instead of exposing dunders directly.
     """
     override_keys = [
+        f"fn:{module_name}.{qualname}",
         f"{module_name}.{qualname}",
         qualname,
         f"{module_name}.{node.name}",

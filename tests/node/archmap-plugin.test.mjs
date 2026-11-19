@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -146,10 +146,15 @@ test('plugin registers build/annotate tools and both bundled Skills', async () =
 
   assert.deepEqual(
     tools.map((tool) => tool.name).sort(),
-    ['archmap_annotate', 'archmap_build'],
+    ['archmap_annotate', 'archmap_build', 'archmap_guide', 'archmap_query'],
   )
   const build = tools.find((tool) => tool.name === 'archmap_build')
   assert.equal(build.parameters.required.includes('projectPath'), true)
+  const guide = tools.find((tool) => tool.name === 'archmap_guide')
+  const guideResult = await guide.execute({ topic: 'code-conventions' })
+  assert.equal(guideResult.ok, true, guideResult.text)
+  assert.ok(guideResult.charCount > 1000)
+  assert.match(guideResult.text, /ArchMap 代码约定/)
 
   assert.equal(skillProviderFactories.length, 1)
   const provider = skillProviderFactories[0]({
@@ -299,6 +304,165 @@ test('archmap_annotate repairs one invalid model response', async () => {
     assert.equal(mock.sawRepair, true)
     const sidecar = JSON.parse(await readFile(result.annotationsPath, 'utf8'))
     assert.match(Object.values(sidecar.nodes)[0].summary, /^修复摘要：/)
+  } finally {
+    await rm(outputRoot, { recursive: true, force: true })
+  }
+})
+
+test('archmap_query exposes check and trace without shelling out', async () => {
+  const outputRoot = await mkdtemp(join(REPO_ROOT, '.dsh-archmap-test-'))
+  try {
+    const { tools } = await pluginTools(REPO_ROOT, {
+      pythonPath: process.env.ARCHMAP_PYTHON || 'python3',
+      toolTimeoutMs: 120000,
+    })
+    const build = tools.find((item) => item.name === 'archmap_build')
+    const query = tools.find((item) => item.name === 'archmap_query')
+    const buildResult = await build.execute(
+      {
+        projectPath: relative(REPO_ROOT, FIXTURE),
+        outDir: relative(REPO_ROOT, outputRoot),
+      },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(buildResult.ok, true, buildResult.text)
+    const bundlePath = relative(REPO_ROOT, buildResult.jsonPath)
+
+    const checked = await query.execute(
+      { operation: 'check', bundlePath },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(checked.ok, true, checked.text)
+    assert.equal(checked.operation, 'check')
+    assert.equal(checked.data.errorCount, 0)
+    assert.equal(checked.data.issueCount, 0)
+
+    const traced = await query.execute(
+      { operation: 'trace', bundlePath, start: 'fn:app.main.main' },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(traced.ok, true, traced.text)
+    assert.equal(traced.operation, 'trace')
+    assert.ok(traced.data.nodes.length > 1)
+    assert.ok(traced.data.paths.length > 0)
+    assert.match(traced.text, /nodes=/)
+
+    const surfaces = await query.execute(
+      { operation: 'surfaces', bundlePath },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(surfaces.ok, true, surfaces.text)
+    assert.ok(Array.isArray(surfaces.data.items))
+    assert.equal(surfaces.data.total, surfaces.data.items.length)
+
+    const dsm = await query.execute(
+      { operation: 'dsm', bundlePath, level: 'module' },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(dsm.ok, true, dsm.text)
+    assert.ok(dsm.data.stats.nodes > 0)
+
+    const method = await query.execute(
+      { operation: 'method', projectPath: relative(REPO_ROOT, FIXTURE), function: 'main' },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(method.ok, true, method.text)
+    assert.equal(method.data.name, 'main')
+  } finally {
+    await rm(outputRoot, { recursive: true, force: true })
+  }
+})
+
+test('archmap_build returns actionable validation diagnostics', async () => {
+  const projectRoot = await mkdtemp(join(REPO_ROOT, '.dsh-archmap-bad-'))
+  try {
+    await writeFile(join(projectRoot, 'app.py'), 'def main():\n    print("hello")\n', 'utf8')
+    await writeFile(
+      join(projectRoot, 'archmap.config.json'),
+      JSON.stringify({
+        projectName: 'bad-project',
+        include: ['**/*.py'],
+        entrypoints: ['app:main'],
+        contract: { providerRoles: { missing: 'adapter' } },
+      }),
+      'utf8',
+    )
+    const { tools } = await pluginTools(REPO_ROOT, {
+      pythonPath: process.env.ARCHMAP_PYTHON || 'python3',
+      toolTimeoutMs: 120000,
+    })
+    const build = tools.find((item) => item.name === 'archmap_build')
+    const result = await build.execute(
+      { projectPath: relative(REPO_ROOT, projectRoot) },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(result.ok, false)
+    assert.ok(result.issues.length >= 1)
+    assert.match(result.text, /PROVIDER_ROLE_TARGET_UNRESOLVED/)
+    assert.ok(result.issues.some((issue) => issue.sourceCode === 'PROVIDER_ROLE_TARGET_UNRESOLVED'))
+    assert.ok(result.nextActions.some((item) => /config/i.test(item)))
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true })
+  }
+})
+
+test('archmap_annotate supports missing then stale refresh modes', async () => {
+  const outputRoot = await mkdtemp(join(REPO_ROOT, '.dsh-archmap-test-'))
+  const mock = createMockAnnotationLlm()
+  try {
+    const made = await pluginTools(
+      REPO_ROOT,
+      {
+        pythonPath: process.env.ARCHMAP_PYTHON || 'python3',
+        provider: 'mock-provider',
+        model: 'mock-model',
+        annotationBatchSize: 2,
+        annotationMaxNodes: 10,
+      },
+      mock.llm,
+    )
+    const build = made.tools.find((item) => item.name === 'archmap_build')
+    const annotated = made.tools.find((item) => item.name === 'archmap_annotate')
+    const buildResult = await build.execute(
+      {
+        projectPath: relative(REPO_ROOT, FIXTURE),
+        outDir: relative(REPO_ROOT, outputRoot),
+      },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    const bundlePath = relative(REPO_ROOT, buildResult.jsonPath)
+    const first = await annotated.execute(
+      { bundlePath, scope: 'functions', maxNodes: 10, refreshMode: 'missing' },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(first.ok, true, first.text)
+    assert.ok(first.applied > 0)
+    assert.equal(first.remainingCount, 0)
+    assert.equal(first.truncated, false)
+    const callsAfterFirst = mock.calls.length
+
+    const second = await annotated.execute(
+      { bundlePath, scope: 'functions', maxNodes: 10, refreshMode: 'missing' },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(second.ok, true, second.text)
+    assert.equal(second.applied, 0)
+    assert.equal(second.selectedCount, 0)
+    assert.equal(mock.calls.length, callsAfterFirst)
+
+    const bundle = JSON.parse(await readFile(buildResult.jsonPath, 'utf8'))
+    const target = bundle.functionDetails[0]
+    target.sourceHash = 'sha256:' + '1'.repeat(64)
+    await writeFile(buildResult.jsonPath, JSON.stringify(bundle), 'utf8')
+
+    const stale = await annotated.execute(
+      { bundlePath, scope: 'functions', maxNodes: 10, refreshMode: 'stale' },
+      { agent: { id: 'test' }, signal: new AbortController().signal },
+    )
+    assert.equal(stale.ok, true, stale.text)
+    assert.equal(stale.applied, 1)
+    assert.equal(stale.staleCount, 1)
+    assert.equal(mock.calls.length, callsAfterFirst + 1)
   } finally {
     await rm(outputRoot, { recursive: true, force: true })
   }

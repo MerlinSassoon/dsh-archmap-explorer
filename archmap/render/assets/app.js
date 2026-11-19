@@ -2336,6 +2336,7 @@
       detail.overrideOfFunctionId ? "override" : "",
       ...(detail.userSurfaceKinds || []).map(kind => `surface:${kind}`),
       Number(detail.polymorphicCallerCount || 0) ? `poly-callers:${detail.polymorphicCallerCount}` : "",
+      Number(detail.unresolvedCallerCount || 0) ? `unresolved-callers:${detail.unresolvedCallerCount}` : "",
     ].filter(Boolean);
 
     world.innerHTML = `<div class="method-page">
@@ -2360,6 +2361,10 @@
             <div class="method-panel-heading"><span>被调用者</span><em>${detail.calleeCount || 0}</em></div>
             ${methodCallList(detail.callees || [], "暂无被调用者")}
           </section>
+          ${(detail.unresolvedCallers || []).length ? `<section>
+            <div class="method-panel-heading"><span>可能的未解析调用者</span><em>${detail.unresolvedCallerCount || 0}</em></div>
+            ${methodCallList(detail.unresolvedCallers, "暂无未解析调用者")}
+          </section>` : ""}
           ${(detail.polymorphicCallers || []).length ? `<section>
             <div class="method-panel-heading"><span>多态调用者</span><em>${detail.polymorphicCallerCount || 0}</em></div>
             ${polymorphicCallList(detail.polymorphicCallers, "暂无多态调用者")}

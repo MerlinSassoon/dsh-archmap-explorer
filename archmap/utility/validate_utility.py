@@ -515,6 +515,8 @@ def validate_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
                     f"{diagnostic.get('code', 'DIAGNOSTIC')}: {diagnostic.get('message', '')}",
                     functionId=diagnostic.get("functionId"),
                     moduleId=diagnostic.get("moduleId"),
+                    sourceCode=diagnostic.get("code"),
+                    sourceSeverity=diagnostic.get("severity"),
                 )
             )
 

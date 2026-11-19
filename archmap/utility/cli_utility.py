@@ -129,11 +129,28 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"error: cannot read JSON: {exc}", file=sys.stderr)
         return 2
     issues = ValidationManager().validate(bundle)
+    errors = [issue for issue in issues if issue.get("severity") == "error"]
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "ok": not errors,
+                    "bundlePath": str(path),
+                    "issueCount": len(issues),
+                    "errorCount": len(errors),
+                    "warningCount": len(issues) - len(errors),
+                    "issues": issues,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1 if errors else 0
     if not issues:
         print("OK: schema, cross references, function details and call sites are valid")
         return 0
     _print_issues(issues)
-    return 1 if any(issue.get("severity") == "error" for issue in issues) else 0
+    return 1 if errors else 0
 
 
 def cmd_method(args: argparse.Namespace) -> int:
@@ -306,6 +323,7 @@ def cmd_annotations_context(args: argparse.Namespace) -> int:
             max_chars_per_node=args.max_chars,
             include_source=args.include_source,
             annotations_path=Path(args.annotations).resolve() if args.annotations else None,
+            refresh_mode=args.refresh_mode,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"error: cannot build annotation context: {exc}", file=sys.stderr)
@@ -376,6 +394,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     check = sub.add_parser("check", help="validate an architecture bundle")
     check.add_argument("bundle")
+    check.add_argument("--json", action="store_true", help="print structured validation issues")
     check.set_defaults(func=cmd_check)
 
     method = sub.add_parser("method", help="inspect a generated function/method detail")
@@ -447,6 +466,12 @@ def build_parser() -> argparse.ArgumentParser:
     annotations_context.add_argument("--max-chars", type=int, default=6000)
     annotations_context.add_argument("--no-source", action="store_false", dest="include_source")
     annotations_context.add_argument("--annotations")
+    annotations_context.add_argument(
+        "--refresh-mode",
+        choices=["missing", "stale", "all"],
+        default="all",
+        help="select missing, stale, or all annotation targets before max-nodes truncation",
+    )
     annotations_context.add_argument("--json", action="store_true")
     annotations_context.set_defaults(func=cmd_annotations_context)
 

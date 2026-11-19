@@ -32,6 +32,70 @@ from ...utility.analysis_utility import (
 )
 
 
+def _target_aliases(module_name: str, qualname: str, name: str, target_id: str) -> set[str]:
+    return {target_id, f"{module_name}.{qualname}", qualname, name}
+
+
+def _resolve_override_key(
+    key: str, target_aliases: dict[str, set[str]]
+) -> tuple[str | None, list[str]]:
+    """Resolve one configured override key to a unique canonical target id."""
+
+    cleaned = str(key or "").strip()
+    if not cleaned:
+        return None, []
+    exact = [target_id for target_id, aliases in target_aliases.items() if cleaned in aliases]
+    if len(exact) == 1:
+        return exact[0], exact
+    return None, sorted(exact)
+
+
+def _validate_config_targets(analysis: AnalysisResult) -> None:
+    """Fail loud when override keys cannot address a real analyzed target."""
+
+    function_aliases: dict[str, set[str]] = {}
+    provider_aliases: dict[str, set[str]] = {}
+    for fn in analysis.functions:
+        aliases = _target_aliases(fn.module_name, fn.qualname, fn.name, fn.id)
+        function_aliases[fn.id] = aliases
+        provider_aliases[fn.id] = set(aliases)
+    for cls in analysis.classes:
+        cls_id = f"cls:{cls.module_name}.{cls.qualname}"
+        provider_aliases[cls_id] = _target_aliases(
+            cls.module_name, cls.qualname, cls.name, cls_id
+        )
+
+    for key in analysis.config.api_exposure_overrides:
+        target, matches = _resolve_override_key(key, function_aliases)
+        if target is None:
+            analysis.diagnostics.append(
+                {
+                    "severity": "error",
+                    "code": "API_EXPOSURE_TARGET_UNRESOLVED",
+                    "message": (
+                        f"contract.apiExposure key {key!r} does not match a project function"
+                        + (f"; candidates: {matches[:5]}" if matches else "")
+                    ),
+                    "key": key,
+                }
+            )
+
+    for key in analysis.config.provider_role_overrides:
+        target, matches = _resolve_override_key(key, provider_aliases)
+        if target is None:
+            analysis.diagnostics.append(
+                {
+                    "severity": "error",
+                    "code": "PROVIDER_ROLE_TARGET_UNRESOLVED",
+                    "message": (
+                        f"contract.providerRoles key {key!r} does not match a project Provider"
+                        + (f"; candidates: {matches[:5]}" if matches else "")
+                    ),
+                    "key": key,
+                }
+            )
+
+
 def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> AnalysisResult:
     diagnostics: list[dict[str, Any]] = []
     modules: list[ModuleInfo] = []
@@ -313,4 +377,5 @@ def analyze_project(config: ProjectConfig, sources: Iterable[SourceFile]) -> Ana
     analysis.execution_only_function_ids = execution_only_ids
     analysis.execution_only_module_by_function = execution_only_module_by_function
     resolve_type_hierarchy(analysis)
+    _validate_config_targets(analysis)
     return analysis

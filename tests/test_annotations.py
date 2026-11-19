@@ -314,3 +314,149 @@ def test_annotations_cli_context_and_apply(tmp_path: Path) -> None:
     assert applied["applied"] == 1
     assert Path(applied["annotationsPath"]).exists()
     assert Path(applied["htmlPath"]).exists()
+
+
+def test_annotation_context_filters_before_limit_and_reports_statuses(tmp_path: Path) -> None:
+    """Refresh mode must select eligible nodes before applying max_nodes."""
+
+    bundle_path, bundle = _write_bundle(tmp_path)
+    details = [detail for detail in bundle["functionDetails"] if detail["id"].startswith("fn:")]
+    assert len(details) >= 3
+    first_id = details[0]["id"]
+    second_id = details[1]["id"]
+    missing_id = details[-1]["id"]
+    sidecar = bundle_path.parent / "llm-annotations.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "nodes": {
+                    detail["id"]: {
+                        "summary": "已有摘要",
+                        "details": "已有详情",
+                        "sourceHash": (
+                            "sha256:" + "0" * 64
+                            if detail["id"] == second_id
+                            else detail["sourceHash"]
+                        ),
+                        "source": "host-llm",
+                    }
+                    for detail in details
+                    if detail["id"] != missing_id
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    context = annotation_context(
+        bundle_path,
+        scope="functions",
+        max_nodes=1,
+        refresh_mode="stale",
+    )
+
+    assert context["refreshMode"] == "stale"
+    assert context["totalCandidates"] == len(details)
+    assert context["eligibleCount"] == 2
+    assert context["selectedCount"] == 1
+    assert context["remainingCount"] == 1
+    assert context["truncated"] is True
+    assert context["statusCounts"]["missing"] == 1
+    assert context["statusCounts"]["stale"] == 1
+    assert context["nodes"][0]["annotationStatus"] in {"stale", "missing"}
+
+    missing_only = annotation_context(
+        bundle_path,
+        scope="functions",
+        max_nodes=1,
+        refresh_mode="missing",
+    )
+    assert missing_only["eligibleCount"] == 1
+    assert missing_only["nodes"][0]["nodeId"] == missing_id
+    assert missing_only["statusCounts"]["manual-preserved"] == 0
+    assert first_id != missing_id
+
+
+def test_annotation_context_marks_manual_annotations_preserved(tmp_path: Path) -> None:
+    """Manual annotations stay out of stale refresh selection."""
+
+    bundle_path, bundle = _write_bundle(tmp_path)
+    detail = next(item for item in bundle["functionDetails"] if item["id"] == "fn:app.main.main")
+    sidecar = bundle_path.parent / "llm-annotations.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "nodes": {
+                    "fn:app.main.main": {
+                        "summary": "人工摘要",
+                        "details": "人工详情",
+                        "sourceHash": "sha256:" + "0" * 64,
+                        "source": "manual",
+                    }
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    context = annotation_context(
+        bundle_path,
+        scope="functions",
+        max_nodes=1,
+        refresh_mode="stale",
+        node_ids=["fn:app.main.main"],
+    )
+
+    assert context["statusCounts"]["manual-preserved"] == 1
+    assert context["eligibleCount"] == 0
+    assert context["nodes"] == []
+    assert detail["id"] == "fn:app.main.main"
+
+
+def test_apply_refreshes_stale_machine_annotation_without_force(tmp_path: Path) -> None:
+    """A stale host annotation is data loss, not a user-owned manual override."""
+
+    bundle_path, bundle = _write_bundle(tmp_path)
+    detail = next(item for item in bundle["functionDetails"] if item["id"] == "fn:app.main.main")
+    sidecar = bundle_path.parent / "llm-annotations.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "nodes": {
+                    "fn:app.main.main": {
+                        "summary": "旧模型摘要",
+                        "details": "旧模型详情",
+                        "sourceHash": "sha256:" + "0" * 64,
+                        "source": "host-llm",
+                    }
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = apply_annotations(
+        bundle_path,
+        {
+            "nodes": [
+                {
+                    "nodeId": "fn:app.main.main",
+                    "summary": "新模型摘要",
+                    "details": "新模型详情",
+                    "sourceHash": detail["sourceHash"],
+                }
+            ]
+        },
+        render=False,
+    )
+
+    assert result["applied"] == 1
+    assert result["skipped"] == []
+    saved = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert saved["nodes"]["fn:app.main.main"]["summary"] == "新模型摘要"

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from archmap.managers.pipeline_manager import PipelineManager
 from archmap.managers.validate_manager import ValidationManager
+from archmap.utility.config_utility import load_config
 
 build_architecture = PipelineManager().build_architecture
 validate_bundle = ValidationManager().validate
@@ -51,3 +53,72 @@ def test_validator_detects_noncanonical_execution_interface_capability() -> None
     interface["capabilityId"] = "api:missing"
     issues = validate_bundle(bundle)
     assert any(issue["code"] == "EXEC_INTERFACE_CAPABILITY" for issue in issues)
+
+
+def test_config_unknown_keys_and_invalid_values_are_diagnosed(tmp_path: Path) -> None:
+    config_path = tmp_path / "archmap.config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "projectName": "bad-config",
+                "unknownTopLevel": True,
+                "modules": [
+                    {
+                        "id": "app",
+                        "include": ["**/*.py"],
+                        "role": "not-a-role",
+                        "unknownModuleKey": 1,
+                    }
+                ],
+                "contract": {
+                    "unknownContractKey": 1,
+                    "providerRoles": {"missing": "not-a-role"},
+                    "apiExposure": {"fn:missing": "invalid"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = load_config(tmp_path, config_path)
+    codes = [item["code"] for item in config.config_diagnostics]
+    assert "CONFIG_UNKNOWN_KEY" in codes
+    assert "MODULE_ROLE_INVALID" in codes
+    assert "PROVIDER_ROLE_INVALID" in codes
+    assert "API_EXPOSURE_INVALID" in codes
+
+
+def test_api_exposure_accepts_fn_prefix_and_rejects_unmatched_targets(tmp_path: Path) -> None:
+    accepted_path = tmp_path / "accepted.json"
+    accepted_path.write_text(
+        json.dumps(
+            {
+                "include": ["**/*.py"],
+                "entrypoints": ["app.main:main"],
+                "contract": {"apiExposure": {"fn:app.main.main": "internal"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    accepted = build_architecture(ROOT, accepted_path)
+    detail = next(
+        item for item in accepted["functionDetails"] if item["id"] == "fn:app.main.main"
+    )
+    assert detail["apiExposure"] == "internal"
+    assert detail["apiExposureSource"] == "config"
+
+    rejected_path = tmp_path / "rejected.json"
+    rejected_path.write_text(
+        json.dumps(
+            {
+                "include": ["**/*.py"],
+                "contract": {"apiExposure": {"fn:app.missing.main": "internal"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    rejected = build_architecture(ROOT, rejected_path)
+    assert any(
+        item["code"] == "API_EXPOSURE_TARGET_UNRESOLVED"
+        and item["severity"] == "error"
+        for item in rejected["diagnostics"]
+    )

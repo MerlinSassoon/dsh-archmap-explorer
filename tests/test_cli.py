@@ -28,6 +28,17 @@ def test_cli_build_and_check(tmp_path: Path) -> None:
         text=True,
     )
     assert check.returncode == 0, check.stdout + check.stderr
+    structured = subprocess.run(
+        [sys.executable, "-m", "archmap", "check", str(out / "architecture.json"), "--json"],
+        cwd=Path(__file__).parent.parent,
+        capture_output=True,
+        text=True,
+    )
+    assert structured.returncode == 0, structured.stdout + structured.stderr
+    payload = json.loads(structured.stdout)
+    assert payload["ok"] is True
+    assert payload["issueCount"] == 0
+    assert payload["issues"] == []
 
 
 def test_cli_version_uses_package_version() -> None:

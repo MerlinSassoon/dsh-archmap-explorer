@@ -129,9 +129,10 @@ dsh plugin --profile web add link:/absolute/path/to/archmap_v3
 - 项目名与语义指纹
 - 模块数、函数数、执行流数、call site 数
 - error / warning / info 诊断统计
+- `issues`（code/message/file/line/functionId/nodeId/sourceCode）与 `nextActions`
 - `architecture.json` 与 `architecture.html` 绝对路径
 
-构建内部校验失败时返回 `ok: false` 和明确错误信息，不伪造成功产物。
+构建内部校验失败时返回 `ok: false`、完整 diagnostics 明细和可执行修复建议，不伪造成功产物。
 
 ### 4.2 `archmap_annotate`
 
@@ -147,14 +148,15 @@ dsh plugin --profile web add link:/absolute/path/to/archmap_v3
 | `nodeIds` | 否 | 精确节点 ID 列表 |
 | `maxNodes` | 否 | 本次最大节点数 |
 | `includeSource` | 否 | 是否包含源码摘录 |
-| `force` | 否 | 是否覆盖已有/人工注解，默认 `false` |
+| `force` | 否 | 是否覆盖已有/人工注解，默认 `false`；等价于 `refreshMode=all` |
+| `refreshMode` | 否 | `missing` / `stale` / `all`，默认 `missing`；`stale` 只刷新 sourceHash 已过期节点 |
 
 处理流程：
 
 ```text
 projectPath 时先 build
 → python -m archmap annotations context
-→ 过滤已有注解（非 force）
+→ 按 refreshMode（missing/stale/all）先在 Python 侧过滤并截断
 → 按批调用 ctx.llm
 → 严格 JSON 解析，首次失败带错误信息修复一次
 → 写 annotation-proposal.json
@@ -179,6 +181,33 @@ projectPath 时先 build
 - provider / model / promptVersion
 - 批次数量
 - `annotation-proposal.json` 之外的正式侧车路径与 HTML 路径
+
+### 4.3 `archmap_query`
+
+只读查询工具，不写 bundle、不改源码、不触发模型。
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `operation` | 是 | `check/trace/impact/surfaces/dsm/method` |
+| `bundlePath` | 视操作 | `check/trace/surfaces/dsm` 的 architecture.json |
+| `beforePath` / `afterPath` | impact 必填 | 前后 bundle 路径 |
+| `projectPath` / `configPath` | method 必填 | 方法详情构建来源 |
+| `start` / `direction` / `maxDepth` / `maxNodes` | trace 可选 | 起点、方向与预算 |
+| `module` / `level` / `includeInternal` | 可选 | surfaces 与 dsm 过滤 |
+
+返回统一包含 `ok`、`text`、`operation`、`truncated`、`warnings`、`data`。trace 还会显式返回低置信度 `unresolvedReferences`，避免把解析失败误报为确定零调用。
+
+### 4.4 `archmap_guide`
+
+确定性 Skill fallback。它直接读取 npm 包内同一份权威 Markdown，不维护第二份正文。
+
+| topic | 内容 |
+|---|---|
+| `code-conventions` | 模块边界、Provider Role、能力面、入口、备注和测试约定 |
+| `config-generation` | `archmap.config.json` 生成与校验算法 |
+| `usage` | 插件工具和工作流说明 |
+
+当当前 DSH preset 不暴露原生 `skill` 工具时，模型应使用该工具，而不是自行搜索 `node_modules`。
 
 ## 5. 宿主模型路由
 

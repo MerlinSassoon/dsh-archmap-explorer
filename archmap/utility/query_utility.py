@@ -387,6 +387,60 @@ def _trace_edges(bundle: dict[str, Any], include_internal: bool) -> dict[str, li
     return outgoing
 
 
+def _callee_tail(callee_text: str) -> str:
+    """Return a best-effort callable name from an unresolved callee expression."""
+
+    text = str(callee_text or "").strip().split("(", 1)[0].strip()
+    return text.rsplit(".", 1)[-1] if text else ""
+
+
+def _unresolved_trace_references(
+    bundle: dict[str, Any],
+    start_id: str,
+    *,
+    direction: str,
+    max_items: int = 50,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Expose unresolved call sites that may concern the trace start.
+
+    These are intentionally low-confidence hints, not call edges. They prevent a
+    failed resolution from being presented as a definitive zero-caller answer.
+    """
+
+    detail = _detail_map(bundle).get(start_id) or {}
+    start_name = str(detail.get("name") or "")
+    references: list[dict[str, Any]] = []
+    for site in bundle.get("callSites", []):
+        if site.get("resolved") or site.get("external"):
+            continue
+        from_id = str(site.get("fromFunctionId") or "")
+        callee_text = str(site.get("calleeText") or "")
+        matches_start = bool(start_name) and _callee_tail(callee_text) == start_name
+        if direction == "inbound":
+            if not matches_start or from_id == start_id:
+                continue
+        elif direction == "outbound":
+            if from_id != start_id:
+                continue
+        else:
+            continue
+        references.append(
+            {
+                "callSiteId": site.get("id"),
+                "fromFunctionId": from_id,
+                "toFunctionId": site.get("toFunctionId"),
+                "file": site.get("file"),
+                "line": site.get("line"),
+                "column": site.get("column"),
+                "calleeText": callee_text,
+                "callText": site.get("callText"),
+                "confidence": "low",
+                "reason": "callee-name-match" if direction == "inbound" else "unresolved-call",
+            }
+        )
+    return references[:max_items], len(references) > max_items
+
+
 def build_trace(
     bundle: dict[str, Any],
     start: str,
@@ -401,6 +455,9 @@ def build_trace(
     resolved = _resolve_trace_start(bundle, start)
     if resolved is None:
         raise ValueError(f"trace start not found: {start}")
+    unresolved_references, unresolved_truncated = _unresolved_trace_references(
+        bundle, resolved, direction=direction
+    )
     outgoing = _trace_edges(bundle, include_internal)
     if direction == "inbound":
         reverse: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -457,6 +514,9 @@ def build_trace(
             for node_id, depth in sorted(visited.items(), key=lambda item: (item[1], item[0]))
         ],
         "paths": paths,
+        "unresolvedReferences": unresolved_references,
+        "unresolvedCount": len(unresolved_references),
+        "unresolvedTruncated": unresolved_truncated,
         "truncated": truncated,
     }
 

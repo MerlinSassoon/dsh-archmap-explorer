@@ -156,3 +156,38 @@ def test_p4_bundle_matches_schema() -> None:
         (REPO_ROOT / "docs" / "schema" / "archmap-v6.4-bundle.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.validate(bundle, schema)
+
+
+def test_trace_exposes_low_confidence_unresolved_inbound_references() -> None:
+    bundle = _bundle()
+    bundle["callSites"].append(
+        {
+            "id": "call:test:unresolved-save",
+            "fromFunctionId": "fn:app.main.main",
+            "toFunctionId": None,
+            "file": "app/main.py",
+            "line": 99,
+            "column": 1,
+            "calleeText": "repository.save",
+            "callText": "repository.save(order)",
+            "resolved": False,
+            "external": False,
+            "polymorphic": False,
+            "candidates": [],
+            "confidence": "low",
+            "dispatchKind": "static",
+            "usageKind": "call",
+        }
+    )
+
+    trace = build_trace(
+        bundle,
+        "fn:app.repository.Repository.save",
+        direction="inbound",
+    )
+
+    assert trace["unresolvedCount"] == 1
+    reference = trace["unresolvedReferences"][0]
+    assert reference["callSiteId"] == "call:test:unresolved-save"
+    assert reference["reason"] == "callee-name-match"
+    assert reference["confidence"] == "low"

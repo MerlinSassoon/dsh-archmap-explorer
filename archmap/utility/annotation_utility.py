@@ -190,6 +190,25 @@ def _node_index(bundle: dict[str, Any], max_chars: int = 6000) -> dict[str, dict
     return index
 
 
+REFRESH_MODES = frozenset({"missing", "stale", "all"})
+
+
+def _annotation_status(
+    node: dict[str, Any], existing: Any
+) -> str:
+    """Classify one annotation target against the current bundle hash."""
+
+    if not isinstance(existing, dict):
+        return "missing"
+    if str(existing.get("source") or "") == MANUAL_ANNOTATION_SOURCE:
+        return "manual-preserved"
+    current_hash = str(node.get("sourceHash") or "")
+    existing_hash = str(existing.get("sourceHash") or "")
+    if current_hash and existing_hash != current_hash:
+        return "stale"
+    return "fresh"
+
+
 def annotation_context(
     bundle_path: Path | str,
     scope: str = "functions",
@@ -198,14 +217,23 @@ def annotation_context(
     max_chars_per_node: int = 6000,
     include_source: bool = True,
     annotations_path: Path | str | None = None,
+    refresh_mode: str = "all",
 ) -> dict[str, Any]:
-    """Build a bounded, deterministic annotation context for the host model."""
+    """Build a bounded, deterministic annotation context for the host model.
+
+    ``refresh_mode`` selects targets before ``max_nodes`` truncation:
+    ``missing`` only absent annotations, ``stale`` missing plus hash-mismatched
+    machine annotations, and ``all`` every target.  Manual annotations remain
+    explicitly classified and are only selected by ``all``.
+    """
 
     bundle_file = Path(bundle_path)
     bundle = _load_json(bundle_file)
     wanted_kinds = SCOPE_KINDS.get(scope)
     if wanted_kinds is None:
         raise ValueError(f"unsupported annotation scope: {scope}")
+    if refresh_mode not in REFRESH_MODES:
+        raise ValueError(f"unsupported annotation refresh mode: {refresh_mode}")
     if max_nodes < 1:
         raise ValueError("max_nodes must be a positive integer")
     if max_chars_per_node < 1:
@@ -230,16 +258,36 @@ def annotation_context(
             continue
         candidate_ids.append(node_id)
 
-    selected_ids = candidate_ids[:max_nodes]
-    nodes: list[dict[str, Any]] = []
     existing_nodes = annotations.get("nodes") or {}
+    status_by_id: dict[str, str] = {}
+    eligible_ids: list[str] = []
+    for node_id in candidate_ids:
+        existing = existing_nodes.get(node_id)
+        status = _annotation_status(index[node_id], existing)
+        status_by_id[node_id] = status
+        if refresh_mode == "all":
+            eligible_ids.append(node_id)
+        elif refresh_mode == "missing" and status == "missing":
+            eligible_ids.append(node_id)
+        elif refresh_mode == "stale" and status in {"missing", "stale"}:
+            eligible_ids.append(node_id)
+
+    selected_ids = eligible_ids[:max_nodes]
+    nodes: list[dict[str, Any]] = []
     for node_id in selected_ids:
         node = dict(index[node_id])
         if not include_source or node["kind"] != "function":
             node["sourceExcerpt"] = ""
         existing = existing_nodes.get(node_id)
         node["existingAnnotation"] = existing if isinstance(existing, dict) else None
+        node["annotationStatus"] = status_by_id[node_id]
         nodes.append(node)
+
+    status_counts: dict[str, int] = {
+        status: 0 for status in ("missing", "fresh", "stale", "manual-preserved")
+    }
+    for status in status_by_id.values():
+        status_counts[status] = status_counts.get(status, 0) + 1
 
     missing_ids = sorted(requested - set(index))
     return {
@@ -249,7 +297,13 @@ def annotation_context(
         "nodes": nodes,
         "requestedNodes": len(requested) if requested else None,
         "missingNodeIds": missing_ids,
-        "truncated": len(candidate_ids) > len(selected_ids),
+        "refreshMode": refresh_mode,
+        "totalCandidates": len(candidate_ids),
+        "eligibleCount": len(eligible_ids),
+        "selectedCount": len(selected_ids),
+        "remainingCount": max(0, len(eligible_ids) - len(selected_ids)),
+        "statusCounts": status_counts,
+        "truncated": len(eligible_ids) > len(selected_ids),
     }
 
 
@@ -320,13 +374,20 @@ def apply_annotations(
 
         previous = (existing.get("nodes") or {}).get(node_id)
         if isinstance(previous, dict) and not force:
-            reason = (
-                "MANUAL_ANNOTATION_PRESERVED"
-                if str(previous.get("source") or "") == MANUAL_ANNOTATION_SOURCE
-                else "EXISTING_ANNOTATION_PRESERVED"
-            )
-            skipped.append({"nodeId": node_id, "reason": reason})
-            continue
+            previous_source = str(previous.get("source") or "")
+            previous_hash = str(previous.get("sourceHash") or "")
+            if previous_source == MANUAL_ANNOTATION_SOURCE:
+                skipped.append(
+                    {"nodeId": node_id, "reason": "MANUAL_ANNOTATION_PRESERVED"}
+                )
+                continue
+            if previous_hash == expected_hash:
+                skipped.append(
+                    {"nodeId": node_id, "reason": "EXISTING_ANNOTATION_PRESERVED"}
+                )
+                continue
+            # A machine annotation whose source hash no longer matches is stale;
+            # refreshing it does not require an explicit force overwrite.
 
         existing.setdefault("nodes", {})[node_id] = {
             "summary": summary[:SUMMARY_MAX_CHARS],

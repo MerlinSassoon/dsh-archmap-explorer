@@ -258,7 +258,7 @@ yield/student_system/
 
 ```bash
 python -m archmap build <project> [--out DIR] [--config FILE] [--split] [--json] [--annotations FILE]
-python -m archmap check <architecture.json>
+python -m archmap check <architecture.json> [--json]
 python -m archmap method <project> [--file FILE] [--function NAME] [--json]
 python -m archmap serve <directory> [--port 8765]
 python -m archmap diff <before.json> <after.json>
@@ -298,7 +298,7 @@ python -m archmap dsm <architecture.json> [--level module|provider] [--json]
 
 注解生成由确定性命令边界支撑：
 
-- `annotations context` 从项目、模块和函数事实生成有界上下文，包含签名、人工备注、源码摘录、权威 `sourceHash` 和已有注解摘要；不调用模型。
+- `annotations context` 从项目、模块和函数事实生成有界上下文，包含签名、人工备注、源码摘录、权威 `sourceHash` 和已有注解摘要；支持 `missing/stale/all` 三种刷新模式，先过滤再截断，不调用模型。
 - `annotations apply` 严格校验 proposal，只接受 bundle 中存在的节点；`sourceHash` 始终使用 bundle 原值。默认保留已有注解，`--force` 才允许覆盖。写入后合并 `llm-annotations.json` 并重新渲染 `architecture.html`。
 
 ## 数据契约
@@ -363,8 +363,10 @@ pnpm 可能拦截包的 `prepare` 自检脚本。按安装输出提示，在目�
 
 | 工具 | 作用 |
 |---|---|
-| `archmap_build` | 生成 `architecture.json` 与自包含 `architecture.html`，返回模块/函数/执行流/诊断统计 |
-| `archmap_annotate` | 通过 DSH 宿主模型生成源码语义注解，写入 `llm-annotations.json` 并重渲染 HTML |
+| `archmap_build` | 生成 `architecture.json` 与自包含 `architecture.html`，返回模块/函数/执行流/结构化诊断统计 |
+| `archmap_annotate` | 通过 DSH 宿主模型生成源码语义注解，支持 `missing/stale/all` 增量刷新并重渲染 HTML |
+| `archmap_query` | 只读执行 `check/trace/impact/surfaces/dsm/method` 查询，优先替代手工 CLI 调用 |
+| `archmap_guide` | 原生 `skill` 工具不可用时读取 bundled 权威规范，作为确定性 fallback |
 
 `archmap_annotate` 必须走 DSH `ctx.llm`，不读取 API Key。模型路由顺序为：
 

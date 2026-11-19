@@ -11,12 +11,53 @@ from ..config.project_config import (
     DEFAULT_EXCLUDES,
     DEFAULT_INTERNAL_API_TAGS,
     DEFAULT_PUBLIC_API_TAGS,
+    MODULE_ROLES,
     DispatchCandidateConfig,
     DispatchHint,
     FlowScopeConfig,
     ModuleConfig,
     ProjectConfig,
 )
+
+
+KNOWN_TOP_LEVEL_KEYS = {
+    "projectName",
+    "project",
+    "language",
+    "include",
+    "exclude",
+    "entrypoints",
+    "executionEntrypoints",
+    "mainModule",
+    "modules",
+    "contract",
+    "userSurface",
+    "mainFlow",
+    "dispatchHints",
+    "flowScopes",
+    "dispatchCandidates",
+    "limits",
+}
+KNOWN_MODULE_KEYS = {
+    "id",
+    "name",
+    "include",
+    "note",
+    "color",
+    "role",
+    "defaultFreeFunctionSurface",
+    "executionOnlyCallables",
+    # Legacy keys are accepted with an explicit migration warning.
+    "kind",
+    "main",
+}
+KNOWN_CONTRACT_KEYS = {
+    "publicTags",
+    "internalTags",
+    "apiExposure",
+    "providerRoles",
+    "moduleExports",
+}
 
 
 def _as_list(value: Any, fallback: list[str] | None = None) -> list[str]:
@@ -49,6 +90,15 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
         raw.get("mainModule") or project_meta.get("mainModule") or ""
     ).strip()
     config_diagnostics: list[dict[str, Any]] = []
+    for key in sorted(set(raw) - KNOWN_TOP_LEVEL_KEYS):
+        config_diagnostics.append(
+            {
+                "severity": "warning",
+                "code": "CONFIG_UNKNOWN_KEY",
+                "message": f"unknown top-level config key {key!r} is ignored",
+                "key": key,
+            }
+        )
     if legacy_main_module:
         config_diagnostics.append(
             {
@@ -61,8 +111,25 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
     modules: list[ModuleConfig] = []
     for idx, item in enumerate(raw.get("modules") or []):
         if not isinstance(item, dict):
+            config_diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "CONFIG_MODULE_INVALID",
+                    "message": f"modules[{idx}] is not an object and was ignored",
+                }
+            )
             continue
         module_id = str(item.get("id") or f"module-{idx + 1}")
+        for key in sorted(set(item) - KNOWN_MODULE_KEYS):
+            config_diagnostics.append(
+                {
+                    "severity": "warning",
+                    "code": "CONFIG_UNKNOWN_KEY",
+                    "message": f"unknown module {module_id!r} config key {key!r} is ignored",
+                    "moduleId": module_id,
+                    "key": key,
+                }
+            )
         legacy_kind = str(item.get("kind") or "").strip().lower()
         legacy_main = legacy_kind == "main" or item.get("main") is True
         if legacy_kind:
@@ -74,6 +141,19 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
                 }
             )
         role = str(item.get("role") or "").strip().lower()
+        if role and role not in MODULE_ROLES and role not in {"main", "entry"}:
+            config_diagnostics.append(
+                {
+                    "severity": "error",
+                    "code": "MODULE_ROLE_INVALID",
+                    "message": (
+                        f"module {module_id} role={role!r} is invalid; expected one of "
+                        f"{sorted(MODULE_ROLES)}"
+                    ),
+                    "moduleId": module_id,
+                }
+            )
+            role = ""
         if role in {"main", "entry"}:
             config_diagnostics.append(
                 {
@@ -113,18 +193,62 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
             )
         )
 
+    if raw.get("contract") is not None and not isinstance(raw.get("contract"), dict):
+        config_diagnostics.append(
+            {
+                "severity": "error",
+                "code": "CONFIG_CONTRACT_INVALID",
+                "message": "contract must be an object",
+            }
+        )
     contract = raw.get("contract") if isinstance(raw.get("contract"), dict) else {}
+    for key in sorted(set(contract) - KNOWN_CONTRACT_KEYS):
+        config_diagnostics.append(
+            {
+                "severity": "warning",
+                "code": "CONFIG_UNKNOWN_KEY",
+                "message": f"unknown contract config key {key!r} is ignored",
+                "key": key,
+            }
+        )
     public_tags = _as_list(contract.get("publicTags"), DEFAULT_PUBLIC_API_TAGS)
     internal_tags = _as_list(contract.get("internalTags"), DEFAULT_INTERNAL_API_TAGS)
     exposure_overrides: dict[str, str] = {}
     raw_overrides = contract.get("apiExposure")
+    if raw_overrides is not None and not isinstance(raw_overrides, dict):
+        config_diagnostics.append(
+            {
+                "severity": "error",
+                "code": "API_EXPOSURE_INVALID",
+                "message": "contract.apiExposure must be an object mapping target keys to public/internal",
+            }
+        )
     if isinstance(raw_overrides, dict):
         for key, value in raw_overrides.items():
             normalized = str(value or "").strip().lower()
             if normalized in {"public", "internal"}:
                 exposure_overrides[str(key)] = normalized
+            else:
+                config_diagnostics.append(
+                    {
+                        "severity": "error",
+                        "code": "API_EXPOSURE_INVALID",
+                        "message": (
+                            f"contract.apiExposure[{key!r}]={value!r} is invalid; "
+                            "expected 'public' or 'internal'"
+                        ),
+                    }
+                )
     provider_roles: dict[str, str] = {}
     raw_provider_roles = contract.get("providerRoles")
+    if raw_provider_roles is not None and not isinstance(raw_provider_roles, dict):
+        config_diagnostics.append(
+            {
+                "severity": "error",
+                "code": "PROVIDER_ROLE_INVALID",
+                "message": "contract.providerRoles must be an object mapping provider targets to roles",
+            }
+        )
     if isinstance(raw_provider_roles, dict):
         for key, value in raw_provider_roles.items():
             normalized = str(value or "").strip().lower()
@@ -139,6 +263,17 @@ def load_config(project_root: Path, config_path: Path | None = None) -> ProjectC
                 continue
             if normalized in PROVIDER_ROLES:
                 provider_roles[str(key)] = normalized
+            else:
+                config_diagnostics.append(
+                    {
+                        "severity": "error",
+                        "code": "PROVIDER_ROLE_INVALID",
+                        "message": (
+                            f"contract.providerRoles[{key!r}]={value!r} is invalid; "
+                            f"expected one of {sorted(PROVIDER_ROLES)}"
+                        ),
+                    }
+                )
     module_exports: dict[str, list[str]] = {}
     raw_exports = contract.get("moduleExports")
     if isinstance(raw_exports, dict):

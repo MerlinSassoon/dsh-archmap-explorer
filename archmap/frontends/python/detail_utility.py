@@ -18,6 +18,24 @@ from ...utility.detail_utility import (
 )
 
 
+def _unresolved_caller_entry(analysis: AnalysisResult, site: CallSite) -> dict[str, Any]:
+    entry = _caller_entry(analysis, site)
+    entry.update(
+        {
+            "callSiteId": site.id,
+            "resolved": False,
+            "resolutionReason": "callee-name-match",
+            "confidence": "low",
+        }
+    )
+    return entry
+
+
+def _callee_tail(callee_text: str) -> str:
+    text = str(callee_text or "").strip().split("(", 1)[0].strip()
+    return text.rsplit(".", 1)[-1] if text else ""
+
+
 def build_function_details(
     analysis: AnalysisResult, call_sites: Iterable[CallSite]
 ) -> list[dict[str, Any]]:
@@ -25,6 +43,12 @@ def build_function_details(
     callers_by_function: dict[str, list[CallSite]] = defaultdict(list)
     callees_by_function: dict[str, list[CallSite]] = defaultdict(list)
     polymorphic_callers_by_function: dict[str, list[CallSite]] = defaultdict(list)
+    unresolved_by_callee_name: dict[str, list[CallSite]] = defaultdict(list)
+    for site in calls:
+        if not site.resolved and not site.external:
+            tail = _callee_tail(site.callee_text)
+            if tail:
+                unresolved_by_callee_name[tail].append(site)
     for site in calls:
         callers_by_function[site.to_function_id or ""].append(site)
         callees_by_function[site.from_function_id].append(site)
@@ -89,6 +113,17 @@ def build_function_details(
                 key=lambda item: (item.line, item.column, item.id),
             )
         ]
+        unresolved_callers = [
+            _unresolved_caller_entry(analysis, site)
+            for site in sorted(
+                (
+                    site
+                    for site in unresolved_by_callee_name.get(fn.name, [])
+                    if site.from_function_id != fn.id
+                ),
+                key=lambda item: (item.file, item.line, item.column, item.id),
+            )
+        ]
         details.append(
             {
                 "id": fn.id,
@@ -123,6 +158,8 @@ def build_function_details(
                 "polymorphicCallees": polymorphic_callees,
                 "polymorphicCallerCount": len(polymorphic_callers),
                 "polymorphicCalleeCount": len(polymorphic_callees),
+                "unresolvedCallers": unresolved_callers,
+                "unresolvedCallerCount": len(unresolved_callers),
             }
         )
     return details
