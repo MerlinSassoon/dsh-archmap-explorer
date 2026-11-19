@@ -60,7 +60,9 @@ class ModuleConfig:
 class FlowScopeConfig:
     """Configuration for one-level execution-flow interface drilldown."""
 
-    enabled: bool = False
+    # Scopes are on by default but remain explicitly disableable.  Only
+    # execution-only/configured roots are selected unless autoDetect is enabled.
+    enabled: bool = True
     roots: list[str] = field(default_factory=list)
     # Conservative auto-discovery of local free_function orchestration
     # callables. Interface nodes remain black-box and are never discovered.

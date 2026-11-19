@@ -231,6 +231,7 @@ yield/student_system/
 }
 ```
 
+- `flowScopes` 默认开启；显式 `enabled: false` 可完全关闭。
 - scope root 必须是 `free_function` 编排 callable；`interface` 节点不能展开。
 - `executionOnlyCallables` 可成为显式 root。
 - `autoDetect` 只做保守候选发现，显式 roots 优先。

@@ -87,7 +87,7 @@ user-invocable: true
 7. 判断每个模块的 defaultFreeFunctionSurface
 8. 为少量例外生成 apiExposure / providerRoles
 9. 识别动态分发，生成 dispatchHints
-10. 按需配置 flowScopes / dispatchCandidates
+10. 审查 flowScopes 默认行为，并按需配置 dispatchCandidates
 11. 生成配置并执行 build/check
 12. 审计能力面、诊断和布局覆盖
 ```
@@ -434,7 +434,7 @@ internal      → 模块内部实现，不承担流程入口语义
 
 | 字段 | 含义 | 默认 |
 |---|---|---|
-| `enabled` | 是否生成一级接口 scope | 配置对象存在时默认 true |
+| `enabled` | 是否生成一级接口 scope | 默认 true；显式 `false` 关闭 |
 | `roots` | 显式 scope root，`module:qualname` 或 canonical function id | `[]` |
 | `autoDetect` | 是否从主流程可见 free_function 中保守发现候选 | `false` |
 | `maxScopesPerFlow` | 每条 flow 的 scope 上限 | `6`，上限 20 |
@@ -568,7 +568,7 @@ internal      → 模块内部实现，不承担流程入口语义
   ],
   "dispatchHints": [],
   "flowScopes": {
-    "enabled": false,
+    "enabled": true,
     "roots": [],
     "autoDetect": false,
     "maxScopesPerFlow": 6,
@@ -727,7 +727,7 @@ jq '{capabilityFunctions: [.moduleGraphs[].capabilityFreeFunctionIds[]],
 6. executionOnlyCallables 只包含真实流程入口或编排 callable。
 7. entrypoints / executionEntrypoints 可解析且语义清楚。
 8. 动态分发候选完整性被显式标记。
-9. flowScopes / dispatchCandidates 只在需要时启用，预算和截断可解释。
+9. flowScopes 默认开启且可显式关闭；dispatchCandidates 按需启用；预算和截断必须可解释。
 10. `archmap build` 成功，`archmap check` 通过，diagnostics 为 0 或有明确原因。
 11. 项目页、flow 页、模块页和 Method Detail 能按预期导航。
 12. 配置没有旧字段、伪事实或手工 bundle 修补。

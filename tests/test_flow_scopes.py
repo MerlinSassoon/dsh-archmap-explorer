@@ -99,10 +99,28 @@ def test_gomoku_play_one_game_scope_exposes_helper_interfaces() -> None:
     assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
 
 
-def test_flow_scopes_are_disabled_without_configuration() -> None:
-    """Existing projects without flowScopes keep atomic call targets."""
+def test_flow_scopes_are_enabled_by_default_and_can_be_disabled(tmp_path: Path) -> None:
+    """Scope support defaults on, while explicit disabled config stays atomic."""
 
-    bundle = build_architecture(ROOT / "tests" / "fixtures" / "student_demo")
+    import json
+
+    from archmap.utility.config_utility import load_config
+
+    default_config = load_config(ROOT / "tests" / "fixtures" / "student_demo")
+    assert default_config.flow_scopes.enabled is True
+
+    config = json.loads(
+        (ROOT / "tests" / "fixtures" / "student_demo" / "archmap.config.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    config["flowScopes"] = {"enabled": False}
+    config_path = tmp_path / "scopes-off.config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    disabled_config = load_config(ROOT / "tests" / "fixtures" / "student_demo", config_path)
+    assert disabled_config.flow_scopes.enabled is False
+
+    bundle = build_architecture(ROOT / "tests" / "fixtures" / "student_demo", config_path)
     for flow in bundle["projectGraph"]["executionFlows"]:
         assert flow.get("scopes", []) == []
         assert all("drilldown" not in node for node in flow["nodes"])
@@ -189,6 +207,27 @@ def test_flow_scope_config_clamps_invalid_limits(tmp_path: Path) -> None:
     codes = {item["code"] for item in config.config_diagnostics}
     assert "FLOW_SCOPE_LIMIT_INVALID" in codes
 
+
+
+def test_default_flow_scopes_use_execution_only_roots_without_flow_scope_config(
+    tmp_path: Path,
+) -> None:
+    """Default scope behavior should expose existing execution-only roots."""
+
+    import json
+
+    config = json.loads(
+        (ROOT / "examples" / "student_system.archmap.json").read_text(encoding="utf-8")
+    )
+    config.pop("flowScopes", None)
+    config_path = tmp_path / "student-default-scopes.config.json"
+    config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+
+    bundle = build_architecture(ROOT / "Projects" / "student_system", config_path)
+    assert bundle["stats"]["flowScopes"] == 2
+    assert bundle["stats"]["flowScopeNodes"] > 0
+    assert bundle["stats"]["flowScopeEdges"] > 0
+    assert not [issue for issue in validate_bundle(bundle) if issue["severity"] == "error"]
 
 def test_flow_scope_bundles_match_schema_6_4() -> None:
     """Student and gomoku scope projections satisfy the published schema."""

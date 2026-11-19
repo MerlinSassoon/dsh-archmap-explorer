@@ -1632,3 +1632,115 @@ M2.5.0 冻结 baseline（关闭 / 手工开启）
 6. 不新增页面、工具、query operation、bundle 顶层字段或配置键。
 7. 完成 P2-1b 是否继续的决策记录。
 8. 全量 Python/Node/自构建/check/pack 验证通过。
+
+## 18. M2.5 实施记录：P2-1a 有界生命周期可见性（2026-11-19）
+
+> 状态：已完成。<br>
+> 里程碑：M2.5 / P2-1a。<br>
+> 实体约束：未新增页面、工具、query operation、bundle 顶层字段或配置键；只调整现有 `flowScopes.enabled` 默认值并复用现有 scope/UI/统计。
+
+### 18.1 实施内容
+
+1. `FlowScopeConfig.enabled` 默认值从 `false` 调整为 `true`。
+2. 显式 `"enabled": false` 仍可完全关闭 scope。
+3. `autoDetect` 默认值保持 `false`，避免大项目默认发现过多候选。
+4. `executionOnlyCallables` 继续作为默认可见的 scope root。
+5. 配置生成文档、README 和配置模板同步更新。
+6. 现有 flow 节点 `drilldown` 按钮、scope 路由、`interfaceSummary` 和 truncation 展示经浏览器冒烟测试确认可用，未新增 UI 实体。
+
+### 18.2 基线对比
+
+学生管理系统去掉显式 `flowScopes` 后，按默认行为构建：
+
+| 配置 | durationMs | bundleBytes | htmlBytes | flows | scopes | scopeNodes | scopeEdges |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 默认开启 | 289 | 818,304 | 769,968 | 1 | 2 | 20 | 19 |
+| 显式关闭 | 277 | 749,608 | 733,474 | 1 | 0 | 0 | 0 |
+
+相对显式关闭：
+
+```text
+durationMs: +4.3%
+bundleBytes: +9.2%
+htmlBytes: +5.0%
+```
+
+均低于计划中的 20% 门禁。
+
+其他样本：
+
+| 样本 | durationMs | bundleBytes | htmlBytes | scopes |
+|---|---:|---:|---:|---:|
+| ArchMap 自构建（默认） | 2,654 | 11,380,475 | 8,389,590 | 0 |
+| Gomoku（现有 config） | 271 | 915,308 | 815,019 | 1 |
+
+说明：
+
+- ArchMap 自构建没有 executionOnly root，因此默认开启不会凭空产生 scope，产物基本不变。
+- 学生管理系统默认获得 2 个 execution-only scope。
+- Gomoku 继续生成其现有 1 个 scope。
+
+### 18.3 W3 导航验收
+
+- 浏览器冒烟测试通过：
+
+```text
+ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py
+1 passed
+```
+
+- 现有 flow 节点下钻按钮可打开 scope。
+- scope 页面显示 root、L1 来源、节点/边数、外部接口和 truncation 提示。
+- 不需要新增页面或面板。
+
+### 18.4 W5 P2-1b 决策
+
+**当前决策：暂不新增请求生命周期实体。**
+
+理由：
+
+1. M2.5 已让现有 execution-only scope 默认可见。
+2. 方法详情已有 callers/callees、unresolved 入边提示。
+3. `archmap_query trace` 已能表达成功的静态/多态路径和低置信度 unresolved 引用。
+4. 样本中的跨方法链路可以先用 flow scope + 方法详情 + trace 组合理解。
+5. 新增 `requestLifecycle` 页面或字段会引入新的数据实体和 UI 维护面，当前证据不足。
+
+触发重新评估的条件：
+
+- 真实 DSH 会话中用户仍需要多次手工拼 trace 才能回答“请求如何走完”。
+- 方法详情和 scope 无法表达 controller/handler 的关键接缝。
+- 出现稳定的用户需求，而不是单次样本推断。
+
+### 18.5 验证结果
+
+```text
+python3 -m pytest -q
+163 passed, 1 skipped
+
+ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py
+1 passed
+
+npm run prepare
+prepare: ok
+
+npm test
+11 passed, 0 failed
+
+python3 -m archmap build . --config examples/archmap_v3.archmap.json --out .archmap/self
+5 modules / 308 functions / 4990 call sites
+
+python3 -m archmap check .archmap/self/architecture.json --json
+ok: true / issueCount: 0
+
+npm pack --dry-run
+75 files / 218.2 kB package
+```
+
+### 18.6 下一阶段
+
+M2.5 已完成，后续进入 M3：
+
+1. P2-2 note 漂移提示的进一步评估。
+2. P2-3 性能、体积和查询预算基线。
+3. P2-4 文档、迁移、发布与回滚。
+4. 发布前真实 DSH 会话 live smoke。
