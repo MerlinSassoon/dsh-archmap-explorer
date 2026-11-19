@@ -885,3 +885,281 @@ unresolved calleeText = server.controller.handle
 4. P1-2 polymorphic 诊断分级与反 Goodhart 护栏。
 5. P1-3 Provider Role 与能力面收敛。
 6. P1-5 构建/注解阶段耗时与成本可观测性。
+
+## 14. 下一批计划：P1 静态分析可信度
+
+> 状态：计划已制定，尚未开始实施<br>
+> 建议分支：继续使用 `feat/plugin-p0-closed-loop`，不为同一批闭环改造重复建分支<br>
+> 目标版本：继续使用当前未发布版本，不提前改版本号<br>
+> 核心目标：把“解析失败可见”推进到“常见失败可以正确解析”，并减少错误角色和能力面噪声。
+
+### 14.1 本批目标
+
+1. 完成 P0-5 的收尾：统一 unresolved 的查询、详情和 UI 表达。
+2. 完成 P1-1：属性链、`cast`、Protocol 单实现解析。
+3. 完成 P1-2：polymorphic 诊断分级，避免“删抽象换绿灯”。
+4. 完成 P1-3：Provider Role 与能力面收敛。
+5. 保持已有工具、bundle 和配置实体稳定，不为本批新增不必要的新概念。
+
+### 14.2 最小实体约束
+
+本批遵循“如非必要，勿增实体”：
+
+- **不新增工具名**：继续使用 `archmap_build`、`archmap_annotate`、`archmap_query`、`archmap_guide`。
+- **不新增 query operation**：继续使用 `check/trace/impact/surfaces/dsm/method`。
+- **不新增 bundle 顶层结构**：继续使用 `functionDetails`、`callSites`、`diagnostics`。
+- **不新增字段表达同一事实**：unresolved 继续使用现有 `resolved=false`、`external=false`、`confidence`、`candidates`、`calleeText`，不新增重复的 `resolutionStatus`。
+- **不新增配置键**：继续使用现有 `providerRoles`、`apiExposure`、`dispatchHints`、`executionOnlyCallables`。
+- **不新增持久化文件**：不增加缓存、索引或状态文件。
+- **不新增抽象层**：调用解析改动放在现有 `CallResolver` / `type_utility` / `query_utility` 内，不新建独立解析服务。
+- **不新增页面**：继续使用方法详情页和查询结果展示 unresolved 信息。
+- **不新增永久测试夹具**：优先复用 `class_demo`、`p4_demo`、`roles_demo` 或在 `tmp_path` 动态生成源码；只有现有夹具无法表达语义时才新增最小夹具。
+
+### 14.3 W1：完成 P0-5 unresolved 收尾
+
+**目标**
+
+让同一个 unresolved 事实在 method detail、trace 和 UI 中使用同一套既有字段表达，不再出现“callers=0 看起来像确定结论”的歧义。
+
+**实施步骤**
+
+1. 审计 `callSites`：
+   - 确认解析失败时始终满足 `resolved=false`。
+   - 确认第三方/内建调用使用 `external=true`，不与项目内 unresolved 混淆。
+   - 确认 `confidence` 能表达“低置信度名称匹配”和“确定未解析”的差异。
+2. 审计 `functionDetails.unresolvedCallers`：
+   - 保留现有 `unresolvedCallerCount`。
+   - 确认每个 entry 继续使用现有 `callSiteId`、`calleeText`、`file`、`line`、`confidence`，不新增重复字段。
+3. 审计 `build_trace`：
+   - 继续返回现有 `unresolvedReferences`、`unresolvedCount`、`unresolvedTruncated`。
+   - 确认 inbound 与 outbound 的语义清楚，不把低置信度名称匹配写成调用边。
+4. 审计方法详情 UI：
+   - 继续使用现有“可能的未解析调用者”区块。
+   - 当 `callerCount=0` 且 `unresolvedCallerCount>0` 时，增加明确提示“调用者计数只包含已解析调用”。
+5. 增加一致性测试：
+   - 一个确定无调用者的函数。
+   - 一个存在 unresolved inbound 的函数。
+   - 一个 `external=true` 的调用。
+   - 断言三种情况下 `callerCount`、`unresolvedCallerCount`、trace 和 UI 数据不混淆。
+
+**验收标准**
+
+- `StudentApiController.handle` 仍然显示 `callerCount=0`、`unresolvedCallerCount=1`，且 UI 有明确未解析提示。
+- 不新增 `resolutionStatus` 或其他重复字段。
+- trace 的 `unresolvedReferences` 与 function detail 的 `unresolvedCallers` 指向同一 callSiteId。
+- 所有测试通过，bundle schema 不需要修改。
+
+### 14.4 W2：P1-1 属性链、cast、Protocol 单实现解析
+
+**目标**
+
+在不伪造确定关系的前提下，让常见类型注入和属性链调用可解析。
+
+#### W2.1 类型来源扩展
+
+在现有 `CallResolver` 内增加最小类型推断，不新增独立模块：
+
+1. `x = cast(Type, expr)`：
+   - 将局部变量 `x` 的类型解析为 `Type`。
+   - 支持项目中可解析的 canonical class。
+2. 注解赋值：
+   - `server: StudentHttpServer = ...`
+   - `self.controller: StudentApiController = ...`
+3. 构造赋值：
+   - `server = StudentHttpServer(...)`
+   - `self.controller = StudentApiController(...)`
+4. 自身属性转局部：
+   - `server = self.server`，其中 `self.server` 的类型可解析。
+5. 属性链：
+   - `server.controller.handle()` 先解析 `server` 类型，再解析 `controller` 字段类型，再解析 `handle` 方法。
+6. 无法解析时返回现有 unresolved 结果，不猜目标。
+
+#### W2.2 Protocol / ABC 候选解析
+
+1. 确认 `resolve_type_hierarchy` 在 call-site 构建前完成，并正确回填 `subclass_ids` / MRO。
+2. 对 Protocol/ABC 方法调用：
+   - 唯一实现类：返回 `polymorphic=true`、`candidates=[实现方法 id]`、`confidence=medium`。
+   - 多实现类：返回完整候选集合，保持 `resolved=false`。
+   - 无实现：保持 unresolved，不产生候选。
+3. 若实现类本身是抽象类，继续向下递归收集具体实现。
+4. 不改变现有 `ResolvedCall` / `CallSite` 字段结构。
+
+**验收标准**
+
+- `server.controller.handle()` 在真实样本中解析到 `StudentApiController.handle`，controller 的 `callerCount` 至少为 1。
+- Protocol 单实现项目的调用产生候选，不再因 `POLYMORPHIC_CALL_CANDIDATES` 失败。
+- 多实现项目返回多个候选，不随便选第一个。
+- 所有 unresolved 仍保持低置信度，不生成虚假调用者。
+- 测试优先使用 `tmp_path` 动态源码，不新增永久夹具目录。
+
+### 14.5 W3：P1-2 polymorphic 诊断分级与反 Goodhart 护栏
+
+**目标**
+
+让“分析器无法完整解析动态关系”不再阻断一个结构正确的项目。
+
+**实施步骤**
+
+1. 调整 `validate_utility` 的严重级别：
+   - `POLYMORPHIC_CALL_CANDIDATES`：没有候选时改为 warning。
+   - `POLYMORPHIC_CANDIDATE_MISSING`：候选 id 不存在时仍为 error。
+   - `POLYMORPHIC_CALL_RESOLVED`：多态调用错误地声称单一目标时仍为 error。
+2. 构建流程行为：
+   - warning 不阻断 HTML 生成。
+   - `archmap_build` 返回 `ok:true`，但保留 warning issues 和 nextActions。
+   - `archmap_query check` 返回 `ok:true`，`warningCount>0`。
+3. 工具反馈：
+   - 当出现 polymorphic warning 时，提示“可保留抽象并补充 dispatchHints；不建议删除 Protocol/ABC 或改变依赖方向”。
+4. 文档：
+   - 在代码约定中明确 warning 可接受，设计正确优先于 diagnostics 归零。
+   - 不新增配置键或新的 incomplete 字段，优先复用 `dispatchHints.complete:false`。
+
+**验收标准**
+
+- 保留 Protocol 的样本项目能构建并生成 HTML，同时带可解释 warning。
+- 删除抽象不再是构建通过的前置条件。
+- 结构错误仍会阻断构建。
+- 现有 error 测试保持通过。
+
+### 14.6 W4：P1-3 Provider Role 与能力面收敛
+
+**目标**
+
+减少手工 `providerRoles`，降低能力面噪声，同时不引入新的配置实体。
+
+#### W4.1 角色推断顺序
+
+将 `_infer_class_role()` 调整为：
+
+```text
+显式 decorator / docstring / comment
+  → 结构证据（Protocol/ABC、dataclass、external I/O、异常等）
+  → 高置信名称后缀
+  → 通用 public-method manager 规则
+  → 低置信 utility fallback
+```
+
+具体后缀建议：
+
+- adapter：`store / repository / repo / adapter / client / gateway / driver`
+- manager：`manager / service / controller / coordinator / orchestrator / resolver / builder / engine / runner / processor`
+- component：`component / widget / handler / server / cli / command / console / screen / panel / dialog`
+- config/model/utility 沿用现有集合
+
+重点修复：
+
+- `JsonStudentStore` → adapter
+- `StudentApiController` → manager
+- `StudentRequestHandler` → component
+- `StudentHttpServer` → component
+- `StudentCli` → component
+
+#### W4.2 能力面收敛
+
+在 `_api_exposure()` 的“名称推断”阶段增加最小内部名称规则：
+
+- `do_*` → internal
+- `log_*` → internal
+- 已有下划线、dunder、生命周期方法规则保持不变
+- 显式 decorator / docstring / config 仍然优先
+
+不新增“能力白名单”配置，不改变现有 public/internal tags。
+
+**验收标准**
+
+- 样本项目 5 个手工 `providerRoles` 至少减少到 1 个以内。
+- `do_GET/do_POST/do_PUT/do_DELETE` 和 `log_message` 默认不进入公开能力面。
+- 现有 `roles_demo` 预期角色和 source 仍可解释。
+- 自构建后的 public manager 集合不出现意外扩大。
+- 不新增配置键。
+
+### 14.7 W5：验证、文档与收口
+
+**测试矩阵**
+
+1. Python 单元测试：
+   - cast / 注解赋值 / 构造赋值 / 自身属性转局部 / 多层属性链。
+   - Protocol 单实现、多实现、无实现。
+   - polymorphic warning 和结构 error 的边界。
+   - role suffix 优先级。
+   - `do_*` / `log_*` 能力面。
+   - unresolved detail、trace、UI 数据一致。
+2. Node 测试：
+   - build 成功但 warnings 时返回 `ok:true`。
+   - query check 返回 warningCount。
+   - method 查询显示 unresolvedCallerCount。
+3. 真实样本重放：
+   - 学生管理系统：controller handle inbound 可解析或至少 unresolved 可见。
+   - 保留 Protocol 的变体：构建成功且带 warning。
+   - 角色 override 数量变化记录。
+4. 全量发布前检查：
+   - `python3 -m pytest -q`
+   - `npm run prepare`
+   - `npm test`
+   - 自构建 + `archmap check --json`
+   - `npm pack --dry-run`
+
+**文档更新**
+
+- `docs/archmap-code-conventions.md`：补充“解析不完整时保留抽象”和 role 标注建议。
+- `docs/archmap-config-generation.md`：补充常见 role 推断与 `providerRoles` 使用边界。
+- `README.md` / `docs/dsh-plugin.md`：只在工具行为变化时更新，不重复新增说明。
+- 本文档追加实施进度，不新建同类计划文档。
+
+### 14.8 实施顺序
+
+```text
+M2.0 基线确认
+  → W1 unresolved 收尾
+  → W3 polymorphic 诊断分级（先解除设计压力）
+  → W2 属性链/cast/Protocol 解析
+  → W4 Role 与能力面
+  → W5 全量回归、真实样本重放、文档收口
+```
+
+建议的提交拆分：
+
+```text
+1. test: freeze unresolved and polymorphic fixtures
+2. fix: classify polymorphic candidates as warnings
+3. feat: resolve typed attribute chains and protocol candidates
+4. fix: align provider role inference and exposure defaults
+5. docs: record P1 analysis-credibility results
+```
+
+每个提交都应独立通过相关测试，不与无关重构混合。
+
+### 14.9 风险与缓解
+
+| 风险 | 缓解 |
+|---|---|
+| 属性链推断产生假阳性 | 只解析可确定类型；候选多时保持 ambiguous，不选第一个 |
+| Protocol 单实现被错误合并 | 明显多实现时不返回单候选；保留完整 candidates |
+| polymorphic 降为 warning 掩盖结构错误 | 只降级 `POLYMORPHIC_CALL_CANDIDATES`；候选 id 缺失仍 error |
+| Role 后缀改动影响自构建角色 | 先跑 roles_demo 和 self-build 快照，再改规则 |
+| `do_*` 内部化隐藏真实 API | 仅名称推断层生效，显式 public decorator/docstring/config 优先 |
+| 为测试方便新增过多 fixture | 优先 `tmp_path` 动态生成；不新增生产抽象 |
+
+### 14.10 不做/延期
+
+本批不做：
+
+- 新工具、新 query operation、新 bundle 顶层结构。
+- ArkTS 前端。
+- 运行时追踪。
+- 完整数据流分析。
+- 执行流纵深和请求生命周期视图。
+- 构建/注解成本统计（P1-5，建议单独批次）。
+- 新的角色配置系统或能力白名单配置。
+
+### 14.11 完成定义
+
+本批完成必须同时满足：
+
+1. P0-5 的 unresolved 事实在 detail、trace、query、UI 中一致。
+2. 属性链、`cast`、Protocol 单实现有可解释解析结果。
+3. polymorphic 不完整只产生 warning，不再迫使删除抽象。
+4. 样本项目 role override 显著减少，`do_*` / `log_*` 默认 internal。
+5. 不新增工具、query operation、bundle 顶层字段或配置键。
+6. 全部 Python/Node/自构建/check/pack 验证通过。
+7. 文档只更新现有权威文件，不新增重复计划文件。
