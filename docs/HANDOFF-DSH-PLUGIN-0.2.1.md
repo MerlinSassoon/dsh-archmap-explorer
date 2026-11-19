@@ -145,6 +145,31 @@ PYTHONPATH=<profile>/node_modules/dsh-archmap-explorer python3 -m archmap --vers
 - 包内 Python 核心版本为 `archmap 2.6.1`；
 - 临时 profile `v021check` 已清理。
 
+真实 Git URL 安装验证：
+
+```bash
+dsh plugin --profile v021git add git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git
+dsh --profile v021git --dump-config
+dsh --profile v021git --dump-config-schema
+PYTHONPATH=<profile>/node_modules/dsh-archmap-explorer python3 -m archmap --version
+```
+
+结果：
+
+- 首次安装被 pnpm `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` 拦截。
+- 按 pnpm 提示写入精确 codeload key 后重试成功：
+
+  ```yaml
+  onlyBuiltDependencies:
+    - "dsh-archmap-explorer@https://codeload.github.com/MerlinSassoon/dsh-archmap-explorer/tar.gz/4c9e45d9e39e290f3a757a7bb1d50a6121244b68"
+  ```
+
+- `prepare: ok`，安装版本 `0.2.1`。
+- `--dump-config` 出现 `id: tool-archmap / name: dsh-archmap-explorer`。
+- `--dump-config-schema` 包含 `tool-archmap` 且 `diagnostics: []`。
+- 包内 Python 核心版本为 `archmap 2.6.1`。
+- 临时 profile `v021git` 已清理。
+
 ## 5. 发布步骤
 
 1. 版本号：
