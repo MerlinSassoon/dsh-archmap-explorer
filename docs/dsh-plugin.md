@@ -1,11 +1,11 @@
 # DSH 插件：dsh-archmap-explorer
 
 > npm 包：`dsh-archmap-explorer`<br>
-> 插件版本：`0.2.0`（已发布标签 `dsh-plugin-v0.2.0`）<br>
+> 插件版本：`0.2.1`（已发布标签 `dsh-plugin-v0.2.1`）<br>
 > 目标 DSH：`0.2.2-rc.1`<br>
 > Python 核心：随 npm 包分发，要求 Python 3.10+<br>
 > 许可证：MIT<br>
-> 当前交接：[HANDOFF-DSH-PLUGIN-0.2.0.md](HANDOFF-DSH-PLUGIN-0.2.0.md)
+> 当前交接：[HANDOFF-DSH-PLUGIN-0.2.1.md](HANDOFF-DSH-PLUGIN-0.2.1.md)
 
 ## 1. 定位
 
@@ -355,3 +355,16 @@ live smoke 同时发现以下后续问题，不能把主链路通过等同于所
 - `archmap_build` / `archmap_annotate` 原有必需参数保持兼容。
 - `llm-annotations.json` 结构保持兼容；sourceHash 过期机器注解可在 stale 模式下刷新。
 - 已发布标签 `dsh-plugin-v0.1.0` 不移动。
+
+## 13. 0.2.0 → 0.2.1 增量说明
+
+0.2.1 不改变 bundle schema，仍为 `6.4`，也不改变 Python 分析结果和 DSH 工具契约；变化集中在模块能力页渲染和信息架构。
+
+- 模块页移除顶部“模块能力”概览浮层。
+- 模块级信息统一到右侧详情栏。
+- 用户交互面移至“模块组成”和“提供接口”之间，并支持 chips 自动换行。
+- 类节点“结构关系”改名为“类型关系”，关系行改为两行布局，修复默认宽度下的重叠。
+- 模块摘要保留“类型关系 N”计数，不展开模块级全量关系列表。
+- “类型层级”和“类型关系”在继承/实现上的重叠当前明确接受，后续调整关系类型或信息密度时再评估。
+
+详细交接见 [`HANDOFF-DSH-PLUGIN-0.2.1.md`](HANDOFF-DSH-PLUGIN-0.2.1.md)。

@@ -1,6 +1,6 @@
 # ArchMap v3 数据与扩展设计
 
-> 版本：ArchMap 2.6.0 / bundle schema 6.4<br>
+> 版本：ArchMap 2.6.1 / bundle schema 6.4<br>
 > 日期：2026-11-19<br>
 > 文档性质：当前数据契约。历史阶段补充已归档到 [`旧文档/archmap-v3-design-阶段补充.md`](旧文档/archmap-v3-design-阶段补充.md)。
 
