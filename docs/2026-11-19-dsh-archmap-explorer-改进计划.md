@@ -1845,6 +1845,14 @@ npm pack --dry-run
 5. 新增并推送标签 `dsh-plugin-v0.2.0`。
 6. 未移动 `dsh-plugin-v0.1.0`。
 
+验证记录：
+
+- Git URL 首次安装被 pnpm prepare allowlist 拦截；加入 pnpm 打印的精确 codeload key 后成功。
+- `--dump-config` 包含 `tool-archmap`。
+- `--dump-config-schema` 包含 `tool-archmap` 且 diagnostics 为空。
+- 包内 Python 核心 `archmap 2.6.0`。
+- 临时 profile 已清理。
+
 待完成：
 
 1. 在真实 DSH Web 会话中完成宿主模型 live smoke。

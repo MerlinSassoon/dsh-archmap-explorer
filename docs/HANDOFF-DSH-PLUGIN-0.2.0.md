@@ -111,7 +111,25 @@ htmlBytes   +5.0%
 
 ## 4. 发布后验证
 
-真实 Git URL 安装、`--dump-config`、`--dump-config-schema` 和包内 Python 核心版本检查均已完成。真实 DSH Web 宿主模型 live smoke 仍需在已配置模型的 Web 会话中执行：
+真实 Git URL 安装、`--dump-config`、`--dump-config-schema` 和包内 Python 核心版本检查均已完成：
+
+```bash
+dsh plugin --profile v020check add git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git
+dsh --profile v020check --dump-config
+dsh --profile v020check --dump-config-schema
+PYTHONPATH=<profile>/node_modules/dsh-archmap-explorer python3 -m archmap --version
+```
+
+结果：
+
+- 首次安装被 pnpm `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` 拦截；按 pnpm 输出的精确 codeload key 写入 `onlyBuiltDependencies` 后重试成功。
+- `prepare: ok`，安装版本 `dsh-archmap-explorer 0.2.0`。
+- `--dump-config` 出现 `id: tool-archmap / name: dsh-archmap-explorer`。
+- `--dump-config-schema` 包含 `tool-archmap`，`diagnostics: []`。
+- 包内 Python 核心版本为 `archmap 2.6.0`。
+- 临时 profile `v020check` 已清理。
+
+真实 DSH Web 宿主模型 live smoke 仍需在已配置模型的 Web 会话中执行：
 
 ```text
 projectPath = 一个 workspace 内的 Python 样例项目
