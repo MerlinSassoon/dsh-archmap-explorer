@@ -21,3 +21,5 @@ chrome-prof/
 
 # never commit local credentials
 .npm-token
+.github-token
+

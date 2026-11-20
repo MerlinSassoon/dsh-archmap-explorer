@@ -12,3 +12,5 @@ build/
 tests/
 docs/旧文档/
 examples/
+.github-token
+.npm-token
