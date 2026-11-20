@@ -8,7 +8,10 @@
     "dsh-bundle",
     "architecture",
     "python",
-    "archmap"
+    "archmap",
+    "static-analysis",
+    "code-visualization",
+    "legacy-code"
   ],
   "type": "module",
   "main": "lib/index.js",
@@ -25,7 +28,7 @@
   "bugs": {
     "url": "https://github.com/MerlinSassoon/dsh-archmap-explorer/issues"
   },
-  "homepage": "https://github.com/MerlinSassoon/dsh-archmap-explorer#readme",
+  "homepage": "https://merlinsassoon.github.io/dsh-archmap-explorer/",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
