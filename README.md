@@ -127,11 +127,19 @@ Full rules, decision tables and checklists live in [docs/archmap-config-generati
 ArchMap also ships as a DSH bundle. The plugin only bridges DSH tools to the bundled Python core — AST work, graph projection, validation and HTML rendering stay in Python.
 
 ```bash
-dsh plugin --profile web add git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git
+dsh plugin --profile web add github:MerlinSassoon/dsh-archmap-explorer
 dsh --profile web --dump-config        # expect id: tool-archmap
 ```
 
-pnpm 10 may block the package `prepare` self-check; follow its message, add the exact `onlyBuiltDependencies` key to the target profile's `pnpm-workspace.yaml`, and retry. Details: [docs/dsh-plugin.md](docs/dsh-plugin.md).
+A prebuilt tarball is attached to every release if you prefer a download over a git checkout:
+
+```bash
+dsh plugin --profile web add \
+  https://github.com/MerlinSassoon/dsh-archmap-explorer/releases/latest/download/dsh-archmap-explorer.tgz
+```
+
+Since 0.2.2 the package ships no install-time build script, so no pnpm `onlyBuiltDependencies`
+approval is needed. Details: [docs/dsh-plugin.md](docs/dsh-plugin.md).
 
 | Tool | Purpose |
 |---|---|

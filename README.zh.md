@@ -19,7 +19,7 @@ pip install "git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git"
 archmap build .        # → .archmap/architecture.html
 ```
 
-> 当前版本：ArchMap 2.6.1 / DSH 插件 0.2.1 / bundle schema 6.4。<br>
+> 当前版本：ArchMap 2.6.1 / DSH 插件 0.2.2 / bundle schema 6.4。<br>
 > 适用语言：Python 3.10+（ArkTS 前端尚未实现）。<br>
 > 运行依赖：无第三方运行时依赖；产物是 CLI + 自包含单文件 HTML。
 
@@ -369,8 +369,8 @@ stats
 ArchMap 同时提供 DSH bundle 插件。插件只做 DSH 适配、宿主模型调用和 Python 子进程桥接；AST、图投影、校验、注解合法性和 HTML 渲染仍由随包分发的 Python 核心完成。
 
 ```text
-npm 包名：dsh-archmap-explorer（尚未发布到 npm，当前请用下方 Git 方式安装）
-当前版本：0.2.1（Git 标签 dsh-plugin-v0.2.1）
+npm 包名：dsh-archmap-explorer（尚未发布到 npm，当前用 GitHub 或 Release tarball 安装）
+当前版本：0.2.2（Git 标签 dsh-plugin-v0.2.2）
 许可证：MIT
 目标 DSH：0.2.2-rc.1
 Python：3.10+，随 npm 包分发，无需预先 pip install
@@ -379,7 +379,14 @@ Python：3.10+，随 npm 包分发，无需预先 pip install
 ### 安装
 
 ```bash
-dsh plugin --profile web add git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git
+dsh plugin --profile web add github:MerlinSassoon/dsh-archmap-explorer
+```
+
+每个 Release 另附预构建 tarball，下载即装：
+
+```bash
+dsh plugin --profile web add \
+  https://github.com/MerlinSassoon/dsh-archmap-explorer/releases/latest/download/dsh-archmap-explorer.tgz
 ```
 
 安装后可检查：
@@ -389,7 +396,8 @@ dsh --profile web --dump-config
 dsh --profile web --dump-config-schema
 ```
 
-pnpm 可能拦截包的 `prepare` 自检脚本。按安装输出提示，在目标 profile 的 `pnpm-workspace.yaml` 中加入 `onlyBuiltDependencies` 的精确 key 后重试。完整说明见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。
+0.2.2 起包内不再有安装期构建脚本（`prepare` 改为 `prepack`），因此不需要 pnpm 的
+`onlyBuiltDependencies` 授权。完整说明见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。
 
 ### 工具
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-archmap-explorer",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "DSH bundle plugin for ArchMap: build self-contained architecture maps through the bundled Python core.",
   "keywords": [
     "dsh",
@@ -42,6 +42,7 @@
     "docs/HANDOFF-DSH-PLUGIN-0.1.0.md",
     "docs/HANDOFF-DSH-PLUGIN-0.2.0.md",
     "docs/HANDOFF-DSH-PLUGIN-0.2.1.md",
+    "docs/HANDOFF-DSH-PLUGIN-0.2.2.md",
     "docs/dsh-plugin.md",
     "docs/archmap-config-generation.md",
     "docs/archmap-code-conventions.md",
@@ -55,8 +56,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "prepare": "node ./scripts/prepare.mjs",
-    "test": "node --test tests/node/*.test.mjs"
+    "test": "node --test tests/node/*.test.mjs",
+    "prepack": "node ./scripts/prepare.mjs"
   },
   "engines": {
     "node": ">=22",

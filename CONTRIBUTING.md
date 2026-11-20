@@ -22,7 +22,7 @@ python3 -m pytest -q
 python3 -m archmap build . --config examples/archmap_v3.archmap.json --out .archmap/self
 python3 -m archmap check .archmap/self/architecture.json
 
-npm run prepare
+npm run prepack
 npm test
 ```
 

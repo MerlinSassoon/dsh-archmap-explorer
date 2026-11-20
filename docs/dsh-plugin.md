@@ -1,11 +1,11 @@
 # DSH 插件：dsh-archmap-explorer
 
-> npm 包：`dsh-archmap-explorer`<br>
-> 插件版本：`0.2.1`（已发布标签 `dsh-plugin-v0.2.1`）<br>
+> npm 包：`dsh-archmap-explorer`（尚未发布到 npm，当前用 GitHub 或 Release tarball 安装）<br>
+> 插件版本：`0.2.2`（标签 `dsh-plugin-v0.2.2`）<br>
 > 目标 DSH：`0.2.2-rc.1`<br>
 > Python 核心：随 npm 包分发，要求 Python 3.10+<br>
 > 许可证：MIT<br>
-> 当前交接：[HANDOFF-DSH-PLUGIN-0.2.1.md](HANDOFF-DSH-PLUGIN-0.2.1.md)
+> 当前交接：[HANDOFF-DSH-PLUGIN-0.2.2.md](HANDOFF-DSH-PLUGIN-0.2.2.md)
 
 ## 1. 定位
 
@@ -25,10 +25,17 @@ Python 核心随 npm 包一起安装。用户不需要预先 `pip install archma
 
 ## 2. 安装
 
-### 2.1 从 GitHub 仓库安装
+### 2.1 从 GitHub 安装
 
 ```bash
-dsh plugin --profile web add git+https://github.com/MerlinSassoon/dsh-archmap-explorer.git
+dsh plugin --profile web add github:MerlinSassoon/dsh-archmap-explorer
+```
+
+也可以用 Release 里的预构建包（下载即装，不触发任何构建脚本）：
+
+```bash
+dsh plugin --profile web add \
+  https://github.com/MerlinSassoon/dsh-archmap-explorer/releases/latest/download/dsh-archmap-explorer.tgz
 ```
 
 安装后检查 profile 配置：
@@ -45,24 +52,17 @@ dsh --profile web --dump-config
   name: dsh-archmap-explorer
 ```
 
-### 2.2 pnpm 拦截 prepare
+### 2.2 0.2.2 起不再需要 pnpm 白名单
 
-pnpm 可能拦截 npm 包的 `prepare` 脚本。该脚本只做确定性自检，不联网、不跑完整测试、不生成用户项目文件、不启动浏览器。
+`prepare` 已改为 `prepack`：只在 `npm pack` / `npm publish` 时执行，安装阶段不运行任何
+构建脚本。因此：
 
-pnpm 10 对 git-hosted 包的 `prepare` 默认返回 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`。按 pnpm 输出中给出的精确 key，在目标 profile 的 `pnpm-workspace.yaml` 中加入 `onlyBuiltDependencies`，然后重新执行安装：
+- `dsh plugin add github:...` 不会再遇到 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`；
+- 不需要修改 profile 的 `pnpm-workspace.yaml`；
+- 包内没有构建产物，安装就是解包。
 
-```yaml
-onlyBuiltDependencies:
-  - "dsh-archmap-explorer@git+ssh://git@github.com/MerlinSassoon/dsh-archmap-explorer.git#<resolved-commit>"
-```
-
-key 必须使用 pnpm 实际打印的完整值，其中包含解析后的 commit；更新插件版本后可能需要同步更新。
-
-profile 目录通常为：
-
-```text
-$DSH_HOME/profiles/<profile>/
-```
+0.2.1 及更早版本仍会触发 pnpm 拦截，需要按 pnpm 提示加入 `onlyBuiltDependencies` 精确 key；
+升级到 0.2.2 后该步骤消失。
 
 ### 2.3 本地开发安装
 
@@ -284,7 +284,7 @@ Python 核心和 bundled Python 文件位于 npm 包内。插件运行时通过 
 python3 -m pytest -q
 ARCHMAP_RUN_BROWSER=1 python3 -m pytest -q tests/test_browser_smoke.py
 
-npm run prepare
+npm run prepack
 npm test
 npm pack --dry-run
 
