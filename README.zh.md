@@ -51,9 +51,9 @@ ArchMap **不是**运行时追踪器，也不生成逐语句 CFG、数据流图�
 
 | demo | 内容 | 体积 |
 |---|---|---|
-| [taskboard](https://merlinsassoon.github.io/dsh-archmap-explorer/d1/architecture.html) | 5 模块小项目，含手写语义注解 | 390 KB |
-| [student_system](https://merlinsassoon.github.io/dsh-archmap-explorer/d2/architecture.html) | 6 模块终端项目，含服务器执行流 | 760 KB |
-| [ArchMap 自身](https://merlinsassoon.github.io/dsh-archmap-explorer/d3/architecture.html) | 308 个函数的自举分析 | 8.4 MB |
+| [taskboard](https://merlinsassoon.github.io/dsh-archmap-explorer/d1/architecture.html) | 5 模块小项目，含手写语义注解 | 390 KB（传输 65 KB） |
+| [student_system](https://merlinsassoon.github.io/dsh-archmap-explorer/d2/architecture.html) | 6 模块终端项目，含服务器执行流 | 760 KB（传输 90 KB） |
+| [ArchMap 自身](https://merlinsassoon.github.io/dsh-archmap-explorer/d3/architecture.html) | 308 个函数的自举分析 | 8.4 MB（传输 600 KB） |
 
 | 执行流页 | 方法详情页 |
 |---|---|
