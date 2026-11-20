@@ -12,3 +12,9 @@ yield/
 Projects/
 
 node_modules
+
+# local demo staging
+.demo/
+.demo-site/
+.chrome-prof/
+chrome-prof/

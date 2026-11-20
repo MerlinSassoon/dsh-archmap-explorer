@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "nodes": {
+    "fn:taskboard.cli.__main__": {
+      "summary": "Module entry guard: runs main() when the module is executed directly.",
+      "details": "Top-level module node that owns the constants (USAGE) and the __main__ guard. When executed as `python -m taskboard.cli`, it raises SystemExit with the exit code returned by main().",
+      "sourceHash": "sha256:1d1a063705fb3d6b607bb879865707b7ee056b73b1d9c0b79a562c2e628ce347",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024523Z"
+    },
+    "fn:taskboard.cli.build_service": {
+      "summary": "Wires the JSON storage adapter into TaskService.",
+      "details": "Takes the resolved AppConfig, constructs a JsonTaskStore from config.data_file, and returns a TaskService bound to that store. This is the only place where the CLI decides which persistence adapter is used.",
+      "sourceHash": "sha256:d31097f803b44289d2c491d64a2a3090dd493a08031dd9b138121569467e41d4",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024557Z"
+    },
+    "fn:taskboard.cli.main": {
+      "summary": "Runs one CLI command and returns its exit code.",
+      "details": "Parses argv, handles help, builds config, service and report, then branches on add/done/list/stats. Returns 0 on success, 1 for TaskError/ValueError/IndexError, and 2 for an unknown command. Declared execution-only, so it stays out of the module capability surface.",
+      "sourceHash": "sha256:a6c456e336996190f2c070a125b831db9d79a63c594789d2ce249d69e3d5ea02",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024564Z"
+    },
+    "fn:taskboard.cli.parse_args": {
+      "summary": "Splits the command name from the remaining arguments.",
+      "details": "Returns (\"help\", []) for empty input, otherwise the first token as the command and the rest as its argument list. No validation is performed here; unknown commands are rejected in main().",
+      "sourceHash": "sha256:f887f0be1fd82b1694a80fedd8f1d07a68ae25ecb3a759c4a1ef468e58ec3457",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024570Z"
+    },
+    "fn:taskboard.config.AppConfig.describe": {
+      "summary": "Renders the one-line settings banner.",
+      "details": "Combines data_file, page_size and the verbose flag into a short string for CLI output. Read-only and free of side effects.",
+      "sourceHash": "sha256:8051a32cc5cc75411970f41c469643a0bfbe1cb80d7f574287e9d96db72abe0c",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024575Z"
+    },
+    "fn:taskboard.config.load_config": {
+      "summary": "Builds the default AppConfig, optionally verbose.",
+      "details": "Returns an immutable AppConfig with default data file and page size. Today it only forwards the verbose flag; it is the single seam where environment or file-based settings would be added.",
+      "sourceHash": "sha256:1e739d2770c04d2a39d2576d2757685e419f1fa23aca57b061bcb46bc4d7f3cb",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024581Z"
+    },
+    "fn:taskboard.models.Task.label": {
+      "summary": "Formats a task as one terminal line.",
+      "details": "Emits `[x] #id title (priority)`, using x for done tasks and a space for open ones. Purely presentational; no state is mutated.",
+      "sourceHash": "sha256:521455184eb07793b38725278c34976b4a7e7b7ae85c97ee7717d72f69d89b81",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024586Z"
+    },
+    "fn:taskboard.report.ReportBuilder.__init__": {
+      "summary": "Stores the page size used for rendering.",
+      "details": "Keeps the configured page size so every render call slices task lists identically. No validation; a zero or negative size would simply yield empty pages.",
+      "sourceHash": "sha256:854b12dc7c4ac87a06accd57fecfd3c802416d4cdf76e65834776c9259b81664",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024591Z"
+    },
+    "fn:taskboard.report.ReportBuilder.render": {
+      "summary": "Renders one page of tasks as text.",
+      "details": "Slices the task list with 1-based paging, joins task labels with newlines, and returns a placeholder message when the page is empty. Callers are responsible for choosing the task set and page number.",
+      "sourceHash": "sha256:5e32fea38d8622a9304bd7f19ee7e869d57364e33a8d359212c3964a5062ca39",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024596Z"
+    },
+    "fn:taskboard.report.ReportBuilder.summary": {
+      "summary": "Renders open/done/high counters.",
+      "details": "Reads the counter dict produced by TaskService.stats and formats it as `open=… done=… high=…`. Missing keys fall back to zero.",
+      "sourceHash": "sha256:99de61f7ef8877d12f64fb56189c2021d0dee3fcedf1ec0dda0edbdf2fb31018",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024601Z"
+    },
+    "fn:taskboard.service.TaskService.__init__": {
+      "summary": "Builds the service around a storage adapter.",
+      "details": "Stores the adapter, initializes an empty board, and delegates the first load to _reload(), which also fixes the next task id.",
+      "sourceHash": "sha256:b9037bbe22f8cacf1dad8c190d825b8f3d3c762d277c823e20265660e5d6dfb1",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024606Z"
+    },
+    "fn:taskboard.service.TaskService._reload": {
+      "summary": "Loads the board and continues ids after the maximum.",
+      "details": "Reads tasks from the store; when the board is non-empty the next id becomes max(existing id) + 1. An empty or missing file leaves the counter at 1.",
+      "sourceHash": "sha256:bc9ade60891682e7fae97150a32e29a0a924578d5e6f8855636622fbd3798837",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024611Z"
+    },
+    "fn:taskboard.service.TaskService.add": {
+      "summary": "Appends a task and persists the board.",
+      "details": "Allocates the next id, appends the Task, saves through the store and returns the created task. Persistence happens on every add, so a write failure surfaces at call time.",
+      "sourceHash": "sha256:41b78b6124415da6f62e624fe8e9bb2f957a0c365c81fa121eeaaa9c964b72fc",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024616Z"
+    },
+    "fn:taskboard.service.TaskService.complete": {
+      "summary": "Marks one task done, or raises TaskError.",
+      "details": "Scans the board for the given id, sets done=true, saves and returns the task. Unknown ids raise TaskError, which the CLI turns into exit code 1.",
+      "sourceHash": "sha256:0fb821b4183a022d1b8aa074bdd89b759225947abd645f4790165b398a60da85",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024620Z"
+    },
+    "fn:taskboard.service.TaskService.select": {
+      "summary": "Filters the board, optionally keeping only open tasks.",
+      "details": "Returns a copy of the task list, or only tasks with done=false when only_open is set. Callers own the returned list, so mutations do not leak into the board.",
+      "sourceHash": "sha256:e305f1b51f79621d8a282ea9568d518a233caf36989cb1e7b3c3321b6040bb94",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024625Z"
+    },
+    "fn:taskboard.service.TaskService.stats": {
+      "summary": "Counts tasks per priority plus open and done totals.",
+      "details": "Iterates the board once, incrementing open/done counts and one counter per priority. Every priority present on the board appears in the returned dict.",
+      "sourceHash": "sha256:806be907d4b60dde7ebc5bf60e69dac8c1f4150bbc24d99fafa19f0158d45480",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024630Z"
+    },
+    "fn:taskboard.storage.JsonTaskStore.__init__": {
+      "summary": "Resolves the JSON file path.",
+      "details": "Wraps the configured path in a pathlib.Path. The file is not created or validated here; a missing file is treated as an empty board by load().",
+      "sourceHash": "sha256:a86d6bc639a96be0238dffdf2470872333c461b8c0c83533d7358e42fe6aadfa",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024635Z"
+    },
+    "fn:taskboard.storage.JsonTaskStore.load": {
+      "summary": "Reads all tasks from disk.",
+      "details": "Returns an empty list when the file does not exist, otherwise parses JSON and rebuilds Task objects, defaulting priority to NORMAL and tags to empty. Malformed JSON raises the underlying decoding error.",
+      "sourceHash": "sha256:46db1464c1110dce7459d1a583c592debd918e43ff30ab8b7a2e23f86be0e795",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024639Z"
+    },
+    "fn:taskboard.storage.JsonTaskStore.save": {
+      "summary": "Writes the whole board back to disk.",
+      "details": "Serializes every task to a plain dict, including priority value and tags, then rewrites the file with sorted, indented JSON. The write is not atomic; tools relying on it should tolerate partial files.",
+      "sourceHash": "sha256:aa8872e9f0fb7851a422d0753e5a6013bcb0ecc19712839c9c7fcb969edbfc63",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:16:43.024650Z"
+    },
+    "taskboard": {
+      "summary": "Tiny task board: a CLI over a JSON-file task store, split into five modules.",
+      "details": "The project has one execution entry (taskboard.cli:main) and five responsibility modules: CLI entry, domain & service, storage adapter, reporting and configuration. The board is read from tasks.json, mutated through TaskService, and rendered as terminal text.",
+      "sourceHash": "sha256:dcd60ec5bf4234abf5b42da95b198fc2f4299a191d73c2bc868bc48318ab6685",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:17:14.785214Z"
+    },
+    "cli": {
+      "summary": "Parses arguments, wires the object graph and maps failures to exit codes.",
+      "details": "Holds the command dispatcher main(), the argument splitter and the single place where TaskService and JsonTaskStore are connected. Everything user-visible about exit codes is decided here.",
+      "sourceHash": "sha256:9e085b336aa63eacc57d7c7576e0b4968a4205a3f4886b7cb7bbb13af7ea9b47",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:21:30.491967Z"
+    },
+    "core": {
+      "summary": "Task model plus the operations that change the board.",
+      "details": "Task, Priority and TaskError define the domain vocabulary; TaskService owns the in-memory board, allocates ids and persists after every mutation.",
+      "sourceHash": "sha256:40287f449a06f6043607780a42f6a23302861d20edd6e6806b9b22b0309634b3",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:21:30.492006Z"
+    },
+    "storage": {
+      "summary": "JSON file persistence for the whole board.",
+      "details": "One adapter that reads tasks.json into Task objects and writes the list back. The only module that knows about the file format.",
+      "sourceHash": "sha256:b6f0d961ebea354b10e57589c4d50eefd26e5d02b25b3c1d194f7786a9103177",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:21:30.492013Z"
+    },
+    "report": {
+      "summary": "Terminal rendering of task lists and counters.",
+      "details": "Turns a task list into paged text and counters into a single summary line. No state, no side effects.",
+      "sourceHash": "sha256:b15ac79ff5646b44b884228fc3fbd080cdc544a79b9a005a71f813ca3eb0d167",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:21:30.492018Z"
+    },
+    "config": {
+      "summary": "Static settings resolved before a command runs.",
+      "details": "An immutable AppConfig carrying the data file, page size and verbosity flag, plus the loader that builds it with defaults.",
+      "sourceHash": "sha256:22e1b6d637cc0d2a12fc4ead936f8ad8adc0e1c94fcf3cb09c72c6094845c401",
+      "source": "host-llm",
+      "provider": "demo",
+      "model": "handwritten",
+      "promptVersion": "archmap-annotation-v1",
+      "generatedAt": "2026-11-20T10:21:30.492024Z"
+    }
+  },
+  "updatedAt": "2026-11-20T10:21:30.492027Z"
+}

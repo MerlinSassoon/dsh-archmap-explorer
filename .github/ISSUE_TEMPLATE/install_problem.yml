@@ -1,0 +1,40 @@
+name: Install problem
+description: The plugin or the CLI will not install.
+labels: [install]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most install failures are pnpm blocking the package `prepare` self-check.
+        Check [docs/dsh-plugin.md](../blob/main/docs/dsh-plugin.md) first, then paste
+        the exact error below.
+  - type: dropdown
+    id: target
+    attributes:
+      label: What are you installing
+      options:
+        - DSH plugin (dsh plugin add)
+        - Python CLI (pip install)
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: DSH version, node version, python version, package version.
+      placeholder: dsh 0.2.2-rc.1, node 22.11, python 3.12.4, plugin 0.2.1
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Full error output
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you already tried
+      description: For pnpm, paste the `onlyBuiltDependencies` key you added, if any.

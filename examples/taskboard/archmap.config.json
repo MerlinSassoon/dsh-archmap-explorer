@@ -1,0 +1,47 @@
+{
+  "projectName": "taskboard",
+  "language": "python",
+  "include": ["taskboard/**/*.py"],
+  "exclude": ["**/__pycache__/**", ".archmap/**"],
+  "entrypoints": ["taskboard.cli:main"],
+  "executionEntrypoints": ["taskboard.cli:main"],
+  "modules": [
+    {
+      "id": "cli",
+      "name": "CLI entry",
+      "include": ["taskboard/__init__.py", "taskboard/cli.py"],
+      "note": "Command parsing, dependency wiring and exit codes.",
+      "role": "service",
+      "defaultFreeFunctionSurface": "internal",
+      "executionOnlyCallables": ["taskboard.cli:main"]
+    },
+    {
+      "id": "core",
+      "name": "Domain & service",
+      "include": ["taskboard/models.py", "taskboard/service.py"],
+      "note": "Task model, priority enum and the operations that change the board.",
+      "role": "service"
+    },
+    {
+      "id": "storage",
+      "name": "Storage adapter",
+      "include": ["taskboard/storage.py"],
+      "note": "JSON file persistence for the task board.",
+      "role": "adapter"
+    },
+    {
+      "id": "report",
+      "name": "Reporting",
+      "include": ["taskboard/report.py"],
+      "note": "Terminal rendering of task lists and counters.",
+      "role": "component"
+    },
+    {
+      "id": "config",
+      "name": "Configuration",
+      "include": ["taskboard/config.py"],
+      "note": "Static settings resolved before a command runs.",
+      "role": "service"
+    }
+  ]
+}

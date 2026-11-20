@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Live demo
+    url: https://merlinsassoon.github.io/dsh-archmap-explorer/
+    about: Open a real project's architecture map before installing anything.
+  - name: Chinese documentation
+    url: https://github.com/MerlinSassoon/dsh-archmap-explorer/blob/main/README.zh.md
+    about: 完整中文文档，包含配置、契约与插件内部说明。

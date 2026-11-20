@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in the map, the CLI or the plugin is wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please include enough to reproduce the build. Reports about wrong or missing
+        relations are the most useful ones — ArchMap would rather say "unresolved"
+        than guess.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `archmap --version`, plus the DSH version if the plugin is involved.
+      placeholder: archmap 2.6.1, dsh 0.2.2-rc.1
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and configuration
+      description: The exact build command and, if used, `archmap.config.json`.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to see
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What you got
+      description: Screenshots of the page, `archmap check --json` output, or both.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it show up
+      options:
+        - Generated HTML page
+        - CLI build / check
+        - Query (impact / trace / surfaces / dsm / method)
+        - DSH plugin tools
+        - Documentation
+    validations:
+      required: true
