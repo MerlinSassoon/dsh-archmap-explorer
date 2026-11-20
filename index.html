@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArchMap demos · static architecture maps for Python</title>
+<meta name="description" content="Open a real Python project as an interactive, drillable architecture map. No install, no code execution, no network.">
+<style>
+  :root {
+    --bg: #080b10; --panel: #0f141c; --panel-2: #141b25; --line: #232d3c;
+    --ink: #e7edf7; --muted: #8b98ab; --accent: #6ea8ff; --accent-2: #8bdc64;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans SC", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font);
+    line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 64px 24px 80px; }
+  header .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: .2px; }
+  header .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
+  h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.15; margin: 28px 0 14px; letter-spacing: -.5px; }
+  .lede { color: var(--muted); font-size: 18px; max-width: 720px; margin: 0 0 26px; }
+  .cmd {
+    display: inline-flex; gap: 10px; align-items: center; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px;
+    font-family: var(--mono); font-size: 14px; color: #cfe0ff;
+  }
+  .cmd span.prompt { color: var(--muted); }
+  .meta { color: var(--muted); font-size: 13.5px; margin-top: 12px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 56px 0 16px; font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px; color: var(--ink); transition: border-color .15s ease, transform .15s ease, background .15s ease;
+  }
+  .card:hover { border-color: #3c4d66; transform: translateY(-2px); background: var(--panel-2); text-decoration: none; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .card .facts { display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--mono); font-size: 12px; color: #9fb2cc; }
+  .card .facts i {
+    font-style: normal; background: #1b2431; border: 1px solid var(--line);
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .tag { display: inline-block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-2); border: 1px solid #2f4a33; background: #16211a; border-radius: 999px; padding: 2px 9px; margin-bottom: 10px; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .step { border-left: 2px solid var(--line); padding-left: 14px; }
+  .step b { display: block; margin-bottom: 4px; }
+  .step p { margin: 0; color: var(--muted); font-size: 14px; }
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; }
+  code { font-family: var(--mono); font-size: 13px; background: #1b2431; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="brand"><span class="dot"></span> ArchMap</div>
+    <h1>Static architecture maps for Python.<br>No install, no code execution.</h1>
+    <p class="lede">
+      Every demo below is a single self-contained HTML file produced by
+      <code>python3 -m archmap build .</code>. Drill from the project overview to an
+      execution flow, into a module's capability surface, down to a method's source
+      and its callers — offline.
+    </p>
+    <div class="cmd"><span class="prompt">$</span> python3 -m archmap build .</div>
+    <div class="cmd"><span class="prompt">$</span> dsh plugin add github:MerlinSassoon/dsh-archmap-explorer</div>
+    <div class="meta">Python 3.10+ · no third-party runtime dependencies · no install-time build scripts · MIT</div>
+  </header>
+
+  <h2>Open a demo</h2>
+  <div class="cards">
+    <a class="card" href="d1/architecture.html">
+      <span class="tag">start here</span>
+      <h3>taskboard</h3>
+      <p>A tiny task CLI split into five responsibility modules. Small enough to read end to end; annotations are written by hand so the semantic layer is visible.</p>
+      <div class="facts"><i>5 modules</i><i>19 functions</i><i>65 KB over the wire</i></div>
+    </a>
+    <a class="card" href="d2/architecture.html">
+      <span class="tag">multi-module</span>
+      <h3>student_system</h3>
+      <p>A terminal student manager with app, network, database, menu, model and utility modules, one CLI entry and a server flow.</p>
+      <div class="facts"><i>6 modules</i><i>52 functions</i><i>90 KB over the wire</i></div>
+    </a>
+    <a class="card" href="d3/architecture.html">
+      <span class="tag">dogfood</span>
+      <h3>ArchMap itself</h3>
+      <p>The analyzer analyzing its own source: the whole pipeline as modules, execution flows and method-level facts.</p>
+      <div class="facts"><i>5 modules</i><i>308 functions</i><i>large: 600 KB over the wire</i></div>
+    </a>
+  </div>
+
+  <h2>How it reads</h2>
+  <div class="steps">
+    <div class="step"><b>Project page</b><p>One execution-flow card plus one card per capability module, side by side.</p></div>
+    <div class="step"><b>Flow page</b><p>Bounded control skeleton of the entry function: branches, loops, returns, dispatch.</p></div>
+    <div class="step"><b>Module page</b><p>Classes, providers and the public API surface of one module, with a detail rail.</p></div>
+    <div class="step"><b>Method page</b><p>Source slice, callers, callees and unresolved calls, kept visibly separate.</p></div>
+  </div>
+
+  <footer>
+    <span>Built with ArchMap 2.6.1 · bundle schema 6.4</span>
+    <span><a href="https://github.com/MerlinSassoon/dsh-archmap-explorer">GitHub</a> · MIT</span>
+  </footer>
+</main>
+</body>
+</html>
