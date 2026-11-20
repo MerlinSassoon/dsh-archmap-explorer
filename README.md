@@ -20,6 +20,14 @@ Everything is static. No network, no execution of the analyzed code, no LLM toke
 
 ![ArchMap: project overview → execution flow → module surface → method detail](docs/assets/demo.gif)
 
+Three no-install demos, each a single HTML file:
+
+| Demo | What it shows | Transfer |
+|---|---|---|
+| [taskboard](https://merlinsassoon.github.io/dsh-archmap-explorer/d1/architecture.html) | 5 modules, 19 functions, hand-written semantic annotations | 65 KB |
+| [student_system](https://merlinsassoon.github.io/dsh-archmap-explorer/d2/architecture.html) | 6 modules, 52 functions, one server flow | 90 KB |
+| [ArchMap itself](https://merlinsassoon.github.io/dsh-archmap-explorer/d3/architecture.html) | the analyzer analyzing its own 308 functions | 600 KB |
+
 > The Web UI is currently in Chinese; labels in the screenshots are UI chrome, all content comes from your code.
 
 ## Quick start
