@@ -111,7 +111,7 @@
 
 按顺序做，全部完成约 1.5–2 人日。
 
-- [ ] **P0-1 npm 首发**（2h）：`npm login` → `npm publish --registry=https://registry.npmjs.org --access public` → 干净 profile 实测一条命令安装。
+- [x] **P0-1 可分发**（2h）：npm 账号注册被风控阻断，改为 GitHub + Release tarball 主路径；`prepare`→`prepack` 后安装不再需要 pnpm 白名单，两条命令均在全新 profile 实测通过。npm 留作后补，不影响收录。
 - [x] **P0-2 修 Quick Start**（1h）：已把样例整理为 `examples/taskboard` 与 `examples/student_system` 入库，README 不再引用 `Projects/` 与 `yield/`。
 - [x] **P0-3 README 首屏重写**（3h）：`README.md` 英文默认（一个定位 + 徽章 + demo 入口 + 首图 + 三行 Quick Start），`README.zh.md` 保留完整中文正文。
 - [~] **P0-4 demo 站点**（2h）：已可用 `scripts/build-demo-site.sh` 生成 3 个 demo + 落地页（9.2 MB）；`scripts/publish-demo-site.sh` 待推送 `gh-pages` 并开 Pages。
