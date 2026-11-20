@@ -13,8 +13,8 @@ REPO_ROOT = Path(__file__).parent.parent
 
 def _student_bundle() -> dict:
     return build_architecture(
-        REPO_ROOT / "Projects" / "student_system",
-        REPO_ROOT / "examples" / "student_system.archmap.json",
+        REPO_ROOT / "examples" / "student_system",
+        REPO_ROOT / "examples" / "student_system" / "archmap.config.json",
     )
 
 

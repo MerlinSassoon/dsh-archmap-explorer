@@ -18,3 +18,6 @@ node_modules
 .demo-site/
 .chrome-prof/
 chrome-prof/
+
+# never commit local credentials
+.npm-token

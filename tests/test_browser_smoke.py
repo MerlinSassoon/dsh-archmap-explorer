@@ -293,8 +293,8 @@ def test_browser_smoke() -> None:
         assert execute("return window.__ARCHMAP_ERRORS__") == []
 
         # Context-manager providers retain protocol semantics on the main flow.
-        student_config = REPO_ROOT / "examples" / "student_system.archmap.json"
-        student_bundle = build_architecture(REPO_ROOT / "Projects" / "student_system", student_config)
+        student_config = REPO_ROOT / "examples" / "student_system" / "archmap.config.json"
+        student_bundle = build_architecture(REPO_ROOT / "examples" / "student_system", student_config)
         student_html = browser_dir / "student-system-flow.html"
         student_html.write_text(render_html(student_bundle), encoding="utf-8")
         request("POST", f"/session/{session}/url", {"url": f"{student_html.resolve().as_uri()}#/flow"})
@@ -389,13 +389,13 @@ def test_browser_smoke() -> None:
         assert execute("return window.__ARCHMAP_ERRORS__") == []
         # P10.2: control-arm statement semantics stay on cards/edges rather
         # than becoming statement-level flow nodes.
-        gomoku_config = REPO_ROOT / "examples" / "gomoku.archmap.json"
+        gomoku_config = REPO_ROOT / "examples" / "gomoku" / "archmap.config.json"
         gomoku_auto_config = browser_dir / "gomoku-auto.config.json"
         auto_config_data = json.loads(gomoku_config.read_text(encoding="utf-8"))
         auto_config_data["flowScopes"]["roots"] = []
         auto_config_data["flowScopes"]["autoDetect"] = True
         gomoku_auto_config.write_text(json.dumps(auto_config_data, ensure_ascii=False), encoding="utf-8")
-        gomoku_bundle = build_architecture(REPO_ROOT / "Projects" / "gomoku", gomoku_auto_config)
+        gomoku_bundle = build_architecture(REPO_ROOT / "examples" / "gomoku", gomoku_auto_config)
         gomoku_html = browser_dir / "gomoku-flow.html"
         gomoku_html.write_text(render_html(gomoku_bundle), encoding="utf-8")
         request("POST", f"/session/{session}/url", {"url": gomoku_html.resolve().as_uri()})

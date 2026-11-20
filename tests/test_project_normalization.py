@@ -17,8 +17,8 @@ def test_student_system_uses_vertical_capability_modules() -> None:
     """Student sample modules own their managers, models, config and utilities."""
 
     bundle = build_architecture(
-        REPO_ROOT / "Projects" / "student_system",
-        REPO_ROOT / "examples" / "student_system.archmap.json",
+        REPO_ROOT / "examples" / "student_system",
+        REPO_ROOT / "examples" / "student_system" / "archmap.config.json",
     )
     modules = {module["id"]: module for module in bundle["projectGraph"]["modules"]}
     assert set(modules) == {"app", "network", "database", "menu", "async-feedback", "test"}
@@ -58,7 +58,7 @@ def test_gomoku_has_no_main_module_and_no_module_call_view() -> None:
         pytest.skip("gomoku sample source is not available in this workspace")
     bundle = build_architecture(
         gomoku_root,
-        REPO_ROOT / "examples" / "gomoku.archmap.json",
+        REPO_ROOT / "examples" / "gomoku" / "archmap.config.json",
     )
     modules = {module["id"]: module for module in bundle["projectGraph"]["modules"]}
     assert set(modules) == {"terminal", "terminal-ui", "application", "domain", "ai-adapter"}

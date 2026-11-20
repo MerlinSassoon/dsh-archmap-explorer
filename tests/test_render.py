@@ -161,8 +161,8 @@ def test_render_contains_provider_roles_and_type_cards() -> None:
 def test_render_includes_context_manager_provider_semantics() -> None:
     repo_root = Path(__file__).parent.parent
     bundle = build_architecture(
-        repo_root / "Projects" / "student_system",
-        repo_root / "examples" / "student_system.archmap.json",
+        repo_root / "examples" / "student_system",
+        repo_root / "examples" / "student_system" / "archmap.config.json",
     )
     html = render_html(bundle)
     assert "with Spinner(message: str='加载中')" in html

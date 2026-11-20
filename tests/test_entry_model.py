@@ -56,8 +56,8 @@ def test_student_flow_entries_are_not_provider_roles() -> None:
     """Student flow entrypoints remain function facts without entry provider role."""
 
     bundle = build_architecture(
-        REPO_ROOT / "Projects" / "student_system",
-        REPO_ROOT / "examples" / "student_system.archmap.json",
+        REPO_ROOT / "examples" / "student_system",
+        REPO_ROOT / "examples" / "student_system" / "archmap.config.json",
     )
     main = next(
         item for item in bundle["functionDetails"]
@@ -106,8 +106,8 @@ def test_entrypoints_are_flow_facts_not_module_capability_roles() -> None:
     """Flow entrypoints keep source ownership but no module-level entry role."""
 
     bundle = build_architecture(
-        REPO_ROOT / "Projects" / "student_system",
-        REPO_ROOT / "examples" / "student_system.archmap.json",
+        REPO_ROOT / "examples" / "student_system",
+        REPO_ROOT / "examples" / "student_system" / "archmap.config.json",
     )
     for graph in bundle["moduleGraphs"]:
         assert "entry" not in graph["moduleComposition"]

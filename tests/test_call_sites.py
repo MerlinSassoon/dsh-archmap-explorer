@@ -33,8 +33,8 @@ def test_nested_calls_in_conditions_are_collected() -> None:
 
 
 def test_context_manager_calls_are_annotated_without_marking_plain_instantiation() -> None:
-    config = REPO_ROOT / "examples" / "student_system.archmap.json"
-    bundle = build_architecture(REPO_ROOT / "Projects" / "student_system", config)
+    config = REPO_ROOT / "examples" / "student_system" / "archmap.config.json"
+    bundle = build_architecture(REPO_ROOT / "examples" / "student_system", config)
     spinner_call = next(
         site for site in bundle["callSites"]
         if site["fromFunctionId"] == "fn:student_system.app.main.server"

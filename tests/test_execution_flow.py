@@ -68,8 +68,8 @@ def test_execution_flow_does_not_expand_interface_internals() -> None:
 
 
 def test_student_system_execution_flow_keeps_free_functions_opaque() -> None:
-    config = REPO_ROOT / "examples" / "student_system.archmap.json"
-    bundle = build_architecture(REPO_ROOT / "Projects" / "student_system", config)
+    config = REPO_ROOT / "examples" / "student_system" / "archmap.config.json"
+    bundle = build_architecture(REPO_ROOT / "examples" / "student_system", config)
     flow = _execution_flow(bundle, "fn:student_system.app.main.main")
     nodes = {node["id"]: node for node in flow["nodes"]}
     labels = {node["label"] for node in flow["nodes"]}

@@ -98,8 +98,8 @@ def test_empty_capability_modules_do_not_create_project_grid_holes() -> None:
 
     repo_root = Path(__file__).parent.parent
     bundle = build_architecture(
-        repo_root / "Projects" / "student_system",
-        repo_root / "examples" / "student_system.archmap.json",
+        repo_root / "examples" / "student_system",
+        repo_root / "examples" / "student_system" / "archmap.config.json",
     )
     project = bundle["projectGraph"]
     layout = project["layout"]
