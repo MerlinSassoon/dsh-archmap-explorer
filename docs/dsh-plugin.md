@@ -5,7 +5,7 @@
 > 目标 DSH：`0.2.2-rc.1`<br>
 > Python 核心：随 npm 包分发，要求 Python 3.10+<br>
 > 许可证：MIT<br>
-> 当前交接：[HANDOFF-DSH-PLUGIN-0.2.2.md](HANDOFF-DSH-PLUGIN-0.2.2.md)
+> 当前交接：[HANDOFF-DSH-PLUGIN-0.2.2.md](HANDOFF-DSH-PLUGIN-0.2.2.md) / [分发与收录](HANDOFF-2026-11-20-曝光与分发.md)
 
 ## 1. 定位
 
@@ -316,7 +316,7 @@ architecture.html：注解文本已渲染
 
 其中 100 个注解节点为“项目 1 + 模块 5 + 函数 94”，不是 100 个函数。
 
-详细记录见 [`2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md`](2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md)。
+详细记录见 [`旧文档/11月20日/2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md`](旧文档/11月20日/2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md)。
 
 live smoke 同时发现以下后续问题，不能把主链路通过等同于所有验收边界通过：
 
@@ -356,7 +356,14 @@ live smoke 同时发现以下后续问题，不能把主链路通过等同于所
 - `llm-annotations.json` 结构保持兼容；sourceHash 过期机器注解可在 stale 模式下刷新。
 - 已发布标签 `dsh-plugin-v0.1.0` 不移动。
 
-## 13. 0.2.0 → 0.2.1 增量说明
+## 13. 0.2.1 → 0.2.2 增量说明
+
+0.2.2 是分发型版本：`prepare` 改为 `prepack`，安装阶段不再执行任何生命周期脚本，
+因此 `dsh plugin add github:...` 不再需要 pnpm 的 `onlyBuiltDependencies` 授权。
+Python 核心（2.6.1）、bundle schema（6.4）与四个工具的契约均未变化。
+详见 [`HANDOFF-DSH-PLUGIN-0.2.2.md`](HANDOFF-DSH-PLUGIN-0.2.2.md)。
+
+## 14. 0.2.0 → 0.2.1 增量说明
 
 0.2.1 不改变 bundle schema，仍为 `6.4`，也不改变 Python 分析结果和 DSH 工具契约；变化集中在模块能力页渲染和信息架构。
 

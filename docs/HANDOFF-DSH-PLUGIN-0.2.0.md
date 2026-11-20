@@ -135,7 +135,7 @@ PYTHONPATH=<profile>/node_modules/dsh-archmap-explorer python3 -m archmap --vers
 
 2026-11-19 已在 DSH 0.2.2-rc.1 + minimal preset + `deepseek-official / deepseek-flash` 会话中完成真实宿主模型 live smoke。详细记录见：
 
-- [2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md](2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md)
+- [2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md](旧文档/11月20日/2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md)
 
 主链路验证结果：
 

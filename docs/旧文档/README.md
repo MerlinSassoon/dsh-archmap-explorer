@@ -1,7 +1,7 @@
 # ArchMap 旧文档归档
 
-> 最近归档日期：2026-11-19<br>
-> 当前版本：ArchMap 2.5.0 / bundle schema 6.4
+> 最近归档日期：2026-11-20<br>
+> 当前版本：ArchMap 2.6.1 / DSH 插件 0.2.2 / bundle schema 6.4
 
 本目录封存 ArchMap 各阶段的**过程文档、历史设计、旧交接、迁移记录、旧验收和旧原型**。
 这些材料用于追溯需求演进、设计取舍和验证历史，不代表当前产品契约。
@@ -16,6 +16,7 @@
 - [archmap-code-conventions](../archmap-code-conventions.md)
 - [当前 bundle schema 6.4](../schema/archmap-v6.4-bundle.schema.json)
 - [DSH 插件使用文档](../dsh-plugin.md)
+- [DSH 插件 0.2.2 交接](../HANDOFF-DSH-PLUGIN-0.2.2.md)
 - [DSH 插件 0.1.0 交接](../HANDOFF-DSH-PLUGIN-0.1.0.md)
 
 ## README 过程内容归档
@@ -52,6 +53,16 @@
 | [`11月9日/HANDOFF-P9.md`](11月9日/HANDOFF-P9.md) | P9 阶段交接：schema 6.2 与验收基线 |
 | [`11月9日/HANDOFF-P10.md`](11月9日/HANDOFF-P10.md) | P10 阶段交接：一级接口 scope、控制臂语义、自动发现与 schema 6.3 |
 | [`11月9日/HANDOFF-P11.md`](11月9日/HANDOFF-P11.md) | P11 阶段交接：dispatch 候选旅程、双预算、schema 6.4 与浏览器回归 |
+
+### 11月20日批次
+
+| 文档 | 内容 |
+|---|---|
+| [`11月20日/2026-11-19-dsh-archmap-explorer-真实使用复盘.md`](11月20日/2026-11-19-dsh-archmap-explorer-真实使用复盘.md) | 真实开发会话的工具调用统计、P0/P1 问题清单与根因归纳 |
+| [`11月20日/2026-11-19-dsh-archmap-explorer-改进计划.md`](11月20日/2026-11-19-dsh-archmap-explorer-改进计划.md) | 由复盘派生的 P0–P2 工作包、里程碑、测试矩阵与实施进度 |
+| [`11月20日/2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md`](11月20日/2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md) | 真实 DSH 宿主模型上的 live smoke 执行记录与边界 |
+| [`11月20日/2026-11-20-dsh-archmap-explorer-曝光规划.md`](11月20日/2026-11-20-dsh-archmap-explorer-曝光规划.md) | 渠道矩阵、G0–G4 漏斗、四阶段节奏与门面文案草案 |
+| [`11月20日/README.md`](11月20日/README.md) | 本批次归档说明、归档原因与「仍留在当前工作区」的文档 |
 
 ## 其他归档文档
 

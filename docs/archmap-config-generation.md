@@ -8,7 +8,7 @@ user-invocable: true
 # ArchMap 配置生成 Skill（archmap-config-generation）
 
 > 适用对象：为 Python 项目生成或维护 `archmap.config.json` 的 AI 编码模型、脚本和维护者<br>
-> 适用版本：ArchMap 2.6.0 / bundle schema 6.4<br>
+> 适用版本：ArchMap 2.6.1 / bundle schema 6.4<br>
 > 输入：项目源码、现有 README / 领域文档、可选旧配置<br>
 > 输出：可被 `archmap build` 和 `archmap check` 稳定验证的模块配置
 

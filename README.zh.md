@@ -426,7 +426,7 @@ dsh --profile web --dump-config-schema
 
 两份 Skill 正文直接读取包内权威文档。配置生成 Skill 缺失或为空时，插件加载失败。
 
-详细架构、配置、错误处理和验收命令见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。发布状态、验证边界和后续维护事项见 [`docs/HANDOFF-DSH-PLUGIN-0.2.1.md`](docs/HANDOFF-DSH-PLUGIN-0.2.1.md)；0.2.0 与 0.1.0 交接作为历史保留。
+详细架构、配置、错误处理和验收命令见 [`docs/dsh-plugin.md`](docs/dsh-plugin.md)。发布状态、验证边界和后续维护事项见 [`docs/HANDOFF-DSH-PLUGIN-0.2.2.md`](docs/HANDOFF-DSH-PLUGIN-0.2.2.md)，分发与收录进度见 [`docs/HANDOFF-2026-11-20-曝光与分发.md`](docs/HANDOFF-2026-11-20-曝光与分发.md)；0.2.1、0.2.0 与 0.1.0 交接作为历史保留。
 
 ## 当前边界
 
