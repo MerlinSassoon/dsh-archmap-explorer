@@ -5,7 +5,7 @@
 > 目标 DSH：`0.2.2-rc.1`<br>
 > Python 核心：随 npm 包分发，要求 Python 3.10+<br>
 > 许可证：MIT<br>
-> 当前交接：[HANDOFF-DSH-PLUGIN-0.2.2.md](HANDOFF-DSH-PLUGIN-0.2.2.md) / [分发与收录](HANDOFF-2026-11-20-曝光与分发.md)
+> 当前交接：[HANDOFF-DSH-PLUGIN-0.2.2.md](HANDOFF-DSH-PLUGIN-0.2.2.md) / [分发与收录状态](distribution-status.md)
 
 社区目录：已在 [awesome-dsh-plugin](https://awesome-dsh-plugin.com/p/MerlinSassoon/dsh-archmap-explorer/) 收录。
 目录网页和 `plugins.json` 可用；DSH Discover / `plugin_market` 的 `index.json` 只收 npm 上

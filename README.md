@@ -165,7 +165,9 @@ If an answer looks certain but the analysis could not see the call, the tool is 
 
 ## Documentation
 
+- [docs/README.md](docs/README.md) — documentation map: current contracts, history and boundaries
 - [README.zh.md](README.zh.md) — full Chinese documentation (configuration, contracts, plugin internals)
+- [docs/distribution-status.md](docs/distribution-status.md) — verified distribution and listing status
 - [docs/archmap-v3-design.md](docs/archmap-v3-design.md) — design and data model
 - [docs/dsh-plugin.md](docs/dsh-plugin.md) — plugin architecture, errors, acceptance commands
 - [docs/schema/archmap-v6.4-bundle.schema.json](docs/schema/archmap-v6.4-bundle.schema.json) — bundle schema

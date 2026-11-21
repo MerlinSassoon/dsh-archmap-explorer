@@ -370,7 +370,7 @@ BREAK 是循环体内终止标记，无出边。
 
 ## 9. 数据契约
 
-P11 当前 bundle schema 为 6.4，JSON Schema 位于 [`docs/schema/archmap-v6.4-bundle.schema.json`](schema/archmap-v6.4-bundle.schema.json)。6.3 / 6.2 / 6.1 / 6.0 与 P5 的 4.1 schema 保留供历史追溯。
+P11 当前 bundle schema 为 6.4，JSON Schema 位于 [`docs/schema/archmap-v6.4-bundle.schema.json`](../../schema/archmap-v6.4-bundle.schema.json)。6.3 / 6.2 / 6.1 / 6.0 与 P5 的 4.1 schema 保留供历史追溯。
 
 新增：
 

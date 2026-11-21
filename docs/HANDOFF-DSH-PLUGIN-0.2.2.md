@@ -11,7 +11,7 @@
 
 0.2.2 是**分发型版本**，不新增工具、不改变 Python 分析结果、不改变 bundle schema。
 
-起因：npm 账号注册被风控阻断，短期无法通过 npm 分发。GitHub 直装又被 pnpm 10 的
+起因：npm 发布暂不可用，短期无法通过 npm 分发。GitHub 直装又被 pnpm 10 的
 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` 拦住，必须让用户手工改 `pnpm-workspace.yaml`。
 这个手工步骤是安装路径上最大的流失点，与本版要解决的问题直接冲突。
 
@@ -48,7 +48,7 @@ dsh plugin add github:MerlinSassoon/dsh-archmap-explorer
 # 2) 预构建 tarball（Release 附件，安装最快）
 dsh plugin add https://github.com/MerlinSassoon/dsh-archmap-explorer/releases/latest/download/dsh-archmap-explorer.tgz
 
-# 3) npm（账号可用后恢复）
+# 3) npm（发布可用后恢复）
 dsh plugin add dsh-archmap-explorer
 ```
 
@@ -97,10 +97,10 @@ PYTHONPATH=<profile>/node_modules/dsh-archmap-explorer python3 -m archmap --vers
 npm 仍是长期最优分发方式（Discover 索引按 npm 已发布版本收录、可显示下载量）。
 本版不依赖 npm，但不阻止后续发布：
 
-- npm 账号可用后，`npm publish` 同一个 0.2.2 即可，无需改代码；
+- npm 发布可用后，`npm publish` 同一个 0.2.2 即可，无需改代码；
 - 届时把 `github:` 安装命令降级为备选，主推 `dsh plugin add dsh-archmap-explorer`。
 
 ## 8. 待办
 
-- 英文 UI：方法详情页的界面文案仍为中文（见[曝光规划 §8](旧文档/11月20日/2026-11-20-dsh-archmap-explorer-曝光规划.md) 决策项）。
+- 英文 UI：方法详情页的界面文案仍为中文（历史曝光规划中的对应决策项已转为本地维护资料）。
 - `main()` 一类函数的 `unresolved` 被调数量偏高，属 P1-1 属性链解析，曝光前评估是否需要先修。

@@ -429,7 +429,7 @@ Bundle 顶层：
 - 构造函数、dunder、下划线内部方法不进入普通方法 API；
 - `__init__` 只作为类 `usage.constructor`；
 - `projectGraph.layout.mode = "module-cards"`，项目页默认不渲染依赖路径；
-- 契约模型详细说明见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
+- 契约模型详细说明见 [`archmap-api-contract-model.md`](../archmap-api-contract-model.md)。
 
 ### 5.1.1 Provider Role 与模块组合
 
@@ -735,7 +735,7 @@ ArkTS 的 length / index signature
 - 浏览器冒烟测试通过；
 - `archmap check` 通过。
 
-详细契约见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
+详细契约见 [`archmap-api-contract-model.md`](../archmap-api-contract-model.md)。
 
 ## 8. P2.2：Provider Role 与模块组合（已完成）
 
@@ -992,7 +992,7 @@ archmap/
 
 ### 9.6 实现记录（2026-11-17）
 
-- 新增 [`archmap-architecture-spec.md`](archmap-architecture-spec.md)，冻结四类物理文件、八角色逻辑语义、依赖方向与可见性规则；迁移细节见 [`p2.3-migration-plan.md`](p2.3-migration-plan.md)；
+- 新增 [`archmap-architecture-spec.md`](../archmap-architecture-spec.md)，冻结四类物理文件、八角色逻辑语义、依赖方向与可见性规则；迁移细节见 [`p2.3-migration-plan.md`](p2.3-migration-plan.md)；
 - 将实现迁移为 `config/model/utility/managers/entry` 目录；
 - 保留旧模块路径作为 import shim；
 - 自举配置更新为 5 个逻辑模块并排除 shim；

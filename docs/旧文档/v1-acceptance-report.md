@@ -2,7 +2,7 @@
 
 > **归档状态（2026-11-17）**：本文档记录 v1 验收结果，其中函数执行流页面、ENTRY/EXIT、step/branch/loop 和旧布局覆盖均已在 P1.5 移除。当前状态见 [P2–P4 交接](HANDOFF-P2-P4.md) 与 [文档索引](README.md)。
 >
-> **当前契约更新**：当前 API 契约以 [`archmap-api-contract-model.md`](archmap-api-contract-model.md) 为准；P2.2 Provider Role（config/model/manager/entry/...）与 P2.3 ArchMap 自身分层重构已批准，详见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
+> **当前契约更新**：当前 API 契约以 [`archmap-api-contract-model.md`](../archmap-api-contract-model.md) 为准；P2.2 Provider Role（config/model/manager/entry/...）与 P2.3 ArchMap 自身分层重构已批准，详见 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md)。
 
 日期：2026-11-15
 样例：`student_system`

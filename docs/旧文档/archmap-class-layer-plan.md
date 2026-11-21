@@ -1,6 +1,6 @@
 # ArchMap 类语义层设计与实施计划
 
-> **当前产品决策（2026-11-17）**：类焦点页与类内方法图不再计划。类只作为 Provider，通过类卡片和右栏展示构造签名与 `providedApis`。本文中的类焦点页内容保留为历史设计，当前契约见 [`archmap-api-contract-model.md`](archmap-api-contract-model.md)。
+> **当前产品决策（2026-11-17）**：类焦点页与类内方法图不再计划。类只作为 Provider，通过类卡片和右栏展示构造签名与 `providedApis`。本文中的类焦点页内容保留为历史设计，当前契约见 [`archmap-api-contract-model.md`](../archmap-api-contract-model.md)。
 
 > 状态：历史设计 + 当前契约边界（P2.1 已完成；类焦点页不再计划）<br>
 > 日期：2026-11-16；最后核对：2026-11-17<br>
@@ -8,7 +8,7 @@
 >
 > 结论：类应成为模块内的一等语义容器；类本身不是执行流节点，方法才是。
 >
-> **当前术语**：Phase 0/1 与 P1.5 已完成；P1.5 后默认产品使用 **Method Detail**，语句级 FunctionFlow 已移除。本文中保留的 FunctionFlow 内容仅用于解释当时的设计演进，当前契约以 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 和 [`archmap-v3-design.md`](archmap-v3-design.md) 为准。
+> **当前术语**：Phase 0/1 与 P1.5 已完成；P1.5 后默认产品使用 **Method Detail**，语句级 FunctionFlow 已移除。本文中保留的 FunctionFlow 内容仅用于解释当时的设计演进，当前契约以 [`HANDOFF-P2-P4.md`](HANDOFF-P2-P4.md) 和 [`archmap-v3-design.md`](../archmap-v3-design.md) 为准。
 
 ## 1. 设计结论
 

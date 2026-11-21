@@ -9,6 +9,8 @@
 ## 当前权威文档
 
 - [项目 README](../../README.md)
+- [文档地图](../README.md)
+- [分发与收录状态](../distribution-status.md)
 - [数据与扩展设计](../archmap-v3-design.md)
 - [架构与编码规范](../archmap-architecture-spec.md)
 - [API 契约模型](../archmap-api-contract-model.md)
@@ -61,8 +63,9 @@
 | [`11月20日/2026-11-19-dsh-archmap-explorer-真实使用复盘.md`](11月20日/2026-11-19-dsh-archmap-explorer-真实使用复盘.md) | 真实开发会话的工具调用统计、P0/P1 问题清单与根因归纳 |
 | [`11月20日/2026-11-19-dsh-archmap-explorer-改进计划.md`](11月20日/2026-11-19-dsh-archmap-explorer-改进计划.md) | 由复盘派生的 P0–P2 工作包、里程碑、测试矩阵与实施进度 |
 | [`11月20日/2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md`](11月20日/2026-11-19-dsh-archmap-explorer-live-smoke-验证记录.md) | 真实 DSH 宿主模型上的 live smoke 执行记录与边界 |
-| [`11月20日/2026-11-20-dsh-archmap-explorer-曝光规划.md`](11月20日/2026-11-20-dsh-archmap-explorer-曝光规划.md) | 渠道矩阵、G0–G4 漏斗、四阶段节奏与门面文案草案 |
 | [`11月20日/README.md`](11月20日/README.md) | 本批次归档说明、归档原因与「仍留在当前工作区」的文档 |
+
+> 曝光规划、分发手账与收录操作清单属于维护者运营资料，现已移入本地 `.local-docs/`，不再随公共仓库分发。
 
 ## 其他归档文档
 

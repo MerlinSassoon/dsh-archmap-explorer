@@ -58,6 +58,17 @@ and the code have to move together.
   the surrounding UI until the English UI lands.
 - Add a test for every behaviour change; `tests/` mirrors `archmap/` by module.
 
+## Documentation boundaries
+
+- Public docs live in `README.md`, `README.zh.md` and `docs/`. Keep current
+  contracts in the authoritative files listed by [docs/README.md](docs/README.md).
+- Historical material belongs under `docs/旧文档/` and must state that it is not
+  the current contract.
+- Credentials, account operations, outreach tracking and internal schedules are
+  local-only under `.local-docs/`; that directory is git-ignored and must never
+  be committed. Public distribution facts belong in
+  [docs/distribution-status.md](docs/distribution-status.md).
+
 ## Reporting bugs
 
 Include the command, the configuration, `archmap --version`, and either a
