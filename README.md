@@ -4,6 +4,7 @@
 
 [![Live demo](https://img.shields.io/badge/demo-open%20a%20real%20project-2ea44f?style=flat-square)](https://merlinsassoon.github.io/dsh-archmap-explorer/)
 [![CI](https://github.com/MerlinSassoon/dsh-archmap-explorer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MerlinSassoon/dsh-archmap-explorer/actions/workflows/ci.yml)
+[![awesome-dsh-plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/MerlinSassoon/dsh-archmap-explorer/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776ab?style=flat-square)
 ![Dependencies](https://img.shields.io/badge/runtime%20deps-none-brightgreen?style=flat-square)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
@@ -125,6 +126,8 @@ Full rules, decision tables and checklists live in [docs/archmap-config-generati
 ## DSH plugin
 
 ArchMap also ships as a DSH bundle. The plugin only bridges DSH tools to the bundled Python core — AST work, graph projection, validation and HTML rendering stay in Python.
+
+It is listed in the community [awesome-dsh-plugin](https://awesome-dsh-plugin.com/p/MerlinSassoon/dsh-archmap-explorer/) directory.
 
 ```bash
 dsh plugin --profile web add github:MerlinSassoon/dsh-archmap-explorer

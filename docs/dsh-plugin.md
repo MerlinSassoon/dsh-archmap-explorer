@@ -7,6 +7,10 @@
 > 许可证：MIT<br>
 > 当前交接：[HANDOFF-DSH-PLUGIN-0.2.2.md](HANDOFF-DSH-PLUGIN-0.2.2.md) / [分发与收录](HANDOFF-2026-11-20-曝光与分发.md)
 
+社区目录：已在 [awesome-dsh-plugin](https://awesome-dsh-plugin.com/p/MerlinSassoon/dsh-archmap-explorer/) 收录。
+目录网页和 `plugins.json` 可用；DSH Discover / `plugin_market` 的 `index.json` 只收 npm 上
+有明确版本的条目，因此在 npm 发布前不要声称可从 Discover 搜到。
+
 ## 1. 定位
 
 `dsh-archmap-explorer` 是 ArchMap Python 核心的 DSH 薄桥接层：

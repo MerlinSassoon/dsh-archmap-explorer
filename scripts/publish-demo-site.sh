@@ -27,8 +27,11 @@ cd "$TMP"
 git init -q -b gh-pages
 cp -r "$SITE"/. .
 git add -A
-git -c user.name="${GIT_AUTHOR_NAME:-dsh-archmap}" \
-    -c user.email="${GIT_AUTHOR_EMAIL:-noreply@users.noreply.github.com}" \
+# Keep generated gh-pages commits linked to the repository owner instead of
+# creating a second, unlinked "noreply" contributor on GitHub. Override with
+# GIT_AUTHOR_NAME / GIT_AUTHOR_EMAIL when publishing from another account.
+git -c user.name="${GIT_AUTHOR_NAME:-MerlinSassoon}" \
+    -c user.email="${GIT_AUTHOR_EMAIL:-249658116+MerlinSassoon@users.noreply.github.com}" \
     commit -q -m "site: publish demo build ($(date -u +%Y-%m-%dT%H:%MZ))"
 
 echo "prepared $(git rev-parse --short HEAD) with $(find . -name '*.html' | wc -l) html files"

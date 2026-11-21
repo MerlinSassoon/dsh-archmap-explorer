@@ -4,6 +4,7 @@
 
 [![在线演示](https://img.shields.io/badge/demo-%E5%9C%A8%E7%BA%BF%E8%AF%95%E7%8E%A9-2ea44f?style=flat-square)](https://merlinsassoon.github.io/dsh-archmap-explorer/)
 [![CI](https://github.com/MerlinSassoon/dsh-archmap-explorer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MerlinSassoon/dsh-archmap-explorer/actions/workflows/ci.yml)
+[![awesome-dsh-plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/MerlinSassoon/dsh-archmap-explorer/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776ab?style=flat-square)
 ![依赖](https://img.shields.io/badge/%E8%BF%90%E8%A1%8C%E6%97%B6%E4%BE%9D%E8%B5%96-%E6%97%A0-brightgreen?style=flat-square)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
@@ -367,6 +368,8 @@ stats
 ## DSH 插件：dsh-archmap-explorer
 
 ArchMap 同时提供 DSH bundle 插件。插件只做 DSH 适配、宿主模型调用和 Python 子进程桥接；AST、图投影、校验、注解合法性和 HTML 渲染仍由随包分发的 Python 核心完成。
+
+本插件已被社区目录 [awesome-dsh-plugin 收录](https://awesome-dsh-plugin.com/p/MerlinSassoon/dsh-archmap-explorer/)。
 
 ```text
 npm 包名：dsh-archmap-explorer（尚未发布到 npm，当前用 GitHub 或 Release tarball 安装）
